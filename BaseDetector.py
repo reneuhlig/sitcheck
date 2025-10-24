@@ -3,19 +3,19 @@ from typing import Any, Dict
 
 
 class BaseDetector(ABC):
-    """Abstrakte Basisklasse für alle KI-Detektoren"""
+    """Abstrakte Basisklasse für KI-Detektoren"""
     
     def __init__(self, model_name: str, model_version: str = None):
         self.model_name = model_name
         self.model_version = model_version or "unknown"
         
     @abstractmethod
-    def detect(self, image_path: str) -> Dict[str, Any]:
+    def detect(self, image) -> Dict[str, Any]:
         """
         Führt Detection auf einem Bild durch
         
         Args:
-            image_path: Pfad zum Bild
+            image: OpenCV Bildobjekt (numpy array)
             
         Returns:
             Dictionary mit Erkennungsergebnissen
