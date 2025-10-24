@@ -8,6 +8,7 @@ import time
 from typing import Dict, List, Tuple
 from datetime import datetime, timedelta
 import statistics
+from decimal import Decimal
 from DatabaseHandler import DatabaseHandler
 
 
@@ -105,9 +106,9 @@ class TimeSeriesAnalyzer:
         """
         x_persons = pair['x_persons']
         y_persons = pair['y_persons']
-        x_conf = pair['x_confidence'] or 0.0
-        y_conf = pair['y_confidence'] or 0.0
-        time_diff = abs(pair['time_diff'])
+        x_conf = float(pair['x_confidence']) if pair['x_confidence'] is not None else 0.0
+        y_conf = float(pair['y_confidence']) if pair['y_confidence'] is not None else 0.0
+        time_diff = float(abs(pair['time_diff']))
         
         # Qualitätsprüfung
         if x_conf < self.confidence_threshold or y_conf < self.confidence_threshold:
@@ -230,11 +231,11 @@ class TimeSeriesAnalyzer:
             if row and row[0] > 0:
                 return {
                     'total_correlations': row[0],
-                    'avg_persons': round(row[1], 2) if row[1] else 0,
+                    'avg_persons': round(float(row[1]), 2) if row[1] else 0,
                     'min_persons': row[2] or 0,
                     'max_persons': row[3] or 0,
-                    'avg_confidence': round(row[4], 3) if row[4] else 0,
-                    'avg_time_diff': round(row[5], 3) if row[5] else 0
+                    'avg_confidence': round(float(row[4]), 3) if row[4] else 0,
+                    'avg_time_diff': round(float(row[5]), 3) if row[5] else 0
                 }
             else:
                 return {'message': 'Keine Daten im angegebenen Zeitraum'}

@@ -51,6 +51,99 @@ def download_sample_image(url: str, output_path: str) -> bool:
         return False
 
 
+def test_with_image(image_path: str, confidence_threshold: float = 0.5, 
+                   save_result: bool = False, verbose: bool = True) -> bool:
+    """
+    Testet Personenerkennung mit einem Bild
+    
+    Args:
+        image_path: Pfad zum Bild
+        confidence_threshold: Konfidenz-Schwelle
+        save_result: Ob das Ergebnis-Bild gespeichert werden soll
+        verbose: Detaillierte Ausgabe
+    """
+    if verbose:
+        print(f"\n{'='*80}")
+        print(f"🔍 PERSONENERKENNUNG TEST")
+        print(f"{'='*80}")
+        print(f"  Bild: {image_path}")
+        print(f"  Konfidenz-Schwelle: {confidence_threshold}")
+        print(f"{'='*80}\n")
+    
+    # Bild laden
+    img = cv2.imread(image_path)
+    if img is None:
+        print(f"✗ Fehler: Bild konnte nicht geladen werden: {image_path}")
+        return False
+    
+    if verbose:
+        print(f"✓ Bild geladen: {img.shape[1]}x{img.shape[0]} px")
+    
+    # Detector initialisieren
+    if verbose:
+        print("🚀 Initialisiere YOLO-Modell...")
+    detector = UltralyticsPersonDetector(confidence_threshold=confidence_threshold)
+    if verbose:
+        print("✓ Modell geladen")
+    
+    # Detection durchführen
+    if verbose:
+        print("\n🔍 Führe Personenerkennung durch...")
+    result = detector.detect(img)
+    
+    # Ergebnisse anzeigen
+    if verbose:
+        print(f"\n{'='*80}")
+        print(f"📊 ERGEBNISSE")
+        print(f"{'='*80}")
+    print(f"  Erkannte Personen: {result['persons_detected']}")
+    
+    if result['persons_detected'] > 0:
+        print(f"  Durchschnittliche Konfidenz: {result['avg_confidence']:.3f}")
+        print(f"  Maximale Konfidenz: {result['max_confidence']:.3f}")
+        print(f"  Minimale Konfidenz: {result['min_confidence']:.3f}")
+        
+        if verbose:
+            print(f"\n  Details zu jeder Person:")
+            for i, person in enumerate(result['persons'], 1):
+                bbox = person['bbox']
+                conf = person['confidence']
+                print(f"    Person {i}: Konfidenz={conf:.3f}, "
+                      f"Position=[x:{bbox[0]:.0f}, y:{bbox[1]:.0f}, "
+                      f"w:{bbox[2]-bbox[0]:.0f}, h:{bbox[3]-bbox[1]:.0f}]")
+    else:
+        print("  ⚠️  Keine Personen erkannt")
+        if 'error' in result:
+            print(f"  Fehler: {result['error']}")
+    
+    # Ergebnis-Bild speichern
+    if save_result and result['persons_detected'] > 0:
+        output_path = str(Path(image_path).parent / f"result_{Path(image_path).name}")
+        
+        # Zeichne Bounding Boxes
+        result_img = img.copy()
+        for person in result['persons']:
+            bbox = person['bbox']
+            conf = person['confidence']
+            
+            # Box zeichnen
+            x1, y1, x2, y2 = map(int, bbox)
+            cv2.rectangle(result_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            
+            # Label zeichnen
+            label = f"Person: {conf:.2f}"
+            cv2.putText(result_img, label, (x1, y1 - 10),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        
+        cv2.imwrite(output_path, result_img)
+        print(f"\n✓ Ergebnis-Bild gespeichert: {output_path}")
+    
+    if verbose:
+        print(f"{'='*80}\n")
+    
+    return result['persons_detected'] > 0
+
+
 def test_timeseries_analysis(db_config: dict, num_test_pairs: int = 5):
     """
     Testet die Zeitreihenanalyse mit simulierten Detections
@@ -326,95 +419,6 @@ def test_full_pipeline(db_config: dict, image_path: str, confidence_threshold: f
     else:
         print("\n✗ Keine korrelierten Ergebnisse gefunden")
         return False
-    """
-    Testet Personenerkennung mit einem Bild
-    
-    Args:
-        image_path: Pfad zum Bild
-        confidence_threshold: Konfidenz-Schwelle
-        save_result: Ob das Ergebnis-Bild gespeichert werden soll
-        verbose: Detaillierte Ausgabe
-    """
-    if verbose:
-        print(f"\n{'='*80}")
-        print(f"🔍 PERSONENERKENNUNG TEST")
-        print(f"{'='*80}")
-        print(f"  Bild: {image_path}")
-        print(f"  Konfidenz-Schwelle: {confidence_threshold}")
-        print(f"{'='*80}\n")
-    
-    # Bild laden
-    img = cv2.imread(image_path)
-    if img is None:
-        print(f"✗ Fehler: Bild konnte nicht geladen werden: {image_path}")
-        return False
-    
-    if verbose:
-        print(f"✓ Bild geladen: {img.shape[1]}x{img.shape[0]} px")
-    
-    # Detector initialisieren
-    if verbose:
-        print("🚀 Initialisiere YOLO-Modell...")
-    detector = UltralyticsPersonDetector(confidence_threshold=confidence_threshold)
-    if verbose:
-        print("✓ Modell geladen")
-    
-    # Detection durchführen
-    if verbose:
-        print("\n🔍 Führe Personenerkennung durch...")
-    result = detector.detect(img)
-    
-    # Ergebnisse anzeigen
-    if verbose:
-        print(f"\n{'='*80}")
-        print(f"📊 ERGEBNISSE")
-        print(f"{'='*80}")
-    print(f"  Erkannte Personen: {result['persons_detected']}")
-    
-    if result['persons_detected'] > 0:
-        print(f"  Durchschnittliche Konfidenz: {result['avg_confidence']:.3f}")
-        print(f"  Maximale Konfidenz: {result['max_confidence']:.3f}")
-        print(f"  Minimale Konfidenz: {result['min_confidence']:.3f}")
-        
-        if verbose:
-            print(f"\n  Details zu jeder Person:")
-            for i, person in enumerate(result['persons'], 1):
-                bbox = person['bbox']
-                conf = person['confidence']
-                print(f"    Person {i}: Konfidenz={conf:.3f}, "
-                      f"Position=[x:{bbox[0]:.0f}, y:{bbox[1]:.0f}, "
-                      f"w:{bbox[2]-bbox[0]:.0f}, h:{bbox[3]-bbox[1]:.0f}]")
-    else:
-        print("  ⚠️  Keine Personen erkannt")
-        if 'error' in result:
-            print(f"  Fehler: {result['error']}")
-    
-    # Ergebnis-Bild speichern
-    if save_result and result['persons_detected'] > 0:
-        output_path = str(Path(image_path).parent / f"result_{Path(image_path).name}")
-        
-        # Zeichne Bounding Boxes
-        result_img = img.copy()
-        for person in result['persons']:
-            bbox = person['bbox']
-            conf = person['confidence']
-            
-            # Box zeichnen
-            x1, y1, x2, y2 = map(int, bbox)
-            cv2.rectangle(result_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            
-            # Label zeichnen
-            label = f"Person: {conf:.2f}"
-            cv2.putText(result_img, label, (x1, y1 - 10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
-        cv2.imwrite(output_path, result_img)
-        print(f"\n✓ Ergebnis-Bild gespeichert: {output_path}")
-    
-    if verbose:
-        print(f"{'='*80}\n")
-    
-    return result['persons_detected'] > 0
 
 
 def main():
@@ -432,8 +436,29 @@ def main():
                        help='Speichere Ergebnis-Bild mit Bounding Boxes')
     parser.add_argument('--list-samples', action='store_true',
                        help='Zeige verfügbare Beispielbilder')
+    parser.add_argument('--test-timeseries', action='store_true',
+                       help='Teste nur Zeitreihenanalyse')
+    parser.add_argument('--test-full-pipeline', action='store_true',
+                       help='Teste komplette Pipeline (Detection + Zeitreihenanalyse)')
+    parser.add_argument('--num-pairs', type=int, default=5,
+                       help='Anzahl Test-Paare für Zeitreihenanalyse')
+    
+    # Datenbank-Argumente
+    parser.add_argument('--db-host', default='localhost', help='PostgreSQL Host')
+    parser.add_argument('--db-user', default='aiuser', help='PostgreSQL Benutzer')
+    parser.add_argument('--db-password', default='DHBW1234!?', help='PostgreSQL Passwort')
+    parser.add_argument('--db-name', default='ai_detection', help='PostgreSQL Datenbank')
+    parser.add_argument('--db-port', type=int, default=5432, help='PostgreSQL Port')
     
     args = parser.parse_args()
+    
+    db_config = {
+        'host': args.db_host,
+        'user': args.db_user,
+        'password': args.db_password,
+        'database': args.db_name,
+        'port': args.db_port
+    }
     
     # Liste Beispielbilder
     if args.list_samples:
@@ -442,6 +467,11 @@ def main():
             print(f"  {name}: {url}")
         print("\nVerwendung: python3 test_with_real_image.py --sample <name>")
         return
+    
+    # Nur Zeitreihenanalyse testen
+    if args.test_timeseries:
+        success = test_timeseries_analysis(db_config, args.num_pairs)
+        sys.exit(0 if success else 1)
     
     # Beispielbild herunterladen
     if args.sample:
@@ -453,13 +483,17 @@ def main():
         if not download_sample_image(SAMPLE_IMAGES[args.sample], image_path):
             sys.exit(1)
         
-        success = test_with_image(image_path, args.confidence, args.save_result)
+        if args.test_full_pipeline:
+            success = test_full_pipeline(db_config, image_path, args.confidence)
+        else:
+            success = test_with_image(image_path, args.confidence, args.save_result)
         
-        if not success:
+        if not success and not args.test_full_pipeline:
             print("⚠️  Keine Personen erkannt. Versuche niedrigere Konfidenz-Schwelle:")
             print(f"    python3 {sys.argv[0]} --sample {args.sample} --confidence 0.3")
         
-        sys.exit(0 if success else 1)    
+        sys.exit(0 if success else 1)
+    
     # Eigenes Bild testen
     if args.image:
         if not Path(args.image).exists():
