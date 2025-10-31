@@ -225,6 +225,12 @@ SELECT
 FROM live_detections 
 WHERE timestamp >= NOW() - INTERVAL '1 hour'
 GROUP BY source;
+
+**for Test Live**
+SELECT
+*
+FROM live_detections 
+ORDER BY timestamp DESC;
 ```
 
 ## ⚙️ Konfigurationsparameter
