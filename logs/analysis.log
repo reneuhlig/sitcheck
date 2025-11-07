@@ -1,0 +1,574 @@
+🚀 Starte Bewegungsanalyse...
+   Datenbank: localhost:5432/ai_detection
+
+✓ Erfolgreich mit PostgreSQL verbunden (localhost:5432)
+✓ Datenbanktabellen erstellt/überprüft
+📊 Raumzustand aus DB geladen: 0 Personen
+
+================================================================================
+📊 BEWEGUNGSANALYSE GESTARTET
+================================================================================
+  Analysefenster: 30.0s
+  Update-Intervall: 30s
+  Initiale Belegung: 0 Personen
+  Kontinuierlich: Ja
+================================================================================
+
+
+[Analyse #1] 2025-11-07 18:25:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 4, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #2] 2025-11-07 18:25:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #3] 2025-11-07 18:26:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #4] 2025-11-07 18:26:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #5] 2025-11-07 18:27:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #6] 2025-11-07 18:27:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #7] 2025-11-07 18:28:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #8] 2025-11-07 18:28:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #9] 2025-11-07 18:29:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #10] 2025-11-07 18:29:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #11] 2025-11-07 18:30:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #12] 2025-11-07 18:30:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #13] 2025-11-07 18:31:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #14] 2025-11-07 18:31:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #15] 2025-11-07 18:32:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #16] 2025-11-07 18:32:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #17] 2025-11-07 18:33:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #18] 2025-11-07 18:33:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #19] 2025-11-07 18:34:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 4 Detections...
+   └─ Input X: 2, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #20] 2025-11-07 18:34:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #21] 2025-11-07 18:35:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #22] 2025-11-07 18:35:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #23] 2025-11-07 18:36:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #24] 2025-11-07 18:36:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #25] 2025-11-07 18:37:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #26] 2025-11-07 18:37:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #27] 2025-11-07 18:38:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #28] 2025-11-07 18:38:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #29] 2025-11-07 18:39:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #30] 2025-11-07 18:39:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #31] 2025-11-07 18:40:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #32] 2025-11-07 18:40:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #33] 2025-11-07 18:41:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #34] 2025-11-07 18:41:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #35] 2025-11-07 18:42:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #36] 2025-11-07 18:42:50
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #37] 2025-11-07 18:43:20
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #38] 2025-11-07 18:43:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #39] 2025-11-07 18:44:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #40] 2025-11-07 18:44:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #41] 2025-11-07 18:45:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #42] 2025-11-07 18:45:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #43] 2025-11-07 18:46:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #44] 2025-11-07 18:46:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #45] 2025-11-07 18:47:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #46] 2025-11-07 18:47:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #47] 2025-11-07 18:48:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #48] 2025-11-07 18:48:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #49] 2025-11-07 18:49:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #50] 2025-11-07 18:49:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #51] 2025-11-07 18:50:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #52] 2025-11-07 18:50:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #53] 2025-11-07 18:51:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #54] 2025-11-07 18:51:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #55] 2025-11-07 18:52:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #56] 2025-11-07 18:52:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #57] 2025-11-07 18:53:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #58] 2025-11-07 18:53:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #59] 2025-11-07 18:54:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #60] 2025-11-07 18:54:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #61] 2025-11-07 18:55:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #62] 2025-11-07 18:55:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #63] 2025-11-07 18:56:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #64] 2025-11-07 18:56:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #65] 2025-11-07 18:57:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #66] 2025-11-07 18:57:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #67] 2025-11-07 18:58:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #68] 2025-11-07 18:58:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #69] 2025-11-07 18:59:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #70] 2025-11-07 18:59:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #71] 2025-11-07 19:00:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #72] 2025-11-07 19:00:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #73] 2025-11-07 19:01:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #74] 2025-11-07 19:01:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #75] 2025-11-07 19:02:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #76] 2025-11-07 19:02:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #77] 2025-11-07 19:03:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #78] 2025-11-07 19:03:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #79] 2025-11-07 19:04:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #80] 2025-11-07 19:04:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #81] 2025-11-07 19:05:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #82] 2025-11-07 19:05:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #83] 2025-11-07 19:06:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #84] 2025-11-07 19:06:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #85] 2025-11-07 19:07:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #86] 2025-11-07 19:07:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #87] 2025-11-07 19:08:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #88] 2025-11-07 19:08:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #89] 2025-11-07 19:09:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #90] 2025-11-07 19:09:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 3, Input Y: 2
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #91] 2025-11-07 19:10:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #92] 2025-11-07 19:10:51
+--------------------------------------------------------------------------------
+🔍 Analysiere 5 Detections...
+   └─ Input X: 2, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)
+
+[Analyse #93] 2025-11-07 19:11:21
+--------------------------------------------------------------------------------
+🔍 Analysiere 6 Detections...
+   └─ Input X: 3, Input Y: 3
+✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)

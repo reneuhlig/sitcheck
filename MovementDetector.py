@@ -1,27 +1,31 @@
 #!/usr/bin/env python3
 """
-Bewegungserkennung für Personenzählung
-Erkennt Ein- und Austritte basierend auf Kamera-Sequenzen
+ÜBERARBEITETE Bewegungserkennung für zwei separate Kameras
+Die Kameras zeigen UNTERSCHIEDLICHE Bereiche (nicht dieselbe Person)
+
+Konzept:
+- Kamera X = AUßENbereich (vor der Tür)
+- Kamera Y = INNENbereich (im Raum)
+- Entry: Erst X sieht Person (außen), dann verschwindet sie aus X, dann Y sieht sie (innen)
+- Exit: Erst Y sieht Person weniger (innen verlässt), dann X sieht Person (außen erscheint)
 """
 
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 
 
 class MovementDetector:
     """
-    Erkennt Bewegungen (Ein-/Austritte) aus Detektions-Sequenzen
+    Erkennt Bewegungen zwischen zwei SEPARATEN Kamerabereichen
     """
     
     def __init__(self, 
-                 transition_window: float = 3.0,
+                 transition_window: float = 5.0,
                  min_confidence: float = 0.4):
         """
-        Initialisiert den Movement Detector
-        
         Args:
-            transition_window: Zeitfenster für Übergangserkennung (Sekunden)
+            transition_window: Maximale Zeit zwischen Kamera-Ereignissen (Sekunden)
             min_confidence: Mindest-Konfidenz für Detections
         """
         self.transition_window = transition_window
@@ -31,13 +35,15 @@ class MovementDetector:
         """
         Analysiert Detections und findet Bewegungsmuster
         
+        WICHTIG: Diese Methode erwartet, dass Kameras UNTERSCHIEDLICHE Bereiche zeigen!
+        
         Args:
             detections: Liste von Detection-Dictionaries
             
         Returns:
             Liste von erkannten Bewegungen
         """
-        if len(detections) < 2:
+        if len(detections) < 3:  # Brauchen mindestens 3 für Übergangserkennung
             return []
         
         # Sortiere nach Zeit
@@ -47,212 +53,209 @@ class MovementDetector:
         x_detections = [d for d in sorted_detections if d['source'] == 'input_x']
         y_detections = [d for d in sorted_detections if d['source'] == 'input_y']
         
-        if not x_detections or not y_detections:
+        if len(x_detections) < 2 or len(y_detections) < 2:
             return []
         
-        # Analysiere Sequenzen
         movements = []
         
-        # Analysiere X-Y Übergänge (Entry)
-        entry_movement = self._detect_entry_pattern(x_detections, y_detections)
-        if entry_movement:
-            movements.append(entry_movement)
+        # Analysiere Entry-Muster: X↑ dann X↓ dann Y↑
+        entry = self._detect_entry_pattern(x_detections, y_detections)
+        if entry:
+            movements.append(entry)
         
-        # Analysiere Y-X Übergänge (Exit)
-        exit_movement = self._detect_exit_pattern(x_detections, y_detections)
-        if exit_movement:
-            movements.append(exit_movement)
+        # Analysiere Exit-Muster: Y↓ dann X↑
+        exit_m = self._detect_exit_pattern(x_detections, y_detections)
+        if exit_m:
+            movements.append(exit_m)
         
         return movements
     
     def _detect_entry_pattern(self, x_seq: List[Dict], y_seq: List[Dict]) -> Optional[Dict]:
         """
-        Erkennt Eintritts-Muster:
-        - X sieht Anstieg (Person erscheint außen)
-        - Y sieht Anstieg (Person wird innen sichtbar)
-        - X-Anstieg zeitlich vor Y-Anstieg
+        Entry-Muster für SEPARATE Kameras:
+        1. X sieht Anstieg (Person erscheint außen)
+        2. X sieht Abfall (Person verschwindet aus Außenbereich)
+        3. Y sieht Anstieg (Person erscheint innen)
         
-        Args:
-            x_seq: Sequenz von X-Detections
-            y_seq: Sequenz von Y-Detections
-            
-        Returns:
-            Movement-Dictionary oder None
+        Oder vereinfacht:
+        - X zeigt temporären Peak
+        - Y zeigt Anstieg kurz danach
         """
-        # Berechne Deltas
-        x_delta = self._calculate_delta(x_seq)
-        y_delta = self._calculate_delta(y_seq)
+        # Suche nach Peak in X (Anstieg dann Abfall)
+        x_peaks = self._find_peaks(x_seq)
         
-        # Entry-Bedingung: Beide zeigen Anstieg
-        if x_delta <= 0 or y_delta <= 0:
+        # Suche nach Anstiegen in Y
+        y_increases = self._find_increases(y_seq)
+        
+        if not x_peaks or not y_increases:
             return None
         
-        # Zeitliche Reihenfolge prüfen: X muss vor Y kommen
-        x_first_increase = self._find_first_increase(x_seq)
-        y_first_increase = self._find_first_increase(y_seq)
+        # Finde zeitlich passende Kombinationen
+        for x_peak_time, x_peak_delta in x_peaks:
+            for y_inc_time, y_inc_delta in y_increases:
+                time_diff = (y_inc_time - x_peak_time).total_seconds()
+                
+                # Y-Anstieg muss NACH X-Peak kommen
+                if 0 < time_diff < self.transition_window:
+                    # Personenanzahl: Nehme Minimum für Konservativität
+                    person_count = min(x_peak_delta, y_inc_delta)
+                    
+                    if person_count < 1:
+                        continue
+                    
+                    confidence = self._calculate_confidence(
+                        x_seq, y_seq, time_diff, x_peak_delta, y_inc_delta
+                    )
+                    
+                    return {
+                        'type': 'entry',
+                        'person_count': person_count,
+                        'confidence': confidence,
+                        'time_diff': time_diff,
+                        'x_delta': x_peak_delta,
+                        'y_delta': y_inc_delta,
+                        'sequence': {
+                            'x_ids': [d['id'] for d in x_seq],
+                            'y_ids': [d['id'] for d in y_seq]
+                        },
+                        'pattern': f'X peak ({x_peak_delta}) → Y increase ({y_inc_delta})'
+                    }
         
-        if not x_first_increase or not y_first_increase:
-            return None
-        
-        time_diff = (y_first_increase - x_first_increase).total_seconds()
-        
-        # X muss vor Y sein (aber innerhalb des Zeitfensters)
-        if time_diff < 0 or time_diff > self.transition_window:
-            return None
-        
-        # Bestimme Personenanzahl (nehme das Minimum für Konservativität)
-        person_count = min(x_delta, y_delta)
-        
-        # Berechne Konfidenz
-        confidence = self._calculate_confidence(x_seq, y_seq, time_diff)
-        
-        return {
-            'type': 'entry',
-            'person_count': person_count,
-            'confidence': confidence,
-            'time_diff': time_diff,
-            'x_delta': x_delta,
-            'y_delta': y_delta,
-            'sequence': {
-                'x_ids': [d['id'] for d in x_seq],
-                'y_ids': [d['id'] for d in y_seq]
-            }
-        }
+        return None
     
     def _detect_exit_pattern(self, x_seq: List[Dict], y_seq: List[Dict]) -> Optional[Dict]:
         """
-        Erkennt Austritts-Muster:
-        - Y sieht Abfall (Person verlässt Innenbereich)
-        - X sieht Anstieg (Person erscheint außen)
-        - Y-Abfall zeitlich vor X-Anstieg
-        
-        Args:
-            x_seq: Sequenz von X-Detections
-            y_seq: Sequenz von Y-Detections
-            
-        Returns:
-            Movement-Dictionary oder None
+        Exit-Muster für SEPARATE Kameras:
+        1. Y sieht Abfall (Person verlässt Innenbereich)
+        2. X sieht Anstieg (Person erscheint außen)
         """
-        # Berechne Deltas
-        x_delta = self._calculate_delta(x_seq)
-        y_delta = self._calculate_delta(y_seq)
+        # Suche nach Abfällen in Y
+        y_decreases = self._find_decreases(y_seq)
         
-        # Exit-Bedingung: Y zeigt Abfall, X zeigt Anstieg
-        if x_delta <= 0 or y_delta >= 0:
+        # Suche nach Anstiegen in X
+        x_increases = self._find_increases(x_seq)
+        
+        if not y_decreases or not x_increases:
             return None
         
-        # Zeitliche Reihenfolge prüfen: Y-Abfall vor X-Anstieg
-        x_first_increase = self._find_first_increase(x_seq)
-        y_first_decrease = self._find_first_decrease(y_seq)
+        # Finde zeitlich passende Kombinationen
+        for y_dec_time, y_dec_delta in y_decreases:
+            for x_inc_time, x_inc_delta in x_increases:
+                time_diff = (x_inc_time - y_dec_time).total_seconds()
+                
+                # X-Anstieg muss NACH Y-Abfall kommen
+                if 0 < time_diff < self.transition_window:
+                    person_count = min(abs(y_dec_delta), x_inc_delta)
+                    
+                    if person_count < 1:
+                        continue
+                    
+                    confidence = self._calculate_confidence(
+                        x_seq, y_seq, time_diff, x_inc_delta, abs(y_dec_delta)
+                    )
+                    
+                    return {
+                        'type': 'exit',
+                        'person_count': person_count,
+                        'confidence': confidence,
+                        'time_diff': time_diff,
+                        'x_delta': x_inc_delta,
+                        'y_delta': y_dec_delta,
+                        'sequence': {
+                            'x_ids': [d['id'] for d in x_seq],
+                            'y_ids': [d['id'] for d in y_seq]
+                        },
+                        'pattern': f'Y decrease ({y_dec_delta}) → X increase ({x_inc_delta})'
+                    }
         
-        if not x_first_increase or not y_first_decrease:
-            return None
-        
-        time_diff = (x_first_increase - y_first_decrease).total_seconds()
-        
-        # Y muss vor X sein (aber innerhalb des Zeitfensters)
-        if time_diff < 0 or time_diff > self.transition_window:
-            return None
-        
-        # Bestimme Personenanzahl
-        person_count = min(x_delta, abs(y_delta))
-        
-        # Berechne Konfidenz
-        confidence = self._calculate_confidence(x_seq, y_seq, time_diff)
-        
-        return {
-            'type': 'exit',
-            'person_count': person_count,
-            'confidence': confidence,
-            'time_diff': time_diff,
-            'x_delta': x_delta,
-            'y_delta': y_delta,
-            'sequence': {
-                'x_ids': [d['id'] for d in x_seq],
-                'y_ids': [d['id'] for d in y_seq]
-            }
-        }
+        return None
     
-    def _calculate_delta(self, sequence: List[Dict]) -> int:
+    def _find_peaks(self, sequence: List[Dict]) -> List[Tuple[datetime, int]]:
         """
-        Berechnet Änderung der Personenanzahl in einer Sequenz
+        Findet Peaks: Anstieg gefolgt von Abfall
         
-        Vergleicht erste und letzte Detection mit ausreichender Konfidenz
-        
-        Args:
-            sequence: Liste von Detection-Dictionaries
-            
         Returns:
-            Delta (positiv = Anstieg, negativ = Abfall)
+            Liste von (Zeitpunkt, Delta) Tupeln
         """
-        if len(sequence) < 2:
-            return 0
+        peaks = []
         
-        # Filtere nach Konfidenz - FIX: Behandle None-Werte
+        if len(sequence) < 3:
+            return peaks
+        
+        high_conf = [d for d in sequence 
+                     if (d.get('avg_confidence') or 0.0) >= self.min_confidence]
+        
+        if len(high_conf) < 3:
+            return peaks
+        
+        for i in range(1, len(high_conf) - 1):
+            prev_count = high_conf[i-1]['persons_detected']
+            curr_count = high_conf[i]['persons_detected']
+            next_count = high_conf[i+1]['persons_detected']
+            
+            # Peak: vorher niedriger, danach niedriger
+            if prev_count < curr_count > next_count:
+                delta = curr_count - prev_count
+                peaks.append((high_conf[i]['timestamp'], delta))
+        
+        return peaks
+    
+    def _find_increases(self, sequence: List[Dict]) -> List[Tuple[datetime, int]]:
+        """
+        Findet signifikante Anstiege
+        
+        Returns:
+            Liste von (Zeitpunkt, Delta) Tupeln
+        """
+        increases = []
+        
         high_conf = [d for d in sequence 
                      if (d.get('avg_confidence') or 0.0) >= self.min_confidence]
         
         if len(high_conf) < 2:
-            return 0
+            return increases
         
-        start_count = high_conf[0]['persons_detected']
-        end_count = high_conf[-1]['persons_detected']
-        
-        return end_count - start_count
-    
-    def _find_first_increase(self, sequence: List[Dict]) -> Optional[datetime]:
-        """
-        Findet Zeitpunkt der ersten Erhöhung in der Sequenz
-        
-        Args:
-            sequence: Liste von Detection-Dictionaries
+        for i in range(1, len(high_conf)):
+            prev_count = high_conf[i-1]['persons_detected']
+            curr_count = high_conf[i]['persons_detected']
             
-        Returns:
-            Timestamp oder None
-        """
-        for i in range(1, len(sequence)):
-            if sequence[i]['persons_detected'] > sequence[i-1]['persons_detected']:
-                # FIX: Behandle None-Werte
-                if (sequence[i].get('avg_confidence') or 0.0) >= self.min_confidence:
-                    return sequence[i]['timestamp']
-        return None
-    
-    def _find_first_decrease(self, sequence: List[Dict]) -> Optional[datetime]:
-        """
-        Findet Zeitpunkt der ersten Verringerung in der Sequenz
+            if curr_count > prev_count:
+                delta = curr_count - prev_count
+                increases.append((high_conf[i]['timestamp'], delta))
         
-        Args:
-            sequence: Liste von Detection-Dictionaries
-            
-        Returns:
-            Timestamp oder None
+        return increases
+    
+    def _find_decreases(self, sequence: List[Dict]) -> List[Tuple[datetime, int]]:
         """
-        for i in range(1, len(sequence)):
-            if sequence[i]['persons_detected'] < sequence[i-1]['persons_detected']:
-                # FIX: Behandle None-Werte
-                if (sequence[i].get('avg_confidence') or 0.0) >= self.min_confidence:
-                    return sequence[i]['timestamp']
-        return None
+        Findet signifikante Abfälle
+        
+        Returns:
+            Liste von (Zeitpunkt, Delta) Tupeln (Delta ist negativ!)
+        """
+        decreases = []
+        
+        high_conf = [d for d in sequence 
+                     if (d.get('avg_confidence') or 0.0) >= self.min_confidence]
+        
+        if len(high_conf) < 2:
+            return decreases
+        
+        for i in range(1, len(high_conf)):
+            prev_count = high_conf[i-1]['persons_detected']
+            curr_count = high_conf[i]['persons_detected']
+            
+            if curr_count < prev_count:
+                delta = curr_count - prev_count  # Negativ!
+                decreases.append((high_conf[i]['timestamp'], delta))
+        
+        return decreases
     
     def _calculate_confidence(self, x_seq: List[Dict], y_seq: List[Dict], 
-                             time_diff: float) -> float:
+                             time_diff: float, x_delta: int, y_delta: int) -> float:
         """
         Berechnet Konfidenz der erkannten Bewegung
-        
-        Faktoren:
-        - Durchschnittliche Detection-Konfidenz beider Kameras
-        - Zeitliche Plausibilität (je näher beieinander, desto besser)
-        - Konsistenz zwischen Kameras
-        
-        Args:
-            x_seq: X-Sequenz
-            y_seq: Y-Sequenz
-            time_diff: Zeitdifferenz zwischen Ereignissen
-            
-        Returns:
-            Konfidenz-Score (0.0 - 1.0)
         """
-        # Durchschnittskonfidenzen - FIX: Behandle None-Werte
+        # Durchschnittskonfidenzen
         x_confs = [(d.get('avg_confidence') or 0.0) for d in x_seq]
         y_confs = [(d.get('avg_confidence') or 0.0) for d in y_seq]
         
@@ -261,19 +264,14 @@ class MovementDetector:
         
         avg_confidence = (x_avg + y_avg) / 2
         
-        # Zeitdifferenz-Strafe
-        # Je näher an 0, desto besser; max bei transition_window
+        # Zeitdifferenz-Strafe (je näher an 0, desto besser)
         time_penalty = max(0.3, 1.0 - (time_diff / self.transition_window))
         
-        # Konsistenz-Check
-        x_delta = abs(self._calculate_delta(x_seq))
-        y_delta = abs(self._calculate_delta(y_seq))
-        
-        # Perfekte Übereinstimmung = 1.0, sonst etwas weniger
-        if x_delta == y_delta:
-            consistency = 1.0
-        elif x_delta == 0 or y_delta == 0:
+        # Delta-Konsistenz (beide Kameras sollten ähnliche Änderungen sehen)
+        if x_delta == 0 or y_delta == 0:
             consistency = 0.5
+        elif x_delta == y_delta:
+            consistency = 1.0
         else:
             consistency = min(x_delta, y_delta) / max(x_delta, y_delta)
         
