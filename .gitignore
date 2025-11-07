@@ -1,0 +1,14 @@
+# === Kamera-Upload-Verzeichnisse ===
+/sitcheck/input_x/
+/sitcheck/input_y/
+
+# optional: temporäre Verzeichnisse
+*.jpg
+*.jpeg
+*.png
+*.mp4
+*.avi
+*.log
+/tmp/
+/temp/
+/camera_snapshots/

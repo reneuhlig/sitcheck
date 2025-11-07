@@ -54,13 +54,18 @@ class DatabaseHandler:
             avg_confidence REAL,
             max_confidence REAL,
             min_confidence REAL,
-            detection_data JSONB
+            detection_data JSONB,
+            processed BOOLEAN DEFAULT FALSE
         );
-        CREATE INDEX IF NOT EXISTS idx_detections_timestamp ON live_detections (timestamp);
-        CREATE INDEX IF NOT EXISTS idx_detections_source ON live_detections (source);
         """
         
-        # Tabelle für korrelierte/bereinigte Daten
+        create_detections_indices = """
+        CREATE INDEX IF NOT EXISTS idx_detections_timestamp ON live_detections (timestamp);
+        CREATE INDEX IF NOT EXISTS idx_detections_source ON live_detections (source);
+        CREATE INDEX IF NOT EXISTS idx_detections_processed ON live_detections (processed);
+        """
+        
+        # Tabelle für korrelierte/bereinigte Daten (alte Tabelle, bleibt erhalten)
         create_correlated_table = """
         CREATE TABLE IF NOT EXISTS correlated_persons (
             id SERIAL PRIMARY KEY,
@@ -77,9 +82,62 @@ class DatabaseHandler:
         CREATE INDEX IF NOT EXISTS idx_correlated_timestamp ON correlated_persons (timestamp);
         """
         
+        # NEU: Tabelle für Bewegungs-Tracking
+        create_movement_table = """
+        CREATE TABLE IF NOT EXISTS movement_tracking (
+            id SERIAL PRIMARY KEY,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            movement_type VARCHAR(20) NOT NULL,
+            person_count INTEGER NOT NULL,
+            confidence_score REAL,
+            detection_sequence JSONB,
+            notes TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_movement_timestamp ON movement_tracking (timestamp);
+        """
+        
+        # NEU: Tabelle für Raumzustand
+        create_room_state_table = """
+        CREATE TABLE IF NOT EXISTS room_state (
+            id SERIAL PRIMARY KEY,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            total_persons INTEGER NOT NULL,
+            change_reason VARCHAR(50),
+            movement_tracking_id INTEGER REFERENCES movement_tracking(id),
+            confidence REAL,
+            notes TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_room_state_timestamp ON room_state (timestamp);
+        """
+        
         try:
+            # Erstelle Tabellen
             cursor.execute(create_detections_table)
             cursor.execute(create_correlated_table)
+            cursor.execute(create_movement_table)
+            cursor.execute(create_room_state_table)
+            
+            # Erstelle Indices (nachdem Tabellen existieren)
+            cursor.execute(create_detections_indices)
+            
+            # Füge 'processed' Spalte zu existierenden Tabellen hinzu falls nicht vorhanden
+            try:
+                cursor.execute("""
+                    ALTER TABLE live_detections 
+                    ADD COLUMN IF NOT EXISTS processed BOOLEAN DEFAULT FALSE
+                """)
+            except:
+                pass
+            
+            # Erstelle Index falls noch nicht vorhanden
+            try:
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_detections_processed 
+                    ON live_detections (processed)
+                """)
+            except:
+                pass
+            
             print("✓ Datenbanktabellen erstellt/überprüft")
             return True
         except pg8000.dbapi.DatabaseError as e:
@@ -159,6 +217,199 @@ class DatabaseHandler:
         finally:
             cursor.close()
     
+    # NEU: Methoden für Bewegungs-Tracking
+    
+    def get_unprocessed_detections(self, window_seconds: float = 5.0) -> List[Dict]:
+        """
+        Holt unverarbeitete Detections aus Zeitfenster
+        
+        Args:
+            window_seconds: Zeitfenster in Sekunden
+            
+        Returns:
+            Liste von unverarbeiteten Detections
+        """
+        if not self.connection:
+            return []
+            
+        cursor = self.connection.cursor()
+        # PostgreSQL: INTERVAL mit make_interval() für dynamische Werte
+        query = """
+        SELECT id, timestamp, source, persons_detected, avg_confidence, detection_data
+        FROM live_detections
+        WHERE processed = FALSE
+          AND timestamp >= NOW() - make_interval(secs => %s)
+        ORDER BY timestamp ASC
+        """
+        
+        try:
+            cursor.execute(query, (window_seconds,))
+            results = []
+            
+            for row in cursor.fetchall():
+                # row[5] ist bereits ein Dict bei JSONB, nicht json.loads() nötig
+                detection_data = row[5] if row[5] is not None else {}
+                
+                results.append({
+                    'id': row[0],
+                    'timestamp': row[1],
+                    'source': row[2],
+                    'persons_detected': row[3],
+                    'avg_confidence': row[4],
+                    'detection_data': detection_data
+                })
+            return results
+        except pg8000.dbapi.DatabaseError as e:
+            self.logger.error(f"Fehler beim Abrufen unverarbeiteter Detections: {e}")
+            return []
+        finally:
+            cursor.close()
+    
+    def mark_detections_processed(self, detection_ids: List[int]) -> bool:
+        """
+        Markiert Detections als verarbeitet
+        
+        Args:
+            detection_ids: Liste von Detection-IDs
+            
+        Returns:
+            True bei Erfolg
+        """
+        if not self.connection or not detection_ids:
+            return False
+            
+        cursor = self.connection.cursor()
+        query = "UPDATE live_detections SET processed = TRUE WHERE id = ANY(%s)"
+        
+        try:
+            cursor.execute(query, (detection_ids,))
+            return True
+        except pg8000.dbapi.DatabaseError as e:
+            self.logger.error(f"Fehler beim Markieren der Detections: {e}")
+            return False
+        finally:
+            cursor.close()
+    
+    def insert_movement(self, movement_type: str, person_count: int,
+                       confidence: float, detection_sequence: List[Dict],
+                       notes: str = None) -> Optional[int]:
+        """
+        Fügt eine erkannte Bewegung ein
+        
+        Args:
+            movement_type: 'entry', 'exit', 'cross_traffic', 'uncertain'
+            person_count: Anzahl Personen bei dieser Bewegung
+            confidence: Konfidenz der Erkennung
+            detection_sequence: Liste der beteiligten Detections
+            notes: Optionale Notizen
+            
+        Returns:
+            ID des eingefügten Datensatzes oder None bei Fehler
+        """
+        if not self.connection:
+            return None
+            
+        cursor = self.connection.cursor()
+        query = """
+        INSERT INTO movement_tracking 
+        (movement_type, person_count, confidence_score, detection_sequence, notes)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING id
+        """
+        
+        try:
+            cursor.execute(query, (
+                movement_type,
+                person_count,
+                confidence,
+                json.dumps(detection_sequence, ensure_ascii=False),
+                notes
+            ))
+            result = cursor.fetchone()
+            return result[0] if result else None
+        except pg8000.dbapi.DatabaseError as e:
+            self.logger.error(f"Fehler beim Einfügen der Bewegung: {e}")
+            return None
+        finally:
+            cursor.close()
+    
+    def insert_room_state(self, total_persons: int, change_reason: str,
+                         movement_id: int = None, confidence: float = None,
+                         notes: str = None) -> bool:
+        """
+        Fügt einen neuen Raumzustand ein
+        
+        Args:
+            total_persons: Gesamtanzahl Personen im Raum
+            change_reason: Grund der Änderung ('entry', 'exit', 'initialization', etc.)
+            movement_id: Optionale Referenz zur Bewegung
+            confidence: Optionale Konfidenz
+            notes: Optionale Notizen
+            
+        Returns:
+            True bei Erfolg
+        """
+        if not self.connection:
+            return False
+            
+        cursor = self.connection.cursor()
+        query = """
+        INSERT INTO room_state 
+        (total_persons, change_reason, movement_tracking_id, confidence, notes)
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        
+        try:
+            cursor.execute(query, (
+                total_persons,
+                change_reason,
+                movement_id,
+                confidence,
+                notes
+            ))
+            return True
+        except pg8000.dbapi.DatabaseError as e:
+            self.logger.error(f"Fehler beim Einfügen des Raumzustands: {e}")
+            return False
+        finally:
+            cursor.close()
+    
+    def get_latest_room_state(self) -> Optional[Dict]:
+        """
+        Holt den letzten Raumzustand aus der Datenbank
+        
+        Returns:
+            Dictionary mit Raumzustand oder None
+        """
+        if not self.connection:
+            return None
+            
+        cursor = self.connection.cursor()
+        query = """
+        SELECT total_persons, timestamp, change_reason, confidence
+        FROM room_state
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+        
+        try:
+            cursor.execute(query)
+            row = cursor.fetchone()
+            
+            if row:
+                return {
+                    'total_persons': row[0],
+                    'timestamp': row[1],
+                    'change_reason': row[2],
+                    'confidence': row[3]
+                }
+            return None
+        except pg8000.dbapi.DatabaseError as e:
+            self.logger.error(f"Fehler beim Abrufen des Raumzustands: {e}")
+            return None
+        finally:
+            cursor.close()
+    
     def get_latest_detections(self, limit: int = 10) -> List[Dict]:
         """Holt die neuesten Detections für Analyse"""
         if not self.connection:
@@ -185,7 +436,7 @@ class DatabaseHandler:
                     'avg_confidence': row[4],
                     'max_confidence': row[5],
                     'min_confidence': row[6],
-                    'detection_data': json.loads(row[7]) if row[7] else {}
+                    'detection_data': row[7] if row[7] is not None else {}
                 })
             return results
         except pg8000.dbapi.DatabaseError as e:

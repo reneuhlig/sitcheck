@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """
-Zeitreihenanalyse für Personenzählungen aus zwei Quellen
-Korreliert die Daten und schätzt die tatsächliche Personenanzahl
+Verbesserte Zeitreihenanalyse mit Bewegungserkennung
+Erkennt Ein- und Austritte und hält Raumzustand aktuell
 """
 
 import time
-from typing import Dict, List, Tuple
-from datetime import datetime, timedelta
-import statistics
-from decimal import Decimal
+from typing import Dict
+from datetime import datetime
+
 from DatabaseHandler import DatabaseHandler
+from MovementDetector import MovementDetector
+from RoomOccupancyManager import RoomOccupancyManager
 
 
 class TimeSeriesAnalyzer:
-    """Analysiert Zeitreihen von Personenzählungen"""
+    """
+    Verbesserte Zeitreihenanalyse mit Bewegungserkennung
+    """
     
     def __init__(self, db_config: Dict[str, str]):
         """
@@ -23,29 +26,43 @@ class TimeSeriesAnalyzer:
             db_config: Datenbank-Konfiguration
         """
         self.db = DatabaseHandler(**db_config)
+        self.movement_detector = MovementDetector(
+            transition_window=3.0,
+            min_confidence=0.4
+        )
+        self.occupancy_manager = None  # Wird nach DB-Connect initialisiert
         
         # Analyse-Parameter
-        self.max_time_diff = 5.0  # Max. Zeitunterschied für Paare (Sekunden)
-        self.confidence_threshold = 0.5  # Mindest-Konfidenz
-        
-    def analyze_and_store(self, interval_seconds: int = 10, continuous: bool = True):
+        self.analysis_window = 5.0  # Sekunden für Analysefenster
+        self.min_detections = 2  # Mindestanzahl Detections pro Fenster
+    
+    def start(self, interval_seconds: int = 2, continuous: bool = True):
         """
-        Führt kontinuierliche Analyse durch und speichert Ergebnisse
+        Startet kontinuierliche Analyse
         
         Args:
             interval_seconds: Intervall zwischen Analysen
-            continuous: Kontinuierlich laufen oder nur einmal
+            continuous: True für kontinuierlichen Betrieb
         """
         if not self.db.connect():
             print("✗ Datenbankverbindung fehlgeschlagen")
             return
         
+        if not self.db.create_tables():
+            print("✗ Tabellenerstellung fehlgeschlagen")
+            return
+        
+        # Occupancy Manager initialisieren
+        self.occupancy_manager = RoomOccupancyManager(self.db, max_capacity=100)
+        self.occupancy_manager.initialize()
+        
         print(f"\n{'='*80}")
-        print(f"📊 ZEITREIHENANALYSE GESTARTET")
+        print(f"📊 BEWEGUNGSANALYSE GESTARTET")
         print(f"{'='*80}")
-        print(f"  Analyse-Intervall: {interval_seconds}s")
-        print(f"  Max. Zeitdifferenz: {self.max_time_diff}s")
-        print(f"  Konfidenz-Schwelle: {self.confidence_threshold}")
+        print(f"  Analysefenster: {self.analysis_window}s")
+        print(f"  Update-Intervall: {interval_seconds}s")
+        print(f"  Initiale Belegung: {self.occupancy_manager.get_current_occupancy()} Personen")
+        print(f"  Kontinuierlich: {'Ja' if continuous else 'Nein'}")
         print(f"{'='*80}\n")
         
         analysis_count = 0
@@ -53,212 +70,137 @@ class TimeSeriesAnalyzer:
         try:
             while True:
                 analysis_count += 1
-                print(f"\n[Analyse #{analysis_count}] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                print(f"\n[Analyse #{analysis_count}] {timestamp}")
                 print("-" * 80)
                 
-                # Gepaarte Detections abrufen
-                pairs = self.db.get_paired_detections(
-                    max_time_diff_seconds=self.max_time_diff,
-                    limit=100
-                )
-                
-                if not pairs:
-                    print("⚠ Keine passenden Paare gefunden")
-                else:
-                    print(f"✓ {len(pairs)} Paare gefunden")
-                    
-                    # Analysiere jedes Paar
-                    results = []
-                    for pair in pairs:
-                        result = self._analyze_pair(pair)
-                        if result:
-                            results.append(result)
-                    
-                    # Speichere Ergebnisse
-                    saved_count = 0
-                    for result in results:
-                        if self.db.insert_correlated_result(**result):
-                            saved_count += 1
-                    
-                    print(f"✓ {saved_count}/{len(results)} Ergebnisse gespeichert")
-                    
-                    # Statistik ausgeben
-                    if results:
-                        self._print_statistics(results)
+                self._analyze_cycle()
                 
                 if not continuous:
                     break
                 
-                print(f"\n⏳ Warte {interval_seconds}s bis zur nächsten Analyse...")
                 time.sleep(interval_seconds)
                 
         except KeyboardInterrupt:
             print("\n\n❌ Analyse durch Benutzer abgebrochen")
         finally:
+            self._print_final_summary()
             self.db.close()
     
-    def _analyze_pair(self, pair: Dict) -> Dict:
+    # TimeSeriesAnalyzer.py
+    def _analyze_cycle(self):
         """
-        Analysiert ein Paar von Detections
-        
-        Returns:
-            Dictionary mit Analyse-Ergebnis oder None
+        Ein Analyse-Zyklus
         """
-        x_persons = pair['x_persons']
-        y_persons = pair['y_persons']
-        x_conf = float(pair['x_confidence']) if pair['x_confidence'] is not None else 0.0
-        y_conf = float(pair['y_confidence']) if pair['y_confidence'] is not None else 0.0
-        time_diff = float(abs(pair['time_diff']))
-        
-        # Qualitätsprüfung
-        if x_conf < self.confidence_threshold or y_conf < self.confidence_threshold:
-            return None
-        
-        # Zeitdifferenz-Strafe (je größer die Differenz, desto weniger vertrauenswürdig)
-        time_penalty = max(0.0, 1.0 - (time_diff / self.max_time_diff))
-        
-        # Gewichtete Durchschnittsberechnung basierend auf Konfidenz
-        total_weight = x_conf + y_conf
-        weighted_persons = (x_persons * x_conf + y_persons * y_conf) / total_weight
-        
-        # Tatsächliche Personenanzahl schätzen (verschiedene Strategien)
-        estimated_persons = self._estimate_actual_persons(
-            x_persons, y_persons, x_conf, y_conf
-        )
-        
-        # Konfidenz des Ergebnisses
-        result_confidence = (x_conf + y_conf) / 2 * time_penalty
-        
-        # Analyse-Daten für Nachvollziehbarkeit
-        analysis_data = {
-            'method': 'weighted_average',
-            'weighted_persons': round(weighted_persons, 2),
-            'time_penalty': round(time_penalty, 3),
-            'x_confidence': round(x_conf, 3),
-            'y_confidence': round(y_conf, 3),
-            'difference': abs(x_persons - y_persons),
-            'agreement': x_persons == y_persons
-        }
-        
-        return {
-            'source_x_id': pair['x_id'],
-            'source_y_id': pair['y_id'],
-            'persons_x': x_persons,
-            'persons_y': y_persons,
-            'estimated_actual': estimated_persons,
-            'confidence': result_confidence,
-            'time_diff': time_diff,
-            'analysis_data': analysis_data
-        }
-    
-    def _estimate_actual_persons(self, x_persons: int, y_persons: int,
-                                 x_conf: float, y_conf: float) -> int:
-        """
-        Schätzt die tatsächliche Personenanzahl
-        
-        Strategien:
-        1. Bei Übereinstimmung: Wert übernehmen
-        2. Bei Abweichung: Höhere Konfidenz gewinnt
-        3. Bei gleicher Konfidenz: Durchschnitt (gerundet)
-        4. Bei großer Abweichung: Maximum nehmen (konservativ)
-        """
-        # Strategie 1: Perfekte Übereinstimmung
-        if x_persons == y_persons:
-            return x_persons
-        
-        # Strategie 2: Unterschied > 2 Personen -> nehme Maximum (konservativ)
-        if abs(x_persons - y_persons) > 2:
-            return max(x_persons, y_persons)
-        
-        # Strategie 3: Konfidenz entscheidet
-        conf_diff = abs(x_conf - y_conf)
-        if conf_diff > 0.1:  # Signifikanter Unterschied
-            return x_persons if x_conf > y_conf else y_persons
-        
-        # Strategie 4: Gewichteter Durchschnitt
-        weighted = (x_persons * x_conf + y_persons * y_conf) / (x_conf + y_conf)
-        return round(weighted)
-    
-    def _print_statistics(self, results: List[Dict]):
-        """Gibt Statistiken über die Analyseergebnisse aus"""
-        if not results:
+        # Hole unverarbeitete Detections aus Zeitfenster
+        recent = self.db.get_unprocessed_detections(self.analysis_window)
+
+        if len(recent) < self.min_detections:
+            print(f"⏳ Zu wenig Detections ({len(recent)}/{self.min_detections})")
             return
-        
-        # Extrahiere Werte
-        estimated = [r['estimated_actual'] for r in results]
-        confidences = [r['confidence'] for r in results]
-        differences = [r['analysis_data']['difference'] for r in results]
-        agreements = sum(1 for r in results if r['analysis_data']['agreement'])
-        
-        print("\n📈 STATISTIK:")
-        print(f"  Übereinstimmungen: {agreements}/{len(results)} ({agreements/len(results)*100:.1f}%)")
-        print(f"  Durchschn. Differenz: {statistics.mean(differences):.2f} Personen")
-        print(f"  Max. Differenz: {max(differences)} Personen")
-        print(f"  Durchschn. geschätzte Personen: {statistics.mean(estimated):.2f}")
-        print(f"  Min/Max geschätzt: {min(estimated)}/{max(estimated)} Personen")
-        print(f"  Durchschn. Konfidenz: {statistics.mean(confidences):.3f}")
+
+        print(f"🔍 Analysiere {len(recent)} Detections...")
+
+        # Separiere nach Quelle für Info
+        x_count = len([d for d in recent if d['source'] == 'input_x'])
+        y_count = len([d for d in recent if d['source'] == 'input_y'])
+        print(f"   └─ Input X: {x_count}, Input Y: {y_count}")
+
+        # Erkenne Bewegungen
+        movements = self.movement_detector.detect_movements(recent)
+
+        if not movements:
+            print(f"✓ Keine gültigen Bewegungen erkannt (fehlerhafte Detections übersprungen)")
+            self.db.mark_detections_processed([d['id'] for d in recent])
+            return
+
+        # Verarbeite erkannte Bewegungen
+        print(f"\n🎯 {len(movements)} Bewegung(en) erkannt:")
+
+        for i, movement in enumerate(movements, 1):
+            movement_type = movement['type']
+            person_count = movement['person_count']
+            confidence = movement['confidence']
+            time_diff = movement.get('time_diff', 0)
+
+            print(f"\n  [{i}] Typ: {movement_type.upper()}")
+            print(f"      Personen: {person_count}")
+            print(f"      Konfidenz: {confidence:.2f}")
+            print(f"      Zeit-Diff: {time_diff:.2f}s")
+            print(f"      X-Delta: {movement['x_delta']}, Y-Delta: {movement['y_delta']}")
+
+            movement_id = self.db.insert_movement(
+                movement_type=movement_type,
+                person_count=person_count,
+                confidence=confidence,
+                detection_sequence=movement['sequence'],
+                notes=f"Time diff: {time_diff:.2f}s"
+            )
+
+            updated = self.occupancy_manager.process_movement(movement, movement_id)
+
+            if not updated:
+                print(f"      Status: ⚠️  Nicht angewendet (Konfidenz oder Plausibilität)")
+
+        # Markiere Detections als verarbeitet
+        detection_ids = [d['id'] for d in recent]
+        self.db.mark_detections_processed(detection_ids)
+
+        current = self.occupancy_manager.get_current_occupancy()
+        print(f"\n📊 Aktuell im Raum: {current} Personen")
+
     
-    def get_recent_summary(self, hours: int = 1) -> Dict:
+    def _print_final_summary(self):
         """
-        Gibt eine Zusammenfassung der letzten Stunden zurück
+        Gibt finale Zusammenfassung aus
+        """
+        print(f"\n{'='*80}")
+        print(f"📋 ANALYSE BEENDET")
+        print(f"{'='*80}")
         
-        Args:
-            hours: Zeitraum in Stunden
-            
+        current = self.occupancy_manager.get_current_occupancy()
+        print(f"  Finaler Raumzustand: {current} Personen")
+        
+        # Hole Statistiken
+        latest_state = self.db.get_latest_room_state()
+        if latest_state:
+            print(f"  Letztes Update: {latest_state['timestamp']}")
+            print(f"  Grund: {latest_state['change_reason']}")
+        
+        print(f"{'='*80}\n")
+    
+    def get_current_occupancy(self) -> int:
+        """
+        Gibt aktuelle Personenanzahl im Raum zurück
+        
         Returns:
-            Dictionary mit Zusammenfassung
+            Anzahl Personen
         """
-        if not self.db.connection:
-            self.db.connect()
-        
-        cursor = self.db.connection.cursor()
-        query = """
-        SELECT 
-            COUNT(*) as total_correlations,
-            AVG(estimated_actual_persons) as avg_persons,
-            MIN(estimated_actual_persons) as min_persons,
-            MAX(estimated_actual_persons) as max_persons,
-            AVG(confidence_score) as avg_confidence,
-            AVG(time_diff_seconds) as avg_time_diff
-        FROM correlated_persons
-        WHERE timestamp >= NOW() - INTERVAL '%s hours'
-        """
-        
-        try:
-            cursor.execute(query, (hours,))
-            row = cursor.fetchone()
-            
-            if row and row[0] > 0:
-                return {
-                    'total_correlations': row[0],
-                    'avg_persons': round(float(row[1]), 2) if row[1] else 0,
-                    'min_persons': row[2] or 0,
-                    'max_persons': row[3] or 0,
-                    'avg_confidence': round(float(row[4]), 3) if row[4] else 0,
-                    'avg_time_diff': round(float(row[5]), 3) if row[5] else 0
-                }
-            else:
-                return {'message': 'Keine Daten im angegebenen Zeitraum'}
-                
-        except Exception as e:
-            print(f"✗ Fehler beim Abrufen der Zusammenfassung: {e}")
-            return {}
-        finally:
-            cursor.close()
+        if self.occupancy_manager:
+            return self.occupancy_manager.get_current_occupancy()
+        return 0
 
 
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description='Zeitreihenanalyse für Personenzählungen')
+    parser = argparse.ArgumentParser(
+        description='Verbesserte Zeitreihenanalyse für Personenzählungen'
+    )
+    
+    # Datenbank-Konfiguration
     parser.add_argument('--db-host', default='localhost', help='PostgreSQL Host')
     parser.add_argument('--db-user', required=True, help='PostgreSQL Benutzername')
     parser.add_argument('--db-password', required=True, help='PostgreSQL Passwort')
     parser.add_argument('--db-name', required=True, help='PostgreSQL Datenbankname')
     parser.add_argument('--db-port', type=int, default=5432, help='PostgreSQL Port')
-    parser.add_argument('--interval', type=int, default=10, help='Analyse-Intervall (Sekunden)')
-    parser.add_argument('--once', action='store_true', help='Nur eine Analyse durchführen')
-    parser.add_argument('--summary', type=int, help='Zeige Zusammenfassung der letzten N Stunden')
+    
+    # Analyse-Konfiguration
+    parser.add_argument('--interval', type=int, default=2, 
+                       help='Analyse-Intervall (Sekunden)')
+    parser.add_argument('--once', action='store_true', 
+                       help='Nur eine Analyse durchführen')
     
     args = parser.parse_args()
     
@@ -271,19 +213,7 @@ if __name__ == "__main__":
     }
     
     analyzer = TimeSeriesAnalyzer(db_config)
-    
-    if args.summary:
-        # Zeige nur Zusammenfassung
-        if analyzer.db.connect():
-            summary = analyzer.get_recent_summary(hours=args.summary)
-            print(f"\n📊 ZUSAMMENFASSUNG (letzte {args.summary} Stunde(n)):")
-            print("="*60)
-            for key, value in summary.items():
-                print(f"  {key}: {value}")
-            analyzer.db.close()
-    else:
-        # Starte Analyse
-        analyzer.analyze_and_store(
-            interval_seconds=args.interval,
-            continuous=not args.once
-        )
+    analyzer.start(
+        interval_seconds=args.interval,
+        continuous=not args.once
+    )
