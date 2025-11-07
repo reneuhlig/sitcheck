@@ -66,7 +66,8 @@ class LiveProcessor:
         processed_count = 0
         
         try:
-            for source, img in self.loader.watch():
+            # WICHTIG: Jetzt gibt watch() 3 Werte zurück: (source, img, file_path)
+            for source, img, file_path in self.loader.watch():
                 if not self._running:
                     break
                 
@@ -74,15 +75,27 @@ class LiveProcessor:
                     continue
                 
                 processed_count += 1
-                self._process_image(source, img, processed_count)
+                success = self._process_image(source, img, processed_count)
+                
+                # KRITISCH: Lösche Datei erst NACH erfolgreicher Verarbeitung
+                if success:
+                    self.loader.confirm_processed(file_path)
+                else:
+                    # Bei Fehler: Datei trotzdem löschen um Endlosschleife zu vermeiden
+                    self.loader.confirm_processed(file_path)
                 
         except KeyboardInterrupt:
             print("\n\n❌ Verarbeitung durch Benutzer abgebrochen")
         finally:
             self.stop()
     
-    def _process_image(self, source: str, img, count: int):
-        """Verarbeitet ein einzelnes Bild"""
+    def _process_image(self, source: str, img, count: int) -> bool:
+        """
+        Verarbeitet ein einzelnes Bild
+        
+        Returns:
+            True bei Erfolg, False bei Fehler
+        """
         start_time = time.time()
         timestamp = datetime.now()
         
@@ -108,9 +121,12 @@ class LiveProcessor:
                   f"Konfidenz: {result['avg_confidence']:.3f} | "
                   f"Zeit: {processing_time:.3f}s {status}")
             
+            return detection_id is not None
+            
         except Exception as e:
             print(f"[{count:4d}] {timestamp.strftime('%H:%M:%S.%f')[:-3]} | "
                   f"{source:10s} | FEHLER: {e}")
+            return False
     
     def stop(self):
         """Stoppt die Verarbeitung"""

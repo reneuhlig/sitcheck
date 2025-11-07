@@ -28,9 +28,9 @@ def main():
         analyzer = TimeSeriesAnalyzer(db_config)
         
         # Starte kontinuierliche Analyse
-        # interval_seconds: Wie oft nach neuen Detections schauen
+        # interval_seconds: Wie oft nach neuen Detections schauen (30s statt 2s)
         # continuous: True = läuft dauerhaft, False = nur einmal
-        analyzer.start(interval_seconds=2, continuous=True)
+        analyzer.start(interval_seconds=30, continuous=True)
         
     except KeyboardInterrupt:
         print("\n\n👋 Programm beendet")

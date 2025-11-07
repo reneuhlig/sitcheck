@@ -19,7 +19,7 @@ YOLO_MODEL="yolov8n.pt"
 CONFIDENCE_THRESHOLD=0.5
 POLL_INTERVAL=0.5
 
-ANALYSIS_INTERVAL=2  # Sekunden zwischen Bewegungsanalysen (jetzt 2s statt 10s)
+ANALYSIS_INTERVAL=30  # Sekunden zwischen Bewegungsanalysen (erhöht auf 30s)
 
 # Log-Dateien
 LOG_DIR="logs"

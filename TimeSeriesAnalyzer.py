@@ -32,16 +32,16 @@ class TimeSeriesAnalyzer:
         )
         self.occupancy_manager = None  # Wird nach DB-Connect initialisiert
         
-        # Analyse-Parameter
-        self.analysis_window = 5.0  # Sekunden für Analysefenster
-        self.min_detections = 2  # Mindestanzahl Detections pro Fenster
+        # Analyse-Parameter - ANGEPASST für weniger "Zu wenig Detections" Fehler
+        self.analysis_window = 30.0  # Sekunden für Analysefenster (erhöht von 5s)
+        self.min_detections = 1  # Mindestanzahl Detections pro Fenster (reduziert von 2)
     
-    def start(self, interval_seconds: int = 2, continuous: bool = True):
+    def start(self, interval_seconds: int = 30, continuous: bool = True):
         """
         Startet kontinuierliche Analyse
         
         Args:
-            interval_seconds: Intervall zwischen Analysen
+            interval_seconds: Intervall zwischen Analysen (Standard 30s)
             continuous: True für kontinuierlichen Betrieb
         """
         if not self.db.connect():
@@ -88,7 +88,6 @@ class TimeSeriesAnalyzer:
             self._print_final_summary()
             self.db.close()
     
-    # TimeSeriesAnalyzer.py
     def _analyze_cycle(self):
         """
         Ein Analyse-Zyklus
@@ -197,7 +196,7 @@ if __name__ == "__main__":
     parser.add_argument('--db-port', type=int, default=5432, help='PostgreSQL Port')
     
     # Analyse-Konfiguration
-    parser.add_argument('--interval', type=int, default=2, 
+    parser.add_argument('--interval', type=int, default=30, 
                        help='Analyse-Intervall (Sekunden)')
     parser.add_argument('--once', action='store_true', 
                        help='Nur eine Analyse durchführen')

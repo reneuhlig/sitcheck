@@ -188,9 +188,9 @@ class MovementDetector:
         if len(sequence) < 2:
             return 0
         
-        # Filtere nach Konfidenz
+        # Filtere nach Konfidenz - FIX: Behandle None-Werte
         high_conf = [d for d in sequence 
-                     if d.get('avg_confidence', 0) >= self.min_confidence]
+                     if (d.get('avg_confidence') or 0.0) >= self.min_confidence]
         
         if len(high_conf) < 2:
             return 0
@@ -212,7 +212,8 @@ class MovementDetector:
         """
         for i in range(1, len(sequence)):
             if sequence[i]['persons_detected'] > sequence[i-1]['persons_detected']:
-                if sequence[i].get('avg_confidence', 0) >= self.min_confidence:
+                # FIX: Behandle None-Werte
+                if (sequence[i].get('avg_confidence') or 0.0) >= self.min_confidence:
                     return sequence[i]['timestamp']
         return None
     
@@ -228,7 +229,8 @@ class MovementDetector:
         """
         for i in range(1, len(sequence)):
             if sequence[i]['persons_detected'] < sequence[i-1]['persons_detected']:
-                if sequence[i].get('avg_confidence', 0) >= self.min_confidence:
+                # FIX: Behandle None-Werte
+                if (sequence[i].get('avg_confidence') or 0.0) >= self.min_confidence:
                     return sequence[i]['timestamp']
         return None
     
@@ -250,9 +252,9 @@ class MovementDetector:
         Returns:
             Konfidenz-Score (0.0 - 1.0)
         """
-        # Durchschnittskonfidenzen
-        x_confs = [d.get('avg_confidence', 0) for d in x_seq]
-        y_confs = [d.get('avg_confidence', 0) for d in y_seq]
+        # Durchschnittskonfidenzen - FIX: Behandle None-Werte
+        x_confs = [(d.get('avg_confidence') or 0.0) for d in x_seq]
+        y_confs = [(d.get('avg_confidence') or 0.0) for d in y_seq]
         
         x_avg = np.mean(x_confs) if x_confs else 0.0
         y_avg = np.mean(y_confs) if y_confs else 0.0
