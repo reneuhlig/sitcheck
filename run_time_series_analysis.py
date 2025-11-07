@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Einfaches Startskript für die verbesserte Bewegungsanalyse
+Startskript für  Bewegungsanalyse
 """
 
 import sys
@@ -9,9 +9,9 @@ from TimeSeriesAnalyzer import TimeSeriesAnalyzer
 
 def main():
     """
-    Startet die Bewegungsanalyse mit fest konfigurierten Werten
+    Startet die Bewegungsanalyse
     """
-    # Datenbank-Konfiguration (ANPASSEN!)
+    # Datenbank-Konfiguration
     db_config = {
         'host': 'localhost',
         'user': 'aiuser',
@@ -22,14 +22,12 @@ def main():
     
     print("🚀 Starte Bewegungsanalyse...")
     print(f"   Datenbank: {db_config['host']}:{db_config['port']}/{db_config['database']}")
-    print()
+
     
     try:
         analyzer = TimeSeriesAnalyzer(db_config)
         
         # Starte kontinuierliche Analyse
-        # interval_seconds: Wie oft nach neuen Detections schauen (30s statt 2s)
-        # continuous: True = läuft dauerhaft, False = nur einmal
         analyzer.start(interval_seconds=30, continuous=True)
         
     except KeyboardInterrupt:

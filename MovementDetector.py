@@ -1,281 +1,251 @@
 #!/usr/bin/env python3
 """
-ÜBERARBEITETE Bewegungserkennung für zwei separate Kameras
-Die Kameras zeigen UNTERSCHIEDLICHE Bereiche (nicht dieselbe Person)
-
-Konzept:
-- Kamera X = AUßENbereich (vor der Tür)
-- Kamera Y = INNENbereich (im Raum)
-- Entry: Erst X sieht Person (außen), dann verschwindet sie aus X, dann Y sieht sie (innen)
-- Exit: Erst Y sieht Person weniger (innen verlässt), dann X sieht Person (außen erscheint)
+VEREINFACHTER Movement Detector
+Erkennt bereits kleinste Änderungen (ab 1 Person Differenz)
+Mit robustem Fehlerhandling & ausführlichem Logging
 """
 
 import numpy as np
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 class MovementDetector:
     """
-    Erkennt Bewegungen zwischen zwei SEPARATEN Kamerabereichen
+    Vereinfachter Movement Detector
+    Reagiert bereits auf +1/-1 Person Änderung
     """
     
     def __init__(self, 
-                 transition_window: float = 5.0,
-                 min_confidence: float = 0.4):
+                 transition_window: float = 10.0,
+                 min_confidence: float = 0.3):
         """
         Args:
-            transition_window: Maximale Zeit zwischen Kamera-Ereignissen (Sekunden)
-            min_confidence: Mindest-Konfidenz für Detections
+            transition_window: Maximale Zeit zwischen Ereignissen (Sekunden)
+            min_confidence: Mindest-Konfidenz (für Logging, keine Filterung)
         """
         self.transition_window = transition_window
         self.min_confidence = min_confidence
+        
+        print(f"🔧 MovementDetector initialisiert:")
+        print(f"   Transition Window: {transition_window}s")
+        print(f"   Min Confidence: {min_confidence}")
+    
+    # =====================================================================================
+    # Hauptfunktion
+    # =====================================================================================
     
     def detect_movements(self, detections: List[Dict]) -> List[Dict]:
-        """
-        Analysiert Detections und findet Bewegungsmuster
+        """Analysiert Detections und findet Bewegungsmuster"""
+        print(f"\n🔍 detect_movements() aufgerufen mit {len(detections)} Detections")
         
-        WICHTIG: Diese Methode erwartet, dass Kameras UNTERSCHIEDLICHE Bereiche zeigen!
-        
-        Args:
-            detections: Liste von Detection-Dictionaries
-            
-        Returns:
-            Liste von erkannten Bewegungen
-        """
-        if len(detections) < 3:  # Brauchen mindestens 3 für Übergangserkennung
+        if len(detections) < 2:
+            print(f"   ⚠️  Zu wenig Detections: {len(detections)} < 2")
             return []
         
-        # Sortiere nach Zeit
+        # Sortieren nach Zeit
         sorted_detections = sorted(detections, key=lambda x: x['timestamp'])
+        print(f"   📅 Zeitspanne: {sorted_detections[0]['timestamp']} bis {sorted_detections[-1]['timestamp']}")
         
-        # Separiere nach Quelle
-        x_detections = [d for d in sorted_detections if d['source'] == 'input_x']
-        y_detections = [d for d in sorted_detections if d['source'] == 'input_y']
+        # Nach Quelle trennen
+        x_detections = [d for d in sorted_detections if d.get('source') == 'input_x']
+        y_detections = [d for d in sorted_detections if d.get('source') == 'input_y']
+        
+        print(f"   🎥 Input X: {len(x_detections)} Detections")
+        print(f"   🎥 Input Y: {len(y_detections)} Detections")
         
         if len(x_detections) < 2 or len(y_detections) < 2:
+            print(f"   ⚠️  Zu wenig Detections pro Quelle (min. 2 pro Quelle)")
             return []
+        
+        # Übersicht mit robustem Confidence-Handling
+        self._print_detection_summary(x_detections, y_detections)
         
         movements = []
         
-        # Analysiere Entry-Muster: X↑ dann X↓ dann Y↑
+        # Entry
+        print(f"\n   🔎 Suche Entry-Muster...")
         entry = self._detect_entry_pattern(x_detections, y_detections)
         if entry:
             movements.append(entry)
+            print(f"   ✅ Entry erkannt: {entry['person_count']} Person(en)")
+        else:
+            print(f"   ❌ Kein Entry erkannt")
         
-        # Analysiere Exit-Muster: Y↓ dann X↑
+        # Exit
+        print(f"\n   🔎 Suche Exit-Muster...")
         exit_m = self._detect_exit_pattern(x_detections, y_detections)
         if exit_m:
             movements.append(exit_m)
+            print(f"   ✅ Exit erkannt: {exit_m['person_count']} Person(en)")
+        else:
+            print(f"   ❌ Kein Exit erkannt")
         
+        print(f"\n   🎯 Gesamt gefunden: {len(movements)} Bewegung(en)")
         return movements
+
+    # =====================================================================================
+    # Hilfsfunktionen
+    # =====================================================================================
+    
+    def _print_detection_summary(self, x_seq: List[Dict], y_seq: List[Dict]):
+        """Zeigt letzten Detections beider Quellen"""
+        print(f"\n   📊 Input X Detections:")
+        for d in x_seq[-5:]:
+            conf = d.get('avg_confidence')
+            if conf is None or not isinstance(conf, (float, int)):
+                conf = 0.0
+            count = int(d.get('persons_detected', 0))
+            ts = d.get('timestamp')
+            time_str = ts.strftime('%H:%M:%S') if isinstance(ts, datetime) else "N/A"
+            status = "✓" if conf >= self.min_confidence else "✗ (zu niedrig)"
+            print(f"      {time_str} | {count:2d} Pers. | Conf: {conf:.3f} {status}")
+        
+        print(f"\n   📊 Input Y Detections:")
+        for d in y_seq[-5:]:
+            conf = d.get('avg_confidence')
+            if conf is None or not isinstance(conf, (float, int)):
+                conf = 0.0
+            count = int(d.get('persons_detected', 0))
+            ts = d.get('timestamp')
+            time_str = ts.strftime('%H:%M:%S') if isinstance(ts, datetime) else "N/A"
+            status = "✓" if conf >= self.min_confidence else "✗ (zu niedrig)"
+            print(f"      {time_str} | {count:2d} Pers. | Conf: {conf:.3f} {status}")
+    
+    # =====================================================================================
+    # Mustererkennung Entry
+    # =====================================================================================
     
     def _detect_entry_pattern(self, x_seq: List[Dict], y_seq: List[Dict]) -> Optional[Dict]:
-        """
-        Entry-Muster für SEPARATE Kameras:
-        1. X sieht Anstieg (Person erscheint außen)
-        2. X sieht Abfall (Person verschwindet aus Außenbereich)
-        3. Y sieht Anstieg (Person erscheint innen)
+        """Eintritt: Y steigt, X vorher aktiv"""
+        print(f"      → Analysiere {len(y_seq)} Y-Detections auf Anstiege...")
         
-        Oder vereinfacht:
-        - X zeigt temporären Peak
-        - Y zeigt Anstieg kurz danach
-        """
-        # Suche nach Peak in X (Anstieg dann Abfall)
-        x_peaks = self._find_peaks(x_seq)
+        y_increases = self._find_any_increases(y_seq)
+        print(f"      → Gefunden: {len(y_increases)} Anstiege in Y")
         
-        # Suche nach Anstiegen in Y
-        y_increases = self._find_increases(y_seq)
-        
-        if not x_peaks or not y_increases:
+        if not y_increases:
             return None
         
-        # Finde zeitlich passende Kombinationen
-        for x_peak_time, x_peak_delta in x_peaks:
-            for y_inc_time, y_inc_delta in y_increases:
-                time_diff = (y_inc_time - x_peak_time).total_seconds()
-                
-                # Y-Anstieg muss NACH X-Peak kommen
-                if 0 < time_diff < self.transition_window:
-                    # Personenanzahl: Nehme Minimum für Konservativität
-                    person_count = min(x_peak_delta, y_inc_delta)
-                    
-                    if person_count < 1:
-                        continue
-                    
-                    confidence = self._calculate_confidence(
-                        x_seq, y_seq, time_diff, x_peak_delta, y_inc_delta
-                    )
-                    
-                    return {
-                        'type': 'entry',
-                        'person_count': person_count,
-                        'confidence': confidence,
-                        'time_diff': time_diff,
-                        'x_delta': x_peak_delta,
-                        'y_delta': y_inc_delta,
-                        'sequence': {
-                            'x_ids': [d['id'] for d in x_seq],
-                            'y_ids': [d['id'] for d in y_seq]
-                        },
-                        'pattern': f'X peak ({x_peak_delta}) → Y increase ({y_inc_delta})'
-                    }
+        y_time, y_delta = y_increases[0]
+        print(f"      → Bester Y-Anstieg: +{y_delta} um {y_time.strftime('%H:%M:%S')}")
         
-        return None
+        x_in_window = [d for d in x_seq if abs((d['timestamp'] - y_time).total_seconds()) < self.transition_window]
+        if not x_in_window:
+            print(f"      → Keine X-Detections im Zeitfenster")
+            return None
+        
+        x_avg = np.mean([d.get('persons_detected', 0) for d in x_in_window])
+        print(f"      → X-Durchschnitt: {x_avg:.1f}")
+        
+        person_count = max(1, min(y_delta, int(round(x_avg))))
+        confidence = self._calculate_simple_confidence(x_seq, y_seq)
+        
+        return {
+            'type': 'entry',
+            'person_count': person_count,
+            'confidence': confidence,
+            'time_diff': 0.0,
+            'x_delta': int(round(x_avg)),
+            'y_delta': y_delta,
+            'sequence': {'x_ids': [d['id'] for d in x_seq], 'y_ids': [d['id'] for d in y_seq]},
+            'pattern': f'Y increase {y_delta}, X avg {x_avg:.1f}'
+        }
+    
+    # =====================================================================================
+    # Mustererkennung Exit
+    # =====================================================================================
     
     def _detect_exit_pattern(self, x_seq: List[Dict], y_seq: List[Dict]) -> Optional[Dict]:
-        """
-        Exit-Muster für SEPARATE Kameras:
-        1. Y sieht Abfall (Person verlässt Innenbereich)
-        2. X sieht Anstieg (Person erscheint außen)
-        """
-        # Suche nach Abfällen in Y
-        y_decreases = self._find_decreases(y_seq)
+        """Austritt: Y fällt, X aktiv"""
+        print(f"      → Analysiere {len(y_seq)} Y-Detections auf Abfälle...")
         
-        # Suche nach Anstiegen in X
-        x_increases = self._find_increases(x_seq)
+        y_decreases = self._find_any_decreases(y_seq)
+        print(f"      → Gefunden: {len(y_decreases)} Abfälle in Y")
         
-        if not y_decreases or not x_increases:
+        if not y_decreases:
             return None
         
-        # Finde zeitlich passende Kombinationen
-        for y_dec_time, y_dec_delta in y_decreases:
-            for x_inc_time, x_inc_delta in x_increases:
-                time_diff = (x_inc_time - y_dec_time).total_seconds()
-                
-                # X-Anstieg muss NACH Y-Abfall kommen
-                if 0 < time_diff < self.transition_window:
-                    person_count = min(abs(y_dec_delta), x_inc_delta)
-                    
-                    if person_count < 1:
-                        continue
-                    
-                    confidence = self._calculate_confidence(
-                        x_seq, y_seq, time_diff, x_inc_delta, abs(y_dec_delta)
-                    )
-                    
-                    return {
-                        'type': 'exit',
-                        'person_count': person_count,
-                        'confidence': confidence,
-                        'time_diff': time_diff,
-                        'x_delta': x_inc_delta,
-                        'y_delta': y_dec_delta,
-                        'sequence': {
-                            'x_ids': [d['id'] for d in x_seq],
-                            'y_ids': [d['id'] for d in y_seq]
-                        },
-                        'pattern': f'Y decrease ({y_dec_delta}) → X increase ({x_inc_delta})'
-                    }
+        y_time, y_delta = y_decreases[0]
+        print(f"      → Bester Y-Abfall: {y_delta} um {y_time.strftime('%H:%M:%S')}")
         
-        return None
+        x_in_window = [d for d in x_seq if abs((d['timestamp'] - y_time).total_seconds()) < self.transition_window]
+        if not x_in_window:
+            print(f"      → Keine X-Detections im Zeitfenster")
+            return None
+        
+        x_avg = np.mean([d.get('persons_detected', 0) for d in x_in_window])
+        print(f"      → X-Durchschnitt: {x_avg:.1f}")
+        
+        person_count = max(1, min(abs(y_delta), int(round(x_avg))))
+        confidence = self._calculate_simple_confidence(x_seq, y_seq)
+        
+        return {
+            'type': 'exit',
+            'person_count': person_count,
+            'confidence': confidence,
+            'time_diff': 0.0,
+            'x_delta': int(round(x_avg)),
+            'y_delta': y_delta,
+            'sequence': {'x_ids': [d['id'] for d in x_seq], 'y_ids': [d['id'] for d in y_seq]},
+            'pattern': f'Y decrease {y_delta}, X avg {x_avg:.1f}'
+        }
+
+    # =====================================================================================
+    # Hilfslogik für Anstiege & Abfälle
+    # =====================================================================================
     
-    def _find_peaks(self, sequence: List[Dict]) -> List[Tuple[datetime, int]]:
-        """
-        Findet Peaks: Anstieg gefolgt von Abfall
-        
-        Returns:
-            Liste von (Zeitpunkt, Delta) Tupeln
-        """
-        peaks = []
-        
-        if len(sequence) < 3:
-            return peaks
-        
-        high_conf = [d for d in sequence 
-                     if (d.get('avg_confidence') or 0.0) >= self.min_confidence]
-        
-        if len(high_conf) < 3:
-            return peaks
-        
-        for i in range(1, len(high_conf) - 1):
-            prev_count = high_conf[i-1]['persons_detected']
-            curr_count = high_conf[i]['persons_detected']
-            next_count = high_conf[i+1]['persons_detected']
-            
-            # Peak: vorher niedriger, danach niedriger
-            if prev_count < curr_count > next_count:
-                delta = curr_count - prev_count
-                peaks.append((high_conf[i]['timestamp'], delta))
-        
-        return peaks
-    
-    def _find_increases(self, sequence: List[Dict]) -> List[Tuple[datetime, int]]:
-        """
-        Findet signifikante Anstiege
-        
-        Returns:
-            Liste von (Zeitpunkt, Delta) Tupeln
-        """
+    def _find_any_increases(self, sequence: List[Dict]) -> List[Tuple[datetime, int]]:
+        """Finde ALLE Anstiege in der Y-Sequenz"""
         increases = []
-        
-        high_conf = [d for d in sequence 
-                     if (d.get('avg_confidence') or 0.0) >= self.min_confidence]
-        
-        if len(high_conf) < 2:
-            return increases
-        
-        for i in range(1, len(high_conf)):
-            prev_count = high_conf[i-1]['persons_detected']
-            curr_count = high_conf[i]['persons_detected']
-            
-            if curr_count > prev_count:
-                delta = curr_count - prev_count
-                increases.append((high_conf[i]['timestamp'], delta))
-        
+        for i in range(1, len(sequence)):
+            prev = int(sequence[i - 1].get('persons_detected', 0))
+            curr = int(sequence[i].get('persons_detected', 0))
+            if curr > prev:
+                increases.append((sequence[i]['timestamp'], curr - prev))
+                print(f"         ↑ +{curr - prev} um {sequence[i]['timestamp'].strftime('%H:%M:%S')}")
         return increases
     
-    def _find_decreases(self, sequence: List[Dict]) -> List[Tuple[datetime, int]]:
-        """
-        Findet signifikante Abfälle
-        
-        Returns:
-            Liste von (Zeitpunkt, Delta) Tupeln (Delta ist negativ!)
-        """
+    def _find_any_decreases(self, sequence: List[Dict]) -> List[Tuple[datetime, int]]:
+        """Finde ALLE Abfälle in der Y-Sequenz"""
         decreases = []
-        
-        high_conf = [d for d in sequence 
-                     if (d.get('avg_confidence') or 0.0) >= self.min_confidence]
-        
-        if len(high_conf) < 2:
-            return decreases
-        
-        for i in range(1, len(high_conf)):
-            prev_count = high_conf[i-1]['persons_detected']
-            curr_count = high_conf[i]['persons_detected']
-            
-            if curr_count < prev_count:
-                delta = curr_count - prev_count  # Negativ!
-                decreases.append((high_conf[i]['timestamp'], delta))
-        
+        for i in range(1, len(sequence)):
+            prev = int(sequence[i - 1].get('persons_detected', 0))
+            curr = int(sequence[i].get('persons_detected', 0))
+            if curr < prev:
+                decreases.append((sequence[i]['timestamp'], curr - prev))
+                print(f"         ↓ {curr - prev} um {sequence[i]['timestamp'].strftime('%H:%M:%S')}")
         return decreases
     
-    def _calculate_confidence(self, x_seq: List[Dict], y_seq: List[Dict], 
-                             time_diff: float, x_delta: int, y_delta: int) -> float:
-        """
-        Berechnet Konfidenz der erkannten Bewegung
-        """
-        # Durchschnittskonfidenzen
-        x_confs = [(d.get('avg_confidence') or 0.0) for d in x_seq]
-        y_confs = [(d.get('avg_confidence') or 0.0) for d in y_seq]
-        
-        x_avg = np.mean(x_confs) if x_confs else 0.0
-        y_avg = np.mean(y_confs) if y_confs else 0.0
-        
-        avg_confidence = (x_avg + y_avg) / 2
-        
-        # Zeitdifferenz-Strafe (je näher an 0, desto besser)
-        time_penalty = max(0.3, 1.0 - (time_diff / self.transition_window))
-        
-        # Delta-Konsistenz (beide Kameras sollten ähnliche Änderungen sehen)
-        if x_delta == 0 or y_delta == 0:
-            consistency = 0.5
-        elif x_delta == y_delta:
-            consistency = 1.0
-        else:
-            consistency = min(x_delta, y_delta) / max(x_delta, y_delta)
-        
-        # Kombiniere Faktoren
-        final_confidence = avg_confidence * time_penalty * consistency
-        
-        return min(1.0, max(0.0, final_confidence))
+    # =====================================================================================
+    # Confidence
+    # =====================================================================================
+    
+    def _calculate_simple_confidence(self, x_seq: List[Dict], y_seq: List[Dict]) -> float:
+        """Berechne vereinfachte Konfidenz"""
+        x_confs = [d.get('avg_confidence') or 0.5 for d in x_seq]
+        y_confs = [d.get('avg_confidence') or 0.5 for d in y_seq]
+        avg_conf = (np.mean(x_confs) + np.mean(y_confs)) / 2
+        return round(min(1.0, max(0.4, avg_conf * 0.8)), 3)
+
+
+# =====================================================================================
+# TESTLAUF
+# =====================================================================================
+
+if __name__ == "__main__":
+    from datetime import timedelta
+    base_time = datetime.now()
+    
+    test_detections = [
+        {'id': 1, 'timestamp': base_time, 'source': 'input_x', 'persons_detected': 5, 'avg_confidence': None},
+        {'id': 2, 'timestamp': base_time + timedelta(seconds=3), 'source': 'input_x', 'persons_detected': 6, 'avg_confidence': 0.7},
+        {'id': 3, 'timestamp': base_time + timedelta(seconds=6), 'source': 'input_y', 'persons_detected': 1, 'avg_confidence': None},
+        {'id': 4, 'timestamp': base_time + timedelta(seconds=9), 'source': 'input_y', 'persons_detected': 2, 'avg_confidence': 0.8},
+        {'id': 5, 'timestamp': base_time + timedelta(seconds=12), 'source': 'input_y', 'persons_detected': 2, 'avg_confidence': 0.75},
+    ]
+    
+    detector = MovementDetector()
+    moves = detector.detect_movements(test_detections)
+    print("\nErkannte Bewegungen:")
+    for m in moves:
+        print(f"  {m['type']} ({m['person_count']} Pers, conf={m['confidence']})")
