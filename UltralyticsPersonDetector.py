@@ -5,7 +5,7 @@ from BaseDetector import BaseDetector
 
 
 class UltralyticsPersonDetector(BaseDetector):
-    """Ultralytics YOLO Detektor für Personenerkennung"""
+    """Ultralytics YOLO Detektor fuer Personenerkennung"""
     
     def __init__(self, model_path: str = "yolov8n.pt", confidence_threshold: float = 0.5):
         """
@@ -13,7 +13,7 @@ class UltralyticsPersonDetector(BaseDetector):
         
         Args:
             model_path: Pfad zum YOLO Modell
-            confidence_threshold: Mindest-Konfidenz für Detections
+            confidence_threshold: Mindest-Konfidenz fuer Detections
         """
         super().__init__("Ultralytics YOLO", "v8")
         self.confidence_threshold = confidence_threshold
@@ -31,7 +31,7 @@ class UltralyticsPersonDetector(BaseDetector):
             Dictionary mit Erkennungsergebnissen
         """
         try:
-            # Detection durchführen
+            # Detection durchfuehren (verbose=False fuer weniger Output)
             results = self.model(image, verbose=False)
             
             # Personen extrahieren
@@ -41,7 +41,7 @@ class UltralyticsPersonDetector(BaseDetector):
             for result in results:
                 if result.boxes is not None:
                     for box in result.boxes:
-                        # Nur Personen (class_id = 0) berücksichtigen
+                        # Nur Personen (class_id = 0) beruecksichtigen
                         if int(box.cls) == self.person_class_id:
                             confidence = float(box.conf)
                             if confidence >= self.confidence_threshold:
@@ -73,7 +73,12 @@ class UltralyticsPersonDetector(BaseDetector):
             }
     
     def get_model_info(self) -> Dict[str, Any]:
-        """Gibt Modellinformationen zurück"""
+        """
+        Gibt Modellinformationen zurueck
+        
+        Returns:
+            Dictionary mit Modellinformationen
+        """
         return {
             'model_name': self.model_name,
             'model_version': self.model_version,

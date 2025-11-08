@@ -1,6 +1,5 @@
 #!/bin/bash
 # start_system.sh - Startet das komplette Live-System mit Bewegungserkennung
-# Startet sowohl die Live-Detection als auch die Bewegungsanalyse
 
 # =============================================================================
 # KONFIGURATION
@@ -19,7 +18,7 @@ YOLO_MODEL="yolov8n.pt"
 CONFIDENCE_THRESHOLD=0.5
 POLL_INTERVAL=0.5
 
-ANALYSIS_INTERVAL=30  # Sekunden zwischen Bewegungsanalysen (erhöht auf 30s)
+ANALYSIS_INTERVAL=30  # Sekunden zwischen Bewegungsanalysen
 
 # Log-Dateien
 LOG_DIR="logs"
@@ -31,19 +30,19 @@ ANALYSIS_LOG="${LOG_DIR}/analysis.log"
 # =============================================================================
 
 log_message() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
 check_python() {
     if ! command -v python3 &> /dev/null; then
-        log_message "ERROR: Python3 nicht gefunden"
+        log_message "[ERROR] Python3 nicht gefunden"
         exit 1
     fi
-    log_message "OK: Python3 gefunden: $(python3 --version)"
+    log_message "[OK] Python3: $(python3 --version)"
 }
 
 check_dependencies() {
-    log_message "Prüfe Python-Abhängigkeiten..."
+    log_message "[INFO] Pruefe Python-Abhaengigkeiten..."
     
     python3 - <<PYCODE
 import sys
@@ -70,11 +69,11 @@ except ImportError:
     missing.append('numpy')
 
 if missing:
-    print(f"ERROR: Fehlende Pakete: {', '.join(missing)}")
+    print(f"[ERROR] Fehlende Pakete: {', '.join(missing)}")
     print(f"  Installiere mit: pip install {' '.join(missing)}")
     sys.exit(1)
 else:
-    print("OK: Alle Abhängigkeiten installiert")
+    print("[OK] Alle Abhaengigkeiten installiert")
     sys.exit(0)
 PYCODE
 
@@ -84,7 +83,7 @@ PYCODE
 }
 
 check_files() {
-    log_message "Prüfe benötigte Dateien..."
+    log_message "[INFO] Pruefe benoetigte Dateien..."
     
     REQUIRED_FILES=(
         "run_live_detection.py"
@@ -107,24 +106,24 @@ check_files() {
     done
     
     if [ ${#MISSING[@]} -gt 0 ]; then
-        log_message "ERROR: Fehlende Dateien:"
+        log_message "[ERROR] Fehlende Dateien:"
         for file in "${MISSING[@]}"; do
             echo "    - $file"
         done
         exit 1
     fi
     
-    log_message "OK: Alle benötigten Dateien vorhanden"
+    log_message "[OK] Alle benoetigten Dateien vorhanden"
 }
 
 create_directories() {
-    log_message "Erstelle Verzeichnisse..."
+    log_message "[INFO] Erstelle Verzeichnisse..."
     mkdir -p "$INPUT_X" "$INPUT_Y" "$LOG_DIR"
-    log_message "OK: Verzeichnisse erstellt"
+    log_message "[OK] Verzeichnisse erstellt"
 }
 
 test_database() {
-    log_message "Teste Datenbankverbindung..."
+    log_message "[INFO] Teste Datenbankverbindung..."
     
     python3 - <<PYCODE
 import pg8000
@@ -139,11 +138,11 @@ try:
         database='$DB_NAME',
         timeout=5
     )
-    print('OK: Datenbankverbindung erfolgreich')
+    print('[OK] Datenbankverbindung erfolgreich')
     conn.close()
     sys.exit(0)
 except Exception as e:
-    print(f'ERROR: Datenbankverbindung fehlgeschlagen: {e}')
+    print(f'[ERROR] Datenbankverbindung fehlgeschlagen: {e}')
     sys.exit(1)
 PYCODE
 
@@ -151,7 +150,7 @@ PYCODE
 }
 
 initialize_database() {
-    log_message "Initialisiere Datenbank-Tabellen..."
+    log_message "[INFO] Initialisiere Datenbank-Tabellen..."
     
     python3 - <<PYCODE
 import sys
@@ -167,19 +166,19 @@ try:
     )
     
     if not db.connect():
-        print('ERROR: Verbindung fehlgeschlagen')
+        print('[ERROR] Verbindung fehlgeschlagen')
         sys.exit(1)
     
     if not db.create_tables():
-        print('ERROR: Tabellenerstellung fehlgeschlagen')
+        print('[ERROR] Tabellenerstellung fehlgeschlagen')
         sys.exit(1)
     
     db.close()
-    print('OK: Datenbank initialisiert')
+    print('[OK] Datenbank initialisiert')
     sys.exit(0)
     
 except Exception as e:
-    print(f'ERROR: Fehler: {e}')
+    print(f'[ERROR] Fehler: {e}')
     sys.exit(1)
 PYCODE
 
@@ -187,7 +186,7 @@ PYCODE
 }
 
 start_detection() {
-    log_message "Starte Live-Detection..."
+    log_message "[INFO] Starte Live-Detection..."
     
     python3 run_live_detection.py \
         --db-host "$DB_HOST" \
@@ -205,34 +204,31 @@ start_detection() {
     
     DETECTION_PID=$!
     echo $DETECTION_PID > "${LOG_DIR}/detection.pid"
-    log_message "OK: Live-Detection gestartet (PID: $DETECTION_PID)"
+    log_message "[OK] Live-Detection gestartet (PID: $DETECTION_PID)"
 }
 
 start_analysis() {
-    log_message "Starte Bewegungsanalyse..."
+    log_message "[INFO] Starte Bewegungsanalyse..."
     
     # Warte kurz, damit erste Detections vorhanden sind
     sleep 3
     
-    # Hinweis: run_time_series_analysis.py hat DB-Config bereits integriert
-    # Falls du diese konfigurierbar machen willst, musst du die Datei anpassen
     python3 run_time_series_analysis.py \
         > "$ANALYSIS_LOG" 2>&1 &
     
     ANALYSIS_PID=$!
     echo $ANALYSIS_PID > "${LOG_DIR}/analysis.pid"
-    log_message "OK: Bewegungsanalyse gestartet (PID: $ANALYSIS_PID)"
-    log_message "  (Analysiert alle ${ANALYSIS_INTERVAL}s)"
+    log_message "[OK] Bewegungsanalyse gestartet (PID: $ANALYSIS_PID)"
 }
 
 stop_system() {
-    log_message "Stoppe System..."
+    log_message "[INFO] Stoppe System..."
     
     if [ -f "${LOG_DIR}/detection.pid" ]; then
         DETECTION_PID=$(cat "${LOG_DIR}/detection.pid")
         if ps -p $DETECTION_PID > /dev/null 2>&1; then
             kill $DETECTION_PID
-            log_message "OK: Detection gestoppt (PID: $DETECTION_PID)"
+            log_message "[OK] Detection gestoppt (PID: $DETECTION_PID)"
         fi
         rm "${LOG_DIR}/detection.pid"
     fi
@@ -241,35 +237,35 @@ stop_system() {
         ANALYSIS_PID=$(cat "${LOG_DIR}/analysis.pid")
         if ps -p $ANALYSIS_PID > /dev/null 2>&1; then
             kill $ANALYSIS_PID
-            log_message "OK: Bewegungsanalyse gestoppt (PID: $ANALYSIS_PID)"
+            log_message "[OK] Bewegungsanalyse gestoppt (PID: $ANALYSIS_PID)"
         fi
         rm "${LOG_DIR}/analysis.pid"
     fi
 }
 
 show_status() {
-    log_message "System-Status:"
+    log_message "[INFO] System-Status:"
     
     if [ -f "${LOG_DIR}/detection.pid" ]; then
         DETECTION_PID=$(cat "${LOG_DIR}/detection.pid")
         if ps -p $DETECTION_PID > /dev/null 2>&1; then
-            echo "  OK: Live-Detection läuft (PID: $DETECTION_PID)"
+            echo "  [OK] Live-Detection laeuft (PID: $DETECTION_PID)"
         else
-            echo "  ERROR: Live-Detection nicht aktiv"
+            echo "  [ERROR] Live-Detection nicht aktiv"
         fi
     else
-        echo "  ERROR: Live-Detection nicht gestartet"
+        echo "  [ERROR] Live-Detection nicht gestartet"
     fi
     
     if [ -f "${LOG_DIR}/analysis.pid" ]; then
         ANALYSIS_PID=$(cat "${LOG_DIR}/analysis.pid")
         if ps -p $ANALYSIS_PID > /dev/null 2>&1; then
-            echo "  OK: Bewegungsanalyse läuft (PID: $ANALYSIS_PID)"
+            echo "  [OK] Bewegungsanalyse laeuft (PID: $ANALYSIS_PID)"
         else
-            echo "  ERROR: Bewegungsanalyse nicht aktiv"
+            echo "  [ERROR] Bewegungsanalyse nicht aktiv"
         fi
     else
-        echo "  ERROR: Bewegungsanalyse nicht gestartet"
+        echo "  [ERROR] Bewegungsanalyse nicht gestartet"
     fi
     
     echo ""
@@ -283,12 +279,12 @@ show_status() {
 }
 
 tail_logs() {
-    log_message "Zeige Logs (Ctrl+C zum Beenden)..."
+    log_message "[INFO] Zeige Logs (Ctrl+C zum Beenden)..."
     tail -f "$DETECTION_LOG" "$ANALYSIS_LOG"
 }
 
 show_room_state() {
-    log_message "Aktueller Raumzustand:"
+    log_message "[INFO] Aktueller Raumzustand:"
     
     python3 - <<PYCODE
 import sys
@@ -304,7 +300,7 @@ try:
     )
     
     if not db.connect():
-        print('ERROR: Verbindung fehlgeschlagen')
+        print('[ERROR] Verbindung fehlgeschlagen')
         sys.exit(1)
     
     state = db.get_latest_room_state()
@@ -322,13 +318,13 @@ try:
     sys.exit(0)
     
 except Exception as e:
-    print(f'ERROR: Fehler: {e}')
+    print(f'[ERROR] Fehler: {e}')
     sys.exit(1)
 PYCODE
 }
 
 show_statistics() {
-    log_message "Statistiken (letzte 5 Minuten):"
+    log_message "[INFO] Statistiken (letzte 5 Minuten):"
     
     python3 - <<PYCODE
 import sys
@@ -344,7 +340,7 @@ try:
     )
     
     if not db.connect():
-        print('ERROR: Verbindung fehlgeschlagen')
+        print('[ERROR] Verbindung fehlgeschlagen')
         sys.exit(1)
     
     cursor = db.connection.cursor()
@@ -388,7 +384,7 @@ try:
     sys.exit(0)
     
 except Exception as e:
-    print(f'ERROR: Fehler: {e}')
+    print(f'[ERROR] Fehler: {e}')
     import traceback
     traceback.print_exc()
     sys.exit(1)
@@ -401,19 +397,19 @@ PYCODE
 
 case "${1:-start}" in
     "start")
-        log_message "=== STARTE LIVE-BEWEGUNGSERKENNUNGS-SYSTEM ==="
+        log_message "[SYSTEM] STARTE LIVE-BEWEGUNGSERKENNUNGS-SYSTEM"
         check_python
         check_dependencies
         check_files
         create_directories
         
         if ! test_database; then
-            log_message "ERROR: Datenbanktest fehlgeschlagen - breche ab"
+            log_message "[ERROR] Datenbanktest fehlgeschlagen - breche ab"
             exit 1
         fi
         
         if ! initialize_database; then
-            log_message "ERROR: Datenbank-Initialisierung fehlgeschlagen - breche ab"
+            log_message "[ERROR] Datenbank-Initialisierung fehlgeschlagen - breche ab"
             exit 1
         fi
         
@@ -421,11 +417,11 @@ case "${1:-start}" in
         start_analysis
         
         echo ""
-        log_message "OK: System erfolgreich gestartet"
+        log_message "[OK] System erfolgreich gestartet"
         echo ""
         show_status
         echo ""
-        log_message "Nützliche Befehle:"
+        log_message "[INFO] Nuetzliche Befehle:"
         echo "  ./start_system.sh logs       - Logs verfolgen"
         echo "  ./start_system.sh status     - System-Status anzeigen"
         echo "  ./start_system.sh room       - Raumzustand anzeigen"
@@ -482,13 +478,6 @@ case "${1:-start}" in
         echo "  init-db   - Initialisiert die Datenbank-Tabellen"
         echo ""
         echo "Konfiguration:"
-        echo "  Bearbeite die Variablen am Anfang dieser Datei:"
-        echo "    DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT"
-        echo "    INPUT_X, INPUT_Y"
-        echo "    YOLO_MODEL, CONFIDENCE_THRESHOLD"
-        echo ""
-        echo "Hinweis:"
-        echo "  Die DB-Konfiguration in run_time_series_analysis.py muss separat"
-        echo "  angepasst werden (Zeile 11-17)!"
+        echo "  Bearbeite die Variablen am Anfang dieser Datei"
         ;;
 esac

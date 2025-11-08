@@ -1,289 +1,258 @@
-# Live-Personenerkennung mit Zeitreihenanalyse
+# Live-Personenerkennung mit Bewegungsanalyse
 
-Ein vereinfachtes System zur Echtzeit-Personenerkennung mit Ultralytics YOLO, das zwei Ordner überwacht und die Ergebnisse mit Zeitreihenanalyse korreliert.
+## Überarbeitungen im Code
 
-## 🎯 Funktionsweise
+### 1. Entfernte Emojis und Sonderzeichen
+- Alle Emojis in Log-Ausgaben durch Text ersetzt
+- Umlaute durch ae/oe/ue/ss ersetzt
+- Konsistente Verwendung von [TAG] Prefixen für Logs
 
-Das System besteht aus zwei Hauptkomponenten:
+### 2. Komprimierte Debug-Ausgaben
 
-1. **Live-Detection**: Überwacht kontinuierlich zwei Ordner (`input_x` und `input_y`) auf neue Bilder
-   - Bilder werden automatisch erkannt und geladen
-   - Ultralytics YOLO führt Personenerkennung durch
-   - Ergebnisse werden sofort in PostgreSQL gespeichert
-   - Bilder werden nach Verarbeitung gelöscht (Pipeline-Prinzip)
+#### LiveProcessor
+- Format: `[####] HH:MM:SS.mmm | source | ## Pers | Conf=X.XXX | X.XXXs [STATUS]`
+- Beispiel: `[0042] 14:23:15.432 | input_x    |  3 Pers | Conf=0.823 | 0.145s [OK]`
 
-2. **Zeitreihenanalyse**: Korreliert die Detections aus beiden Ordnern
-   - Paart zeitlich nahe Detections (max. 5 Sekunden Differenz)
-   - Schätzt die tatsächliche Personenanzahl durch verschiedene Strategien
-   - Speichert bereinigte Ergebnisse in separater Tabelle
+#### MovementDetector
+- Zeigt nur letzte 3 Detections pro Quelle
+- Kompakte Entry/Exit-Ausgabe mit Muster
+- Fokus auf erkannte Bewegungen
+- Format: `[MOVEMENT] ENTRY erkannt: 2 Person(en), Conf=0.75`
 
-## 📋 Voraussetzungen
+#### TimeSeriesAnalyzer
+- Reduzierte Ausgabe auf Wesentliches
+- Klare Trennung durch Trennlinien
+- Fokus auf Entry/Exit-Ereignisse
+- Aktueller Raumzustand prominent dargestellt
 
-### Software
-- Python 3.8+
-- PostgreSQL 12+
+### 3. Erweiterte Kommentare
 
-### Python-Pakete
-```bash
-pip install ultralytics opencv-python pg8000 numpy
+Alle Klassen und Methoden haben jetzt Docstrings:
+- Beschreibung der Funktionalität
+- Args: Parameter-Dokumentation
+- Returns: Rückgabewert-Dokumentation
+
+Inline-Kommentare für komplexe Logik hinzugefügt.
+
+### 4. Log-Präfixe
+
+Konsistente Verwendung von Präfixen:
+- `[DB]` - Datenbank-Operationen
+- `[SYSTEM]` - System-Level Events
+- `[MOVEMENT]` - Bewegungserkennung
+- `[ROOM]` - Raumzustandsänderungen
+- `[ANALYZER]` - Zeitreihenanalyse
+- `[INFO]` - Informationen
+- `[ERROR]` - Fehler
+- `[OK]` - Erfolgreiche Operationen
+
+## Kernfunktionalität
+
+### Entry-Erkennung
+1. Y-Detections steigen (z.B. 2 -> 3 Personen)
+2. X-Detections zeigen Aktivität im Zeitfenster
+3. Personenzahl = min(Y-Delta, X-Durchschnitt)
+4. Log: `[MOVEMENT] Entry-Muster: Y+1 @ HH:MM:SS, X_avg=2.5 -> 1 Pers`
+
+### Exit-Erkennung
+1. Y-Detections fallen (z.B. 3 -> 2 Personen)
+2. X-Detections zeigen Aktivität im Zeitfenster
+3. Personenzahl = min(|Y-Delta|, X-Durchschnitt)
+4. Log: `[MOVEMENT] Exit-Muster: Y-1 @ HH:MM:SS, X_avg=2.3 -> 1 Pers`
+
+### Raumzustand-Update
+```
+[ROOM] ENTRY: 5 -> 6 (+1, Conf=0.75)
+[ROOM] AKTUELLER ZUSTAND: 6 Personen im Raum
 ```
 
-## 🗄️ Datenbankstruktur
+## Installation
 
-### Tabelle: `live_detections`
-Speichert Rohdaten von beiden Ordnern:
-- `id`: Primärschlüssel
-- `timestamp`: Zeitstempel der Detection
-- `source`: Ordner-Name (`input_x` oder `input_y`)
-- `persons_detected`: Anzahl erkannter Personen
-- `avg_confidence`, `max_confidence`, `min_confidence`: Konfidenzwerte
-- `detection_data`: Vollständige Detection-Daten (JSONB)
-
-### Tabelle: `correlated_persons`
-Speichert korrelierte/bereinigte Ergebnisse:
-- `id`: Primärschlüssel
-- `timestamp`: Zeitstempel der Korrelation
-- `source_x_id`, `source_y_id`: Referenzen zu `live_detections`
-- `persons_x`, `persons_y`: Rohdaten aus beiden Quellen
-- `estimated_actual_persons`: Geschätzte tatsächliche Personenanzahl
-- `confidence_score`: Konfidenz der Schätzung
-- `time_diff_seconds`: Zeitdifferenz zwischen Detections
-- `analysis_data`: Analyse-Details (JSONB)
-
-## 🚀 Verwendung
-
-### 1. Datenbank vorbereiten
 ```bash
-# Mit dem Setup-Script (automatisch)
-cat > setup_database.sh << 'EOF'
-#!/bin/bash
-sudo -u postgres psql << PSQL
-DO \$\$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'aiuser') THEN
-        CREATE USER aiuser WITH PASSWORD 'DHBW1234!?';
-    END IF;
-END \$\$;
+# Python-Abhängigkeiten
+pip install opencv-python ultralytics pg8000 numpy
 
-SELECT 'CREATE DATABASE ai_detection OWNER aiuser'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'ai_detection')\gexec
+# Skript ausführbar machen
+chmod +x start_system.sh
 
-GRANT ALL PRIVILEGES ON DATABASE ai_detection TO aiuser;
-\c ai_detection
-GRANT ALL ON SCHEMA public TO aiuser;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO aiuser;
-PSQL
-EOF
-
-chmod +x setup_database.sh
-./setup_database.sh
+# Datenbank-Konfiguration in start_system.sh anpassen
+# oder in run_time_series_analysis.py (Zeilen 11-17)
 ```
 
-### 2. Konfiguration anpassen
-Bearbeite `start_system.sh` und passe die Datenbank-Credentials an:
+## Verwendung
+
+### System starten
+```bash
+./start_system.sh start
+```
+
+### Status prüfen
+```bash
+./start_system.sh status
+```
+
+### Logs verfolgen
+```bash
+./start_system.sh logs
+```
+
+### Raumzustand anzeigen
+```bash
+./start_system.sh room
+```
+
+### Statistiken anzeigen
+```bash
+./start_system.sh stats
+```
+
+### System stoppen
+```bash
+./start_system.sh stop
+```
+
+## Dateien-Übersicht
+
+### Kern-Module
+- `BaseDetector.py` - Abstrakte Basis für Detektoren
+- `UltralyticsPersonDetector.py` - YOLO-basierte Personenerkennung
+- `DataLoader.py` - Überwacht Ordner und lädt Bilder
+- `DatabaseHandler.py` - PostgreSQL-Operationen
+- `LiveProcessor.py` - Live-Verarbeitung von Bildern
+
+### Bewegungsanalyse
+- `MovementDetector.py` - Erkennt Entry/Exit aus Detections
+- `RoomOccupancyManager.py` - Verwaltet Raumzustand
+- `TimeSeriesAnalyzer.py` - Zeitreihenanalyse und Orchestrierung
+
+### Startskripte
+- `run_live_detection.py` - Startet Live-Detection
+- `run_time_series_analysis.py` - Startet Bewegungsanalyse
+- `start_system.sh` - Shell-Skript für Gesamtsystem
+
+## Datenbank-Schema
+
+### live_detections
+- Rohdaten von beiden Kameras
+- `processed` Flag für Verarbeitung
+- JSONB für flexible Zusatzdaten
+
+### movement_tracking
+- Erkannte Bewegungen (entry/exit)
+- Personenanzahl und Konfidenz
+- Referenz zu beteiligten Detections
+
+### room_state
+- Zeitreihe des Raumzustands
+- Grund der Änderung
+- Referenz zu Bewegung (optional)
+
+## Konfiguration
+
+### Datenbank (start_system.sh)
 ```bash
 DB_HOST="localhost"
 DB_USER="aiuser"
 DB_PASSWORD="DHBW1234!?"
 DB_NAME="ai_detection"
+DB_PORT=5432
 ```
 
-### 3. System starten
+### Eingabeordner
 ```bash
-chmod +x start_system.sh
-./start_system.sh start
+INPUT_X="input_x"
+INPUT_Y="input_y"
 ```
 
-### 4. Bilder hinzufügen
-Kopiere Bilder in die Ordner:
+### YOLO-Modell
 ```bash
-# Beispiel
-cp bild1.jpg input_x/
-cp bild2.jpg input_y/
+YOLO_MODEL="yolov8n.pt"
+CONFIDENCE_THRESHOLD=0.5
 ```
 
-Die Bilder werden automatisch erkannt, verarbeitet und gelöscht.
+### Analyse-Parameter
+- `transition_window=10.0` - Zeitfenster für Bewegungserkennung (Sekunden)
+- `analysis_window=30.0` - Zeitfenster für unverarbeitete Detections (Sekunden)
+- `min_confidence=0.3` - Mindest-Konfidenz für Logging
+- `interval_seconds=30` - Intervall zwischen Analysen
 
-### 5. Logs verfolgen
-```bash
-./start_system.sh logs
-```
-
-### 6. Status prüfen
-```bash
-./start_system.sh status
-```
-
-### 7. System stoppen
-```bash
-./start_system.sh stop
-```
-
-## 🔧 Erweiterte Nutzung
-
-### Nur Live-Detection starten
-```bash
-python3 run_live_detection.py \
-    --db-user aiuser \
-    --db-password "DHBW1234!?" \
-    --db-name ai_detection \
-    --input-x input_x \
-    --input-y input_y \
-    --confidence-threshold 0.5
-```
-
-### Nur Zeitreihenanalyse starten
-```bash
-python3 TimeSeriesAnalyzer.py \
-    --db-user aiuser \
-    --db-password "DHBW1234!?" \
-    --db-name ai_detection \
-    --interval 10
-```
-
-### Einmalige Analyse durchführen
-```bash
-python3 TimeSeriesAnalyzer.py \
-    --db-user aiuser \
-    --db-password "DHBW1234!?" \
-    --db-name ai_detection \
-    --once
-```
-
-### Zusammenfassung anzeigen
-```bash
-python3 TimeSeriesAnalyzer.py \
-    --db-user aiuser \
-    --db-password "DHBW1234!?" \
-    --db-name ai_detection \
-    --summary 24  # Letzte 24 Stunden
-```
-
-## 📊 Zeitreihenanalyse-Strategien
-
-Die Zeitreihenanalyse verwendet verschiedene Strategien zur Schätzung der tatsächlichen Personenanzahl:
-
-1. **Perfekte Übereinstimmung**: Wenn beide Quellen die gleiche Anzahl liefern → Wert übernehmen
-2. **Große Abweichung** (>2 Personen): Maximum nehmen (konservative Schätzung)
-3. **Konfidenz-basiert**: Bei signifikantem Konfidenzunterschied (>0.1) → Wert mit höherer Konfidenz
-4. **Gewichteter Durchschnitt**: Bei ähnlicher Konfidenz → nach Konfidenz gewichteter Mittelwert
-
-Zusätzlich wird eine Zeitstrafe angewendet: Je größer die Zeitdifferenz zwischen den Detections, desto geringer die Konfidenz des Ergebnisses.
-
-## 📁 Projektstruktur
-
-```
-.
-├── BaseDetector.py              # Abstrakte Basisklasse
-├── UltralyticsPersonDetector.py # YOLO-Implementierung
-├── DatabaseHandler.py           # PostgreSQL-Operationen
-├── DataLoader.py                # Ordner-Überwachung
-├── LiveProcessor.py             # Live-Verarbeitung
-├── TimeSeriesAnalyzer.py        # Zeitreihenanalyse
-├── run_live_detection.py        # Hauptprogramm Detection
-├── start_system.sh              # System-Management-Script
-├── input_x/                     # Eingabeordner X
-├── input_y/                     # Eingabeordner Y
-└── logs/                        # Log-Dateien
-    ├── detection.log
-    └── analysis.log
-```
-
-## 🔍 Monitoring
-
-### Datenbank-Abfragen
-
-**Letzte Detections anzeigen:**
-```sql
-SELECT timestamp, source, persons_detected, avg_confidence 
-FROM live_detections 
-ORDER BY timestamp DESC 
-LIMIT 10;
-```
-
-**Korrelierte Ergebnisse anzeigen:**
-```sql
-SELECT 
-    timestamp,
-    persons_x,
-    persons_y,
-    estimated_actual_persons,
-    confidence_score,
-    time_diff_seconds
-FROM correlated_persons 
-ORDER BY timestamp DESC 
-LIMIT 10;
-```
-
-**Statistik über letzte Stunde:**
-```sql
-SELECT 
-    source,
-    COUNT(*) as count,
-    AVG(persons_detected) as avg_persons,
-    AVG(avg_confidence) as avg_confidence
-FROM live_detections 
-WHERE timestamp >= NOW() - INTERVAL '1 hour'
-GROUP BY source;
-
-**for Test Live**
-SELECT
-*
-FROM live_detections 
-ORDER BY timestamp DESC;
-```
-
-## ⚙️ Konfigurationsparameter
+## Beispiel-Output
 
 ### Live-Detection
-- `--poll-interval`: Prüfintervall für neue Bilder (Standard: 0.5s)
-- `--confidence-threshold`: Mindest-Konfidenz für Detections (Standard: 0.5)
-- `--yolo-model`: YOLO-Modell (Standard: yolov8n.pt)
-
-### Zeitreihenanalyse
-- `--interval`: Intervall zwischen Analysen (Standard: 10s)
-- `max_time_diff`: Max. Zeitdifferenz für Paare (in Code: 5.0s)
-- `confidence_threshold`: Mindest-Konfidenz für Korrelation (in Code: 0.5)
-
-## 🐛 Fehlerbehebung
-
-### "Erkannte Personen: 0" bei Testbildern
-**Das ist normal!** YOLO wurde auf echte Fotos trainiert und erkennt keine:
-- Strichmännchen
-- Gezeichnete Bilder
-- Synthetische/künstliche Bilder
-- Stark vereinfachte Darstellungen
-
-**Lösung:** Verwende echte Fotos mit Personen
-```bash
-# Test mit echtem Foto
-python3 test_with_real_image.py --sample crowd --save-result
-
-# Oder verwende eigene Fotos
-python3 test_with_real_image.py --image mein_foto.jpg --save-result
+```
+[0001] 14:23:15.432 | input_x    |  5 Pers | Conf=0.823 | 0.145s [OK]
+[0002] 14:23:15.987 | input_y    |  2 Pers | Conf=0.756 | 0.132s [OK]
+[0003] 14:23:16.543 | input_x    |  6 Pers | Conf=0.845 | 0.138s [OK]
+[0004] 14:23:17.098 | input_y    |  3 Pers | Conf=0.789 | 0.141s [OK]
 ```
 
-### Keine Bilder werden verarbeitet
-- Prüfe ob Ordner existieren: `ls -la input_x input_y`
-- Prüfe Dateirechte: `chmod 755 input_x input_y`
-- Prüfe Logs: `tail -f logs/detection.log`
+### Bewegungsanalyse
+```
+[ANALYZER] Unverarbeitete Detections: 15
+[ANALYZER] Input X: 8 | Input Y: 7
+[ANALYZER] Letzte Detections:
+  Input X (letzte 3):
+    14:23:15 |  5 Pers | Conf=0.823
+    14:23:16 |  6 Pers | Conf=0.845
+    14:23:17 |  6 Pers | Conf=0.834
+  Input Y (letzte 3):
+    14:23:15 |  2 Pers | Conf=0.756
+    14:23:17 |  3 Pers | Conf=0.789
+    14:23:18 |  3 Pers | Conf=0.801
 
-### Datenbank-Verbindungsfehler
-- Teste Verbindung: `./start_system.sh test-db`
-- Prüfe PostgreSQL-Status: `systemctl status postgresql`
-- Prüfe Credentials in `start_system.sh`
+[MOVEMENT] Analyse gestartet: 15 Detections
+[MOVEMENT] Zeitspanne: 3.5s
+[MOVEMENT] Input X: 8 | Input Y: 7
+[MOVEMENT] Entry-Muster: Y+1 @ 14:23:17, X_avg=5.7 -> 1 Pers
+[MOVEMENT] ENTRY erkannt: 1 Person(en), Conf=0.75
+[MOVEMENT] Gesamt: 1 Bewegung(en) erkannt
 
-### YOLO-Modell nicht gefunden
-- Lade Modell herunter: `yolo download yolov8n.pt` (wird automatisch beim ersten Start gemacht)
-- Oder gib expliziten Pfad an: `--yolo-model /pfad/zum/modell.pt`
+[ANALYZER] 1 Bewegung(en) verarbeiten:
 
-## 📈 Performance-Tipps
+  [1] ENTRY
+      Personen: 1
+      Konfidenz: 0.75
+      Muster: Y+1, X_avg=5.7
+      Gespeichert: ID=42
 
-1. **GPU-Beschleunigung**: YOLO nutzt automatisch CUDA falls verfügbar
-2. **Größeres Modell**: Für bessere Genauigkeit `yolov8m.pt` oder `yolov8l.pt` verwenden
-3. **Poll-Intervall anpassen**: Bei wenigen Bildern Intervall erhöhen um CPU zu sparen
-4. **Analyse-Intervall**: Bei hoher Last Analyse-Intervall erhöhen
+[ROOM] ENTRY: 5 -> 6 (+1, Conf=0.75)
 
-## 📝 Lizenz
+[ANALYZER] 15 Detections als verarbeitet markiert
 
-Dieses Projekt ist für Bildungszwecke entwickelt.
+================================================================================
+[ROOM] AKTUELLER ZUSTAND: 6 Personen im Raum
+================================================================================
+```
+
+## Fehlerbehandlung
+
+- Niedrige Konfidenz (<0.5): Bewegung wird ignoriert
+- Implausible Änderungen: Werden abgelehnt
+- Datenbankfehler: Werden geloggt, System läuft weiter
+- Fehlende Bilder: Werden übersprungen
+
+## Performance
+
+- Live-Detection: ~0.15s pro Bild (YOLOv8n)
+- Bewegungsanalyse: ~0.1s pro Zyklus
+- Speicherbedarf: ~500MB (inkl. YOLO-Modell)
+
+## Troubleshooting
+
+### Keine Bewegungen erkannt
+- Prüfe: Sind ausreichend Detections vorhanden? (min. 2 pro Quelle)
+- Prüfe: Zeitfenster groß genug? (transition_window)
+- Prüfe: Änderungen in Y-Detections vorhanden?
+
+### Implausible Änderungen
+- Max. Kapazität anpassen: `RoomOccupancyManager(max_capacity=100)`
+- Max. Änderung pro Bewegung: derzeit 10 Personen
+
+### Datenbankverbindung
+```bash
+# Test
+./start_system.sh test-db
+
+# Manuell
+psql -U aiuser -h localhost -d ai_detection
+```

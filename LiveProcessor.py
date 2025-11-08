@@ -42,31 +42,31 @@ class LiveProcessor:
         self._running = False
     
     def start(self):
-        """Startet die Live-Überwachung und Verarbeitung"""
+        """Startet die Live-Ueberwachung und Verarbeitung"""
         # Datenbank vorbereiten
         if not self.db.connect():
-            print("ERROR Datenbankverbindung fehlgeschlagen")
+            print("[ERROR] Datenbankverbindung fehlgeschlagen")
             return
         
         if not self.db.create_tables():
-            print("ERROR: Tabellenerstellung fehlgeschlagen")
+            print("[ERROR] Tabellenerstellung fehlgeschlagen")
             return
         
         print(f"\n{'='*80}")
-        print(f"OK: LIVE-PERSONENERKENNUNG GESTARTET")
+        print(f"[SYSTEM] LIVE-PERSONENERKENNUNG GESTARTET")
         print(f"{'='*80}")
         print(f"  Modell: {self.detector.model_name} v{self.detector.model_version}")
         print(f"  Ordner X: {self.input_x}")
         print(f"  Ordner Y: {self.input_y}")
         print(f"  Poll-Intervall: {self.poll_interval}s")
         print(f"{'='*80}\n")
-        print("Warte auf neue Bilder...\n")
+        print("[INFO] Warte auf neue Bilder...\n")
         
         self._running = True
         processed_count = 0
         
         try:
-            # WICHTIG: Jetzt gibt watch() 3 Werte zurück: (source, img, file_path)
+            # watch() gibt 3 Werte zurueck: (source, img, file_path)
             for source, img, file_path in self.loader.watch():
                 if not self._running:
                     break
@@ -77,15 +77,15 @@ class LiveProcessor:
                 processed_count += 1
                 success = self._process_image(source, img, processed_count)
                 
-                # KRITISCH: Lösche Datei erst NACH erfolgreicher Verarbeitung
+                # Loesche Datei nach erfolgreicher Verarbeitung
                 if success:
                     self.loader.confirm_processed(file_path)
                 else:
-                    # Bei Fehler: Datei trotzdem löschen um Endlosschleife zu vermeiden
+                    # Bei Fehler trotzdem loeschen um Endlosschleife zu vermeiden
                     self.loader.confirm_processed(file_path)
                 
         except KeyboardInterrupt:
-            print("\n\nERROR: Verarbeitung durch Benutzer abgebrochen")
+            print("\n\n[INFO] Verarbeitung durch Benutzer abgebrochen")
         finally:
             self.stop()
     
@@ -93,6 +93,11 @@ class LiveProcessor:
         """
         Verarbeitet ein einzelnes Bild
         
+        Args:
+            source: Quelle (input_x oder input_y)
+            img: OpenCV Bildobjekt
+            count: Laufende Nummer
+            
         Returns:
             True bei Erfolg, False bei Fehler
         """
@@ -100,7 +105,7 @@ class LiveProcessor:
         timestamp = datetime.now()
         
         try:
-            # Detection durchführen
+            # Detection durchfuehren
             result = self.detector.detect(img)
             processing_time = time.time() - start_time
             
@@ -114,27 +119,27 @@ class LiveProcessor:
                 detection_data=result
             )
             
-            # Status ausgeben
-            status = "OK" if detection_id else "ERROR"
-            print(f"[{count:4d}] {timestamp.strftime('%H:%M:%S.%f')[:-3]} | "
-                  f"{source:10s} | {result['persons_detected']:2d} Personen | "
-                  f"Konfidenz: {result['avg_confidence']:.3f} | "
-                  f"Zeit: {processing_time:.3f}s {status}")
+            # Komprimierte Log-Ausgabe
+            status = "[OK]" if detection_id else "[ERROR]"
+            print(f"[{count:04d}] {timestamp.strftime('%H:%M:%S.%f')[:-3]} | "
+                  f"{source:10s} | {result['persons_detected']:2d} Pers | "
+                  f"Conf: {result['avg_confidence']:.3f} | "
+                  f"{processing_time:.3f}s {status}")
             
             return detection_id is not None
             
         except Exception as e:
-            print(f"[{count:4d}] {timestamp.strftime('%H:%M:%S.%f')[:-3]} | "
-                  f"{source:10s} | FEHLER: {e}")
+            print(f"[{count:04d}] {timestamp.strftime('%H:%M:%S.%f')[:-3]} | "
+                  f"{source:10s} | [ERROR] {e}")
             return False
     
     def stop(self):
         """Stoppt die Verarbeitung"""
-        print("\n INFO: Stoppe Live-Verarbeitung...")
+        print("\n[INFO] Stoppe Live-Verarbeitung...")
         self._running = False
         self.loader.stop()
         self.db.close()
-        print("OK: Verarbeitung beendet")
+        print("[INFO] Verarbeitung beendet")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Hauptprogramm für Live-Personenerkennung
-Überwacht zwei Ordner und verarbeitet Bilder in Echtzeit
+Hauptprogramm fuer Live-Personenerkennung
+Ueberwacht zwei Ordner und verarbeitet Bilder in Echtzeit
 """
 
 import argparse
@@ -21,19 +21,27 @@ logger = logging.getLogger(__name__)
 
 
 def validate_arguments(args) -> bool:
-    """Validiert die Kommandozeilenargumente"""
-    # Ordner prüfen/erstellen
+    """
+    Validiert die Kommandozeilenargumente
+    
+    Args:
+        args: Geparste Argumente
+        
+    Returns:
+        True bei Erfolg
+    """
+    # Ordner pruefen/erstellen
     for folder in [args.input_x, args.input_y]:
         folder_path = Path(folder)
         if not folder_path.exists():
             try:
                 folder_path.mkdir(parents=True, exist_ok=True)
-                print(f"OK: Ordner erstellt: {folder}")
+                print(f"[INFO] Ordner erstellt: {folder}")
             except Exception as e:
                 logger.error(f"Fehler beim Erstellen von {folder}: {e}")
                 return False
     
-    # Confidence-Threshold prüfen
+    # Confidence-Threshold pruefen
     if not 0.0 <= args.confidence_threshold <= 1.0:
         logger.error(f"Confidence-Threshold muss zwischen 0.0 und 1.0 liegen: {args.confidence_threshold}")
         return False
@@ -61,7 +69,7 @@ def main():
     # Modell-Konfiguration
     parser.add_argument('--yolo-model', default='yolov8n.pt', help='Pfad zum YOLO Modell')
     parser.add_argument('--confidence-threshold', type=float, default=0.5, 
-                       help='Mindest-Konfidenz für Detections')
+                       help='Mindest-Konfidenz fuer Detections')
     
     # Verarbeitungs-Konfiguration
     parser.add_argument('--poll-interval', type=float, default=0.5,
@@ -91,7 +99,7 @@ def main():
     
     try:
         # Detector erstellen
-        print(f" Initialisiere YOLO Detektor ({args.yolo_model})...")
+        print(f"[INFO] Initialisiere YOLO Detektor ({args.yolo_model})...")
         detector = UltralyticsPersonDetector(
             model_path=args.yolo_model,
             confidence_threshold=args.confidence_threshold
@@ -110,10 +118,10 @@ def main():
         processor.start()
         
     except KeyboardInterrupt:
-        print("\nERROR: Programm durch Benutzer abgebrochen")
+        print("\n[INFO] Programm durch Benutzer abgebrochen")
         sys.exit(130)
     except Exception as e:
-        logger.error(f"ERROR: Kritischer Fehler: {e}")
+        logger.error(f"[ERROR] Kritischer Fehler: {e}")
         if args.verbose:
             import traceback
             traceback.print_exc()

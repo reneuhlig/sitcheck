@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Startskript für  Bewegungsanalyse
+Startskript fuer Bewegungsanalyse
 """
 
 import sys
@@ -8,9 +8,7 @@ from TimeSeriesAnalyzer import TimeSeriesAnalyzer
 
 
 def main():
-    """
-    Startet die Bewegungsanalyse
-    """
+    """Startet die Bewegungsanalyse"""
     # Datenbank-Konfiguration
     db_config = {
         'host': 'localhost',
@@ -20,8 +18,8 @@ def main():
         'port': 5432
     }
     
-    print("  Starte Bewegungsanalyse...")
-    print(f"   Datenbank: {db_config['host']}:{db_config['port']}/{db_config['database']}")
+    print("[INFO] Starte Bewegungsanalyse...")
+    print(f"[INFO] Datenbank: {db_config['host']}:{db_config['port']}/{db_config['database']}")
 
     
     try:
@@ -31,10 +29,10 @@ def main():
         analyzer.start(interval_seconds=30, continuous=True)
         
     except KeyboardInterrupt:
-        print("\n\nINFO: Programm beendet")
+        print("\n\n[INFO] Programm beendet")
         sys.exit(0)
     except Exception as e:
-        print(f"\nERROR: Fehler: {e}")
+        print(f"\n[ERROR] Fehler: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
