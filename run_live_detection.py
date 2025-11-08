@@ -28,7 +28,7 @@ def validate_arguments(args) -> bool:
         if not folder_path.exists():
             try:
                 folder_path.mkdir(parents=True, exist_ok=True)
-                print(f"✓ Ordner erstellt: {folder}")
+                print(f"OK: Ordner erstellt: {folder}")
             except Exception as e:
                 logger.error(f"Fehler beim Erstellen von {folder}: {e}")
                 return False
@@ -91,7 +91,7 @@ def main():
     
     try:
         # Detector erstellen
-        print(f"🚀 Initialisiere YOLO Detektor ({args.yolo_model})...")
+        print(f" Initialisiere YOLO Detektor ({args.yolo_model})...")
         detector = UltralyticsPersonDetector(
             model_path=args.yolo_model,
             confidence_threshold=args.confidence_threshold
@@ -110,10 +110,10 @@ def main():
         processor.start()
         
     except KeyboardInterrupt:
-        print("\n❌ Programm durch Benutzer abgebrochen")
+        print("\nERROR: Programm durch Benutzer abgebrochen")
         sys.exit(130)
     except Exception as e:
-        logger.error(f"Kritischer Fehler: {e}")
+        logger.error(f"ERROR: Kritischer Fehler: {e}")
         if args.verbose:
             import traceback
             traceback.print_exc()

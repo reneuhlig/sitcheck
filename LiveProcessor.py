@@ -45,22 +45,22 @@ class LiveProcessor:
         """Startet die Live-Überwachung und Verarbeitung"""
         # Datenbank vorbereiten
         if not self.db.connect():
-            print("✗ Datenbankverbindung fehlgeschlagen")
+            print("ERROR Datenbankverbindung fehlgeschlagen")
             return
         
         if not self.db.create_tables():
-            print("✗ Tabellenerstellung fehlgeschlagen")
+            print("ERROR: Tabellenerstellung fehlgeschlagen")
             return
         
         print(f"\n{'='*80}")
-        print(f"🚀 LIVE-PERSONENERKENNUNG GESTARTET")
+        print(f"OK: LIVE-PERSONENERKENNUNG GESTARTET")
         print(f"{'='*80}")
         print(f"  Modell: {self.detector.model_name} v{self.detector.model_version}")
         print(f"  Ordner X: {self.input_x}")
         print(f"  Ordner Y: {self.input_y}")
         print(f"  Poll-Intervall: {self.poll_interval}s")
         print(f"{'='*80}\n")
-        print("👀 Warte auf neue Bilder...\n")
+        print("Warte auf neue Bilder...\n")
         
         self._running = True
         processed_count = 0
@@ -85,7 +85,7 @@ class LiveProcessor:
                     self.loader.confirm_processed(file_path)
                 
         except KeyboardInterrupt:
-            print("\n\n❌ Verarbeitung durch Benutzer abgebrochen")
+            print("\n\nERROR: Verarbeitung durch Benutzer abgebrochen")
         finally:
             self.stop()
     
@@ -115,7 +115,7 @@ class LiveProcessor:
             )
             
             # Status ausgeben
-            status = "✓" if detection_id else "✗"
+            status = "OK" if detection_id else "ERROR"
             print(f"[{count:4d}] {timestamp.strftime('%H:%M:%S.%f')[:-3]} | "
                   f"{source:10s} | {result['persons_detected']:2d} Personen | "
                   f"Konfidenz: {result['avg_confidence']:.3f} | "
@@ -130,11 +130,11 @@ class LiveProcessor:
     
     def stop(self):
         """Stoppt die Verarbeitung"""
-        print("\n🛑 Stoppe Live-Verarbeitung...")
+        print("\n INFO: Stoppe Live-Verarbeitung...")
         self._running = False
         self.loader.stop()
         self.db.close()
-        print("✓ Verarbeitung beendet")
+        print("OK: Verarbeitung beendet")
 
 
 if __name__ == "__main__":

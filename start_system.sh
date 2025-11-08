@@ -36,10 +36,10 @@ log_message() {
 
 check_python() {
     if ! command -v python3 &> /dev/null; then
-        log_message "✗ Python3 nicht gefunden"
+        log_message "ERROR: Python3 nicht gefunden"
         exit 1
     fi
-    log_message "✓ Python3 gefunden: $(python3 --version)"
+    log_message "OK: Python3 gefunden: $(python3 --version)"
 }
 
 check_dependencies() {
@@ -70,11 +70,11 @@ except ImportError:
     missing.append('numpy')
 
 if missing:
-    print(f"✗ Fehlende Pakete: {', '.join(missing)}")
+    print(f"ERROR: Fehlende Pakete: {', '.join(missing)}")
     print(f"  Installiere mit: pip install {' '.join(missing)}")
     sys.exit(1)
 else:
-    print("✓ Alle Abhängigkeiten installiert")
+    print("OK: Alle Abhängigkeiten installiert")
     sys.exit(0)
 PYCODE
 
@@ -107,20 +107,20 @@ check_files() {
     done
     
     if [ ${#MISSING[@]} -gt 0 ]; then
-        log_message "✗ Fehlende Dateien:"
+        log_message "ERROR: Fehlende Dateien:"
         for file in "${MISSING[@]}"; do
             echo "    - $file"
         done
         exit 1
     fi
     
-    log_message "✓ Alle benötigten Dateien vorhanden"
+    log_message "OK: Alle benötigten Dateien vorhanden"
 }
 
 create_directories() {
     log_message "Erstelle Verzeichnisse..."
     mkdir -p "$INPUT_X" "$INPUT_Y" "$LOG_DIR"
-    log_message "✓ Verzeichnisse erstellt"
+    log_message "OK: Verzeichnisse erstellt"
 }
 
 test_database() {
@@ -139,11 +139,11 @@ try:
         database='$DB_NAME',
         timeout=5
     )
-    print('✓ Datenbankverbindung erfolgreich')
+    print('OK: Datenbankverbindung erfolgreich')
     conn.close()
     sys.exit(0)
 except Exception as e:
-    print(f'✗ Datenbankverbindung fehlgeschlagen: {e}')
+    print(f'ERROR: Datenbankverbindung fehlgeschlagen: {e}')
     sys.exit(1)
 PYCODE
 
@@ -167,19 +167,19 @@ try:
     )
     
     if not db.connect():
-        print('✗ Verbindung fehlgeschlagen')
+        print('ERROR: Verbindung fehlgeschlagen')
         sys.exit(1)
     
     if not db.create_tables():
-        print('✗ Tabellenerstellung fehlgeschlagen')
+        print('ERROR: Tabellenerstellung fehlgeschlagen')
         sys.exit(1)
     
     db.close()
-    print('✓ Datenbank initialisiert')
+    print('OK: Datenbank initialisiert')
     sys.exit(0)
     
 except Exception as e:
-    print(f'✗ Fehler: {e}')
+    print(f'ERROR: Fehler: {e}')
     sys.exit(1)
 PYCODE
 
@@ -205,7 +205,7 @@ start_detection() {
     
     DETECTION_PID=$!
     echo $DETECTION_PID > "${LOG_DIR}/detection.pid"
-    log_message "✓ Live-Detection gestartet (PID: $DETECTION_PID)"
+    log_message "OK: Live-Detection gestartet (PID: $DETECTION_PID)"
 }
 
 start_analysis() {
@@ -221,7 +221,7 @@ start_analysis() {
     
     ANALYSIS_PID=$!
     echo $ANALYSIS_PID > "${LOG_DIR}/analysis.pid"
-    log_message "✓ Bewegungsanalyse gestartet (PID: $ANALYSIS_PID)"
+    log_message "OK: Bewegungsanalyse gestartet (PID: $ANALYSIS_PID)"
     log_message "  (Analysiert alle ${ANALYSIS_INTERVAL}s)"
 }
 
@@ -232,7 +232,7 @@ stop_system() {
         DETECTION_PID=$(cat "${LOG_DIR}/detection.pid")
         if ps -p $DETECTION_PID > /dev/null 2>&1; then
             kill $DETECTION_PID
-            log_message "✓ Detection gestoppt (PID: $DETECTION_PID)"
+            log_message "OK: Detection gestoppt (PID: $DETECTION_PID)"
         fi
         rm "${LOG_DIR}/detection.pid"
     fi
@@ -241,7 +241,7 @@ stop_system() {
         ANALYSIS_PID=$(cat "${LOG_DIR}/analysis.pid")
         if ps -p $ANALYSIS_PID > /dev/null 2>&1; then
             kill $ANALYSIS_PID
-            log_message "✓ Bewegungsanalyse gestoppt (PID: $ANALYSIS_PID)"
+            log_message "OK: Bewegungsanalyse gestoppt (PID: $ANALYSIS_PID)"
         fi
         rm "${LOG_DIR}/analysis.pid"
     fi
@@ -253,23 +253,23 @@ show_status() {
     if [ -f "${LOG_DIR}/detection.pid" ]; then
         DETECTION_PID=$(cat "${LOG_DIR}/detection.pid")
         if ps -p $DETECTION_PID > /dev/null 2>&1; then
-            echo "  ✓ Live-Detection läuft (PID: $DETECTION_PID)"
+            echo "  OK: Live-Detection läuft (PID: $DETECTION_PID)"
         else
-            echo "  ✗ Live-Detection nicht aktiv"
+            echo "  ERROR: Live-Detection nicht aktiv"
         fi
     else
-        echo "  ✗ Live-Detection nicht gestartet"
+        echo "  ERROR: Live-Detection nicht gestartet"
     fi
     
     if [ -f "${LOG_DIR}/analysis.pid" ]; then
         ANALYSIS_PID=$(cat "${LOG_DIR}/analysis.pid")
         if ps -p $ANALYSIS_PID > /dev/null 2>&1; then
-            echo "  ✓ Bewegungsanalyse läuft (PID: $ANALYSIS_PID)"
+            echo "  OK: Bewegungsanalyse läuft (PID: $ANALYSIS_PID)"
         else
-            echo "  ✗ Bewegungsanalyse nicht aktiv"
+            echo "  ERROR: Bewegungsanalyse nicht aktiv"
         fi
     else
-        echo "  ✗ Bewegungsanalyse nicht gestartet"
+        echo "  ERROR: Bewegungsanalyse nicht gestartet"
     fi
     
     echo ""
@@ -304,7 +304,7 @@ try:
     )
     
     if not db.connect():
-        print('✗ Verbindung fehlgeschlagen')
+        print('ERROR: Verbindung fehlgeschlagen')
         sys.exit(1)
     
     state = db.get_latest_room_state()
@@ -322,7 +322,7 @@ try:
     sys.exit(0)
     
 except Exception as e:
-    print(f'✗ Fehler: {e}')
+    print(f'ERROR: Fehler: {e}')
     sys.exit(1)
 PYCODE
 }
@@ -344,7 +344,7 @@ try:
     )
     
     if not db.connect():
-        print('✗ Verbindung fehlgeschlagen')
+        print('ERROR: Verbindung fehlgeschlagen')
         sys.exit(1)
     
     cursor = db.connection.cursor()
@@ -388,7 +388,7 @@ try:
     sys.exit(0)
     
 except Exception as e:
-    print(f'✗ Fehler: {e}')
+    print(f'ERROR: Fehler: {e}')
     import traceback
     traceback.print_exc()
     sys.exit(1)
@@ -408,12 +408,12 @@ case "${1:-start}" in
         create_directories
         
         if ! test_database; then
-            log_message "✗ Datenbanktest fehlgeschlagen - breche ab"
+            log_message "ERROR: Datenbanktest fehlgeschlagen - breche ab"
             exit 1
         fi
         
         if ! initialize_database; then
-            log_message "✗ Datenbank-Initialisierung fehlgeschlagen - breche ab"
+            log_message "ERROR: Datenbank-Initialisierung fehlgeschlagen - breche ab"
             exit 1
         fi
         
@@ -421,7 +421,7 @@ case "${1:-start}" in
         start_analysis
         
         echo ""
-        log_message "✓ System erfolgreich gestartet"
+        log_message "OK: System erfolgreich gestartet"
         echo ""
         show_status
         echo ""

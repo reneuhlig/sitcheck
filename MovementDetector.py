@@ -27,7 +27,7 @@ class MovementDetector:
         self.transition_window = transition_window
         self.min_confidence = min_confidence
         
-        print(f"🔧 MovementDetector initialisiert:")
+        print(f"   MovementDetector initialisiert:")
         print(f"   Transition Window: {transition_window}s")
         print(f"   Min Confidence: {min_confidence}")
     
@@ -37,25 +37,25 @@ class MovementDetector:
     
     def detect_movements(self, detections: List[Dict]) -> List[Dict]:
         """Analysiert Detections und findet Bewegungsmuster"""
-        print(f"\n🔍 detect_movements() aufgerufen mit {len(detections)} Detections")
+        print(f"\n detect_movements() aufgerufen mit {len(detections)} Detections")
         
         if len(detections) < 2:
-            print(f"   ⚠️  Zu wenig Detections: {len(detections)} < 2")
+            print(f"Zu wenig Detections: {len(detections)} < 2")
             return []
         
         # Sortieren nach Zeit
         sorted_detections = sorted(detections, key=lambda x: x['timestamp'])
-        print(f"   📅 Zeitspanne: {sorted_detections[0]['timestamp']} bis {sorted_detections[-1]['timestamp']}")
+        print(f"  Zeitspanne: {sorted_detections[0]['timestamp']} bis {sorted_detections[-1]['timestamp']}")
         
         # Nach Quelle trennen
         x_detections = [d for d in sorted_detections if d.get('source') == 'input_x']
         y_detections = [d for d in sorted_detections if d.get('source') == 'input_y']
         
-        print(f"   🎥 Input X: {len(x_detections)} Detections")
-        print(f"   🎥 Input Y: {len(y_detections)} Detections")
+        print(f"  Input X: {len(x_detections)} Detections")
+        print(f"  Input Y: {len(y_detections)} Detections")
         
         if len(x_detections) < 2 or len(y_detections) < 2:
-            print(f"   ⚠️  Zu wenig Detections pro Quelle (min. 2 pro Quelle)")
+            print(f"    Zu wenig Detections pro Quelle (min. 2 pro Quelle)")
             return []
         
         # Übersicht mit robustem Confidence-Handling
@@ -64,24 +64,24 @@ class MovementDetector:
         movements = []
         
         # Entry
-        print(f"\n   🔎 Suche Entry-Muster...")
+        print(f"\n     Suche Entry-Muster...")
         entry = self._detect_entry_pattern(x_detections, y_detections)
         if entry:
             movements.append(entry)
-            print(f"   ✅ Entry erkannt: {entry['person_count']} Person(en)")
+            print(f"   Entry erkannt: {entry['person_count']} Person(en)")
         else:
-            print(f"   ❌ Kein Entry erkannt")
+            print(f"   Kein Entry erkannt")
         
         # Exit
-        print(f"\n   🔎 Suche Exit-Muster...")
+        print(f"\n   Suche Exit-Muster...")
         exit_m = self._detect_exit_pattern(x_detections, y_detections)
         if exit_m:
             movements.append(exit_m)
-            print(f"   ✅ Exit erkannt: {exit_m['person_count']} Person(en)")
+            print(f"   Exit erkannt: {exit_m['person_count']} Person(en)")
         else:
-            print(f"   ❌ Kein Exit erkannt")
+            print(f"   Kein Exit erkannt")
         
-        print(f"\n   🎯 Gesamt gefunden: {len(movements)} Bewegung(en)")
+        print(f"\n Gesamt gefunden: {len(movements)} Bewegung(en)")
         return movements
 
     # =====================================================================================
@@ -90,7 +90,7 @@ class MovementDetector:
     
     def _print_detection_summary(self, x_seq: List[Dict], y_seq: List[Dict]):
         """Zeigt letzten Detections beider Quellen"""
-        print(f"\n   📊 Input X Detections:")
+        print(f"\n   Input X Detections:")
         for d in x_seq[-5:]:
             conf = d.get('avg_confidence')
             if conf is None or not isinstance(conf, (float, int)):
@@ -98,10 +98,10 @@ class MovementDetector:
             count = int(d.get('persons_detected', 0))
             ts = d.get('timestamp')
             time_str = ts.strftime('%H:%M:%S') if isinstance(ts, datetime) else "N/A"
-            status = "✓" if conf >= self.min_confidence else "✗ (zu niedrig)"
+            status = "OK" if conf >= self.min_confidence else "ERROR (zu niedrig)"
             print(f"      {time_str} | {count:2d} Pers. | Conf: {conf:.3f} {status}")
         
-        print(f"\n   📊 Input Y Detections:")
+        print(f"\n   Input Y Detections:")
         for d in y_seq[-5:]:
             conf = d.get('avg_confidence')
             if conf is None or not isinstance(conf, (float, int)):
@@ -109,7 +109,7 @@ class MovementDetector:
             count = int(d.get('persons_detected', 0))
             ts = d.get('timestamp')
             time_str = ts.strftime('%H:%M:%S') if isinstance(ts, datetime) else "N/A"
-            status = "✓" if conf >= self.min_confidence else "✗ (zu niedrig)"
+            status = "OK" if conf >= self.min_confidence else "ERROR (zu niedrig)"
             print(f"      {time_str} | {count:2d} Pers. | Conf: {conf:.3f} {status}")
     
     # =====================================================================================
@@ -118,24 +118,24 @@ class MovementDetector:
     
     def _detect_entry_pattern(self, x_seq: List[Dict], y_seq: List[Dict]) -> Optional[Dict]:
         """Eintritt: Y steigt, X vorher aktiv"""
-        print(f"      → Analysiere {len(y_seq)} Y-Detections auf Anstiege...")
+        print(f"      > Analysiere {len(y_seq)} Y-Detections auf Anstiege...")
         
         y_increases = self._find_any_increases(y_seq)
-        print(f"      → Gefunden: {len(y_increases)} Anstiege in Y")
+        print(f"      > Gefunden: {len(y_increases)} Anstiege in Y")
         
         if not y_increases:
             return None
         
         y_time, y_delta = y_increases[0]
-        print(f"      → Bester Y-Anstieg: +{y_delta} um {y_time.strftime('%H:%M:%S')}")
+        print(f"      > Bester Y-Anstieg: +{y_delta} um {y_time.strftime('%H:%M:%S')}")
         
         x_in_window = [d for d in x_seq if abs((d['timestamp'] - y_time).total_seconds()) < self.transition_window]
         if not x_in_window:
-            print(f"      → Keine X-Detections im Zeitfenster")
+            print(f"      > Keine X-Detections im Zeitfenster")
             return None
         
         x_avg = np.mean([d.get('persons_detected', 0) for d in x_in_window])
-        print(f"      → X-Durchschnitt: {x_avg:.1f}")
+        print(f"      > X-Durchschnitt: {x_avg:.1f}")
         
         person_count = max(1, min(y_delta, int(round(x_avg))))
         confidence = self._calculate_simple_confidence(x_seq, y_seq)
@@ -157,24 +157,24 @@ class MovementDetector:
     
     def _detect_exit_pattern(self, x_seq: List[Dict], y_seq: List[Dict]) -> Optional[Dict]:
         """Austritt: Y fällt, X aktiv"""
-        print(f"      → Analysiere {len(y_seq)} Y-Detections auf Abfälle...")
+        print(f"      > Analysiere {len(y_seq)} Y-Detections auf Abfälle...")
         
         y_decreases = self._find_any_decreases(y_seq)
-        print(f"      → Gefunden: {len(y_decreases)} Abfälle in Y")
+        print(f"      > Gefunden: {len(y_decreases)} Abfälle in Y")
         
         if not y_decreases:
             return None
         
         y_time, y_delta = y_decreases[0]
-        print(f"      → Bester Y-Abfall: {y_delta} um {y_time.strftime('%H:%M:%S')}")
+        print(f"      > Bester Y-Abfall: {y_delta} um {y_time.strftime('%H:%M:%S')}")
         
         x_in_window = [d for d in x_seq if abs((d['timestamp'] - y_time).total_seconds()) < self.transition_window]
         if not x_in_window:
-            print(f"      → Keine X-Detections im Zeitfenster")
+            print(f"      > Keine X-Detections im Zeitfenster")
             return None
         
         x_avg = np.mean([d.get('persons_detected', 0) for d in x_in_window])
-        print(f"      → X-Durchschnitt: {x_avg:.1f}")
+        print(f"      > X-Durchschnitt: {x_avg:.1f}")
         
         person_count = max(1, min(abs(y_delta), int(round(x_avg))))
         confidence = self._calculate_simple_confidence(x_seq, y_seq)
@@ -202,7 +202,7 @@ class MovementDetector:
             curr = int(sequence[i].get('persons_detected', 0))
             if curr > prev:
                 increases.append((sequence[i]['timestamp'], curr - prev))
-                print(f"         ↑ +{curr - prev} um {sequence[i]['timestamp'].strftime('%H:%M:%S')}")
+                print(f"         Anstieg: +{curr - prev} um {sequence[i]['timestamp'].strftime('%H:%M:%S')}")
         return increases
     
     def _find_any_decreases(self, sequence: List[Dict]) -> List[Tuple[datetime, int]]:
@@ -213,7 +213,7 @@ class MovementDetector:
             curr = int(sequence[i].get('persons_detected', 0))
             if curr < prev:
                 decreases.append((sequence[i]['timestamp'], curr - prev))
-                print(f"         ↓ {curr - prev} um {sequence[i]['timestamp'].strftime('%H:%M:%S')}")
+                print(f"         Abfall: {curr - prev} um {sequence[i]['timestamp'].strftime('%H:%M:%S')}")
         return decreases
     
     # =====================================================================================

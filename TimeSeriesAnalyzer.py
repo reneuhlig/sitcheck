@@ -38,11 +38,11 @@ class TimeSeriesAnalyzer:
         Startet kontinuierliche Analyse
         """
         if not self.db.connect():
-            print("✗ Datenbankverbindung fehlgeschlagen")
+            print(" ERROR: Datenbankverbindung fehlgeschlagen")
             return
         
         if not self.db.create_tables():
-            print("✗ Tabellenerstellung fehlgeschlagen")
+            print(" ERROR: Tabellenerstellung fehlgeschlagen")
             return
         
         # Occupancy Manager initialisieren
@@ -78,7 +78,7 @@ class TimeSeriesAnalyzer:
                 time.sleep(interval_seconds)
                 
         except KeyboardInterrupt:
-            print("\n\n❌ Analyse durch Benutzer abgebrochen")
+            print("\n\n ERROR: Analyse durch Benutzer abgebrochen")
         finally:
             self._print_final_summary()
             self.db.close()
@@ -87,13 +87,13 @@ class TimeSeriesAnalyzer:
         """
         Führt einen vollständigen Analysezyklus mit Logging aus
         """
-        print(f"\n📥 Hole unverarbeitete Detections (Fenster: {self.analysis_window}s)...")
+        print(f"\n Hole unverarbeitete Detections (Fenster: {self.analysis_window}s)...")
         
         recent = self.db.get_unprocessed_detections(self.analysis_window)
-        print(f"   → Erhalten: {len(recent)} Detections")
+        print(f"   > Erhalten: {len(recent)} Detections")
 
         if len(recent) < self.min_detections:
-            print(f"⏳ Zu wenig Detections ({len(recent)}/{self.min_detections})")
+            print(f"WARNUNG: Zu wenig Detections ({len(recent)}/{self.min_detections})")
             return
 
         # Quellen zählen
@@ -101,14 +101,14 @@ class TimeSeriesAnalyzer:
         y_count = len([d for d in recent if d['source'] == 'input_y'])
         other_count = len(recent) - x_count - y_count
         
-        print(f"\n📊 Detection-Verteilung:")
+        print(f"\n Detection-Verteilung:")
         print(f"   Input X: {x_count}")
         print(f"   Input Y: {y_count}")
         if other_count > 0:
             print(f"   Andere: {other_count}")
 
         # Beispiel-Detections (mit robustem Format)
-        print(f"\n📸 Beispiel-Detections:")
+        print(f"\n Beispiel-Detections:")
         for d in recent[:5]:
             time_str = d.get('timestamp')
             if isinstance(time_str, datetime):
@@ -167,9 +167,9 @@ class TimeSeriesAnalyzer:
             )
 
             if movement_id:
-                print(f"      ✓ In DB gespeichert (ID: {movement_id})")
+                print(f" OK: In DB gespeichert (ID: {movement_id})")
             else:
-                print(f"      ✗ DB-Speicherung fehlgeschlagen")
+                print(f" ERROR: DB-Speicherung fehlgeschlagen")
 
             updated = self.occupancy_manager.process_movement(movement, movement_id)
 
@@ -187,7 +187,7 @@ class TimeSeriesAnalyzer:
 
         current = self.occupancy_manager.get_current_occupancy()
         print(f"\n{'='*80}")
-        print(f"📊 AKTUELLER RAUMZUSTAND: {current} Personen")
+        print(f"  AKTUELLER RAUMZUSTAND: {current} Personen")
         print(f"{'='*80}")
 
     
@@ -196,7 +196,7 @@ class TimeSeriesAnalyzer:
         Gibt finale Zusammenfassung aus
         """
         print(f"\n{'='*80}")
-        print(f"📋 ANALYSE BEENDET")
+        print(f" ANALYSE BEENDET")
         print(f"{'='*80}")
         
         current = self.occupancy_manager.get_current_occupancy()
@@ -224,7 +224,7 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(
-        description='Verbesserte Zeitreihenanalyse mit ausführlichem Logging'
+        description='Zeitreihenanalyse mit ausführlichem Logging'
     )
     
     parser.add_argument('--db-host', default='localhost', help='PostgreSQL Host')

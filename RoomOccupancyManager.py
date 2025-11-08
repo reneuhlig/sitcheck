@@ -34,7 +34,7 @@ class RoomOccupancyManager:
         
         if latest_state:
             self.current_occupancy = latest_state['total_persons']
-            print(f"📊 Raumzustand aus DB geladen: {self.current_occupancy} Personen")
+            print(f" Raumzustand aus DB geladen: {self.current_occupancy} Personen")
         else:
             self.current_occupancy = 0
             self.db.insert_room_state(
@@ -43,7 +43,7 @@ class RoomOccupancyManager:
                 confidence=1.0,
                 notes='Initialisierung des Systems'
             )
-            print(f"📊 Raumzustand initialisiert: 0 Personen")
+            print(f" Raumzustand initialisiert: 0 Personen")
         
         self.initialized = True
     
@@ -59,7 +59,7 @@ class RoomOccupancyManager:
             True wenn Zustand aktualisiert wurde, sonst False
         """
         if not self.initialized:
-            print("⚠️  Manager nicht initialisiert!")
+            print("WARNUNG:  Manager nicht initialisiert!")
             return False
         
         movement_type = movement['type']
@@ -77,12 +77,12 @@ class RoomOccupancyManager:
         elif movement_type == 'exit':
             new_count = max(0, self.current_occupancy - person_count)
         else:
-            print(f"⚠️  Unbekannter Bewegungstyp: {movement_type}")
+            print(f"WARNUNG:  Unbekannter Bewegungstyp: {movement_type}")
             return False
         
         # Plausibilitätsprüfung
         if not self._is_plausible(new_count, person_count):
-            print(f"⚠️  Implausible Änderung: {self.current_occupancy} → {new_count}")
+            print(f"WARNUNG:  Implausible Änderung: {self.current_occupancy} → {new_count}")
             return False
         
         # Update durchführen
@@ -99,7 +99,7 @@ class RoomOccupancyManager:
         )
         
         if success:
-            emoji = "🟢" if movement_type == 'entry' else "🔴"
+            emoji = "SUCCESS" if movement_type == 'entry' else "FAILURE"
             sign = "+" if movement_type == 'entry' else "-"
             print(f"{emoji} {movement_type.upper()}: {old_count} → {new_count} "
                   f"({sign}{person_count}, Konfidenz: {confidence:.2f})")
@@ -107,7 +107,7 @@ class RoomOccupancyManager:
         else:
             # Rollback bei Fehler
             self.current_occupancy = old_count
-            print(f"✗ Fehler beim Speichern des Raumzustands")
+            print(f"ERROR: Fehler beim Speichern des Raumzustands")
             return False
     
     def _is_plausible(self, new_count: int, change: int) -> bool:
@@ -127,12 +127,12 @@ class RoomOccupancyManager:
         
         # Nicht über Kapazität
         if new_count > self.max_capacity:
-            print(f"⚠️  Über Maximalkapazität: {new_count} > {self.max_capacity}")
+            print(f"WARNUNG:  Über Maximalkapazität: {new_count} > {self.max_capacity}")
             return False
         
         # Nicht mehr als 10 Personen auf einmal (anpassbar)
         if abs(change) > 10:
-            print(f"⚠️  Zu große Änderung: {abs(change)} Personen")
+            print(f"WARNUNG:  Zu große Änderung: {abs(change)} Personen")
             return False
         
         return True
@@ -158,7 +158,7 @@ class RoomOccupancyManager:
             True bei Erfolg
         """
         if correct_count < 0 or correct_count > self.max_capacity:
-            print(f"⚠️  Ungültige Anzahl: {correct_count}")
+            print(f"WARNUNG: Ungültige Anzahl: {correct_count}")
             return False
         
         old_count = self.current_occupancy
@@ -172,7 +172,7 @@ class RoomOccupancyManager:
         )
         
         if success:
-            print(f"🔧 Manuelle Korrektur: {old_count} → {correct_count}")
+            print(f"Manuelle Korrektur: {old_count} > {correct_count}")
             return True
         else:
             self.current_occupancy = old_count

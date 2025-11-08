@@ -20,7 +20,7 @@ def main():
         'port': 5432
     }
     
-    print("🚀 Starte Bewegungsanalyse...")
+    print("  Starte Bewegungsanalyse...")
     print(f"   Datenbank: {db_config['host']}:{db_config['port']}/{db_config['database']}")
 
     
@@ -31,10 +31,10 @@ def main():
         analyzer.start(interval_seconds=30, continuous=True)
         
     except KeyboardInterrupt:
-        print("\n\n👋 Programm beendet")
+        print("\n\nINFO: Programm beendet")
         sys.exit(0)
     except Exception as e:
-        print(f"\n❌ Fehler: {e}")
+        print(f"\nERROR: Fehler: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
