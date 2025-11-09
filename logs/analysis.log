@@ -18,1098 +18,70 @@
 
 
 ================================================================================
-[ANALYZER] Zyklus #1 - 2025-11-08 14:58:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #2 - 2025-11-08 14:58:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #3 - 2025-11-08 14:59:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #4 - 2025-11-08 14:59:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #5 - 2025-11-08 15:00:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #6 - 2025-11-08 15:00:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #7 - 2025-11-08 15:01:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #8 - 2025-11-08 15:01:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #9 - 2025-11-08 15:02:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #10 - 2025-11-08 15:02:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #11 - 2025-11-08 15:03:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #12 - 2025-11-08 15:03:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #13 - 2025-11-08 15:04:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #14 - 2025-11-08 15:04:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #15 - 2025-11-08 15:05:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #16 - 2025-11-08 15:05:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #17 - 2025-11-08 15:06:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #18 - 2025-11-08 15:06:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #19 - 2025-11-08 15:07:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #20 - 2025-11-08 15:07:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #21 - 2025-11-08 15:08:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #22 - 2025-11-08 15:08:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #23 - 2025-11-08 15:09:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #24 - 2025-11-08 15:09:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #25 - 2025-11-08 15:10:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 0
-[ANALYZER] Zu wenig Detections (0/1)
-
-================================================================================
-[ANALYZER] Zyklus #26 - 2025-11-08 15:10:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:10:31 | input_x    |  1 Pers | Conf=0.951
-  15:10:31 | input_x    |  1 Pers | Conf=0.942
-  15:10:32 | input_x    |  1 Pers | Conf=0.946
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:10:31.067754 bis 2025-11-08 15:10:46.999755
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:10:31 |  1 Pers. | Conf: 0.942 OK
-      15:10:32 |  1 Pers. | Conf: 0.946 OK
-      15:10:43 |  1 Pers. | Conf: 0.951 OK
-      15:10:43 |  1 Pers. | Conf: 0.942 OK
-      15:10:44 |  1 Pers. | Conf: 0.950 OK
-
-   Input Y Detections:
-      15:10:34 |  1 Pers. | Conf: 0.910 OK
-      15:10:34 |  1 Pers. | Conf: 0.928 OK
-      15:10:45 |  1 Pers. | Conf: 0.920 OK
-      15:10:46 |  1 Pers. | Conf: 0.916 OK
-      15:10:46 |  1 Pers. | Conf: 0.921 OK
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #27 - 2025-11-08 15:11:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 9
-[ANALYZER] Input X: 6 | Input Y: 3
-[ANALYZER] Erste Detections:
-  15:10:59 | input_x    |  1 Pers | Conf=0.939
-  15:11:00 | input_x    |  1 Pers | Conf=0.946
-  15:11:00 | input_x    |  1 Pers | Conf=0.928
-  ... und 6 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 9 Detections
-  Zeitspanne: 2025-11-08 15:10:59.261791 bis 2025-11-08 15:11:16.838251
-  Input X: 6 Detections
-  Input Y: 3 Detections
-
-   Input X Detections:
-      15:11:00 |  1 Pers. | Conf: 0.946 OK
-      15:11:00 |  1 Pers. | Conf: 0.928 OK
-      15:11:15 |  1 Pers. | Conf: 0.924 OK
-      15:11:16 |  1 Pers. | Conf: 0.926 OK
-      15:11:16 |  1 Pers. | Conf: 0.928 OK
-
-   Input Y Detections:
-      15:11:01 |  1 Pers. | Conf: 0.914 OK
-      15:11:02 |  1 Pers. | Conf: 0.914 OK
-      15:11:03 |  1 Pers. | Conf: 0.912 OK
-
-     Suche Entry-Muster...
-      > Analysiere 3 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 3 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #28 - 2025-11-08 15:11:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 9
-[ANALYZER] Input X: 3 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:11:17 | input_y    |  1 Pers | Conf=0.908
-  15:11:18 | input_y    |  1 Pers | Conf=0.893
-  15:11:19 | input_y    |  1 Pers | Conf=0.893
-  ... und 6 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 9 Detections
-  Zeitspanne: 2025-11-08 15:11:17.593751 bis 2025-11-08 15:11:35.607364
-  Input X: 3 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:11:31 |  1 Pers. | Conf: 0.922 OK
-      15:11:32 |  1 Pers. | Conf: 0.929 OK
-      15:11:33 |  1 Pers. | Conf: 0.916 OK
-
-   Input Y Detections:
-      15:11:18 |  1 Pers. | Conf: 0.893 OK
-      15:11:19 |  1 Pers. | Conf: 0.893 OK
-      15:11:34 |  1 Pers. | Conf: 0.905 OK
-      15:11:34 |  1 Pers. | Conf: 0.905 OK
-      15:11:35 |  1 Pers. | Conf: 0.875 OK
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #29 - 2025-11-08 15:12:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:11:47 | input_x    |  1 Pers | Conf=0.918
-  15:11:48 | input_x    |  1 Pers | Conf=0.931
-  15:11:49 | input_x    |  1 Pers | Conf=0.924
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:11:47.867388 bis 2025-11-08 15:12:07.777428
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:11:48 |  1 Pers. | Conf: 0.931 OK
-      15:11:49 |  1 Pers. | Conf: 0.924 OK
-      15:12:03 |  1 Pers. | Conf: 0.923 OK
-      15:12:04 |  1 Pers. | Conf: 0.907 OK
-      15:12:06 |  1 Pers. | Conf: 0.914 OK
-
-   Input Y Detections:
-      15:11:50 |  1 Pers. | Conf: 0.903 OK
-      15:11:51 |  1 Pers. | Conf: 0.908 OK
-      15:12:06 |  1 Pers. | Conf: 0.922 OK
-      15:12:07 |  1 Pers. | Conf: 0.889 OK
-      15:12:07 |  1 Pers. | Conf: 0.891 OK
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #30 - 2025-11-08 15:12:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:12:20 | input_x    |  1 Pers | Conf=0.922
-  15:12:21 | input_x    |  1 Pers | Conf=0.927
-  15:12:22 | input_x    |  1 Pers | Conf=0.928
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:12:20.554562 bis 2025-11-08 15:12:41.006996
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:12:21 |  1 Pers. | Conf: 0.927 OK
-      15:12:22 |  1 Pers. | Conf: 0.928 OK
-      15:12:37 |  1 Pers. | Conf: 0.926 OK
-      15:12:37 |  1 Pers. | Conf: 0.925 OK
-      15:12:38 |  1 Pers. | Conf: 0.926 OK
-
-   Input Y Detections:
-      15:12:23 |  1 Pers. | Conf: 0.905 OK
-      15:12:24 |  1 Pers. | Conf: 0.909 OK
-      15:12:39 |  1 Pers. | Conf: 0.908 OK
-      15:12:40 |  1 Pers. | Conf: 0.904 OK
-      15:12:41 |  1 Pers. | Conf: 0.904 OK
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #31 - 2025-11-08 15:13:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:12:53 | input_x    |  1 Pers | Conf=0.912
-  15:12:54 | input_x    |  1 Pers | Conf=0.917
-  15:12:55 | input_x    |  1 Pers | Conf=0.917
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:12:53.771013 bis 2025-11-08 15:13:14.106284
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:12:54 |  1 Pers. | Conf: 0.917 OK
-      15:12:55 |  1 Pers. | Conf: 0.917 OK
-      15:13:10 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:13:11 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:13:11 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:12:56 |  1 Pers. | Conf: 0.895 OK
-      15:12:57 |  1 Pers. | Conf: 0.896 OK
-      15:13:12 |  1 Pers. | Conf: 0.909 OK
-      15:13:13 |  1 Pers. | Conf: 0.888 OK
-      15:13:14 |  1 Pers. | Conf: 0.920 OK
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #32 - 2025-11-08 15:13:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:13:26 | input_x    |  0 Pers | Conf=0.000
-  15:13:27 | input_x    |  0 Pers | Conf=0.000
-  15:13:27 | input_x    |  0 Pers | Conf=0.000
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:13:26.376287 bis 2025-11-08 15:13:46.195585
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:13:27 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:13:27 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:13:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:13:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:13:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:13:29 |  1 Pers. | Conf: 0.920 OK
-      15:13:30 |  1 Pers. | Conf: 0.902 OK
-      15:13:44 |  1 Pers. | Conf: 0.903 OK
-      15:13:45 |  1 Pers. | Conf: 0.897 OK
-      15:13:46 |  1 Pers. | Conf: 0.908 OK
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #33 - 2025-11-08 15:14:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 11
-[ANALYZER] Input X: 6 | Input Y: 5
-[ANALYZER] Erste Detections:
-  15:13:58 | input_x    |  0 Pers | Conf=0.000
-  15:13:59 | input_x    |  0 Pers | Conf=0.000
-  15:13:59 | input_x    |  0 Pers | Conf=0.000
-  ... und 8 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 11 Detections
-  Zeitspanne: 2025-11-08 15:13:58.469096 bis 2025-11-08 15:14:17.522232
-  Input X: 6 Detections
-  Input Y: 5 Detections
-
-   Input X Detections:
-      15:13:59 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:13:59 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:14:14 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:14:15 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:14:16 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:14:00 |  1 Pers. | Conf: 0.902 OK
-      15:14:01 |  1 Pers. | Conf: 0.907 OK
-      15:14:02 |  1 Pers. | Conf: 0.912 OK
-      15:14:16 |  1 Pers. | Conf: 0.895 OK
-      15:14:17 |  1 Pers. | Conf: 0.888 OK
-
-     Suche Entry-Muster...
-      > Analysiere 5 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 5 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #34 - 2025-11-08 15:14:47
+[ANALYZER] Zyklus #1 - 2025-11-09 14:32:13
 ================================================================================
 [ANALYZER] Unverarbeitete Detections: 8
-[ANALYZER] Input X: 4 | Input Y: 4
+[ANALYZER] Input X: 8 | Input Y: 0
 [ANALYZER] Erste Detections:
-  15:14:18 | input_y    |  1 Pers | Conf=0.898
-  15:14:30 | input_x    |  0 Pers | Conf=0.000
-  15:14:31 | input_x    |  0 Pers | Conf=0.000
+  14:32:11 | input_x    |  0 Pers | Conf=0.000
+  14:32:11 | input_x    |  0 Pers | Conf=0.000
+  14:32:11 | input_x    |  0 Pers | Conf=0.000
   ... und 5 weitere
 
 [ANALYZER] Starte Bewegungsanalyse...
 
  detect_movements() aufgerufen mit 8 Detections
-  Zeitspanne: 2025-11-08 15:14:18.271687 bis 2025-11-08 15:14:47.162099
-  Input X: 4 Detections
-  Input Y: 4 Detections
-
-   Input X Detections:
-      15:14:30 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:14:31 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:14:31 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:14:47 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:14:18 |  1 Pers. | Conf: 0.898 OK
-      15:14:32 |  1 Pers. | Conf: 0.896 OK
-      15:14:33 |  1 Pers. | Conf: 0.882 OK
-      15:14:33 |  1 Pers. | Conf: 0.904 OK
-
-     Suche Entry-Muster...
-      > Analysiere 4 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 4 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
+  Zeitspanne: 2025-11-09 14:32:11.163476 bis 2025-11-09 14:32:12.920353
+  Input X: 8 Detections
+  Input Y: 0 Detections
+    Zu wenig Detections pro Quelle (min. 2 pro Quelle)
 [ANALYZER] Keine Bewegungen erkannt
 
 ================================================================================
-[ANALYZER] Zyklus #35 - 2025-11-08 15:15:17
+[ANALYZER] Zyklus #2 - 2025-11-09 14:32:43
 ================================================================================
-[ANALYZER] Unverarbeitete Detections: 11
-[ANALYZER] Input X: 5 | Input Y: 6
+[ANALYZER] Unverarbeitete Detections: 120
+[ANALYZER] Input X: 67 | Input Y: 53
 [ANALYZER] Erste Detections:
-  15:14:49 | input_x    |  0 Pers | Conf=0.000
-  15:14:50 | input_x    |  0 Pers | Conf=0.000
-  15:14:50 | input_y    |  1 Pers | Conf=0.900
-  ... und 8 weitere
+  14:32:13 | input_x    |  0 Pers | Conf=0.000
+  14:32:13 | input_x    |  0 Pers | Conf=0.000
+  14:32:13 | input_x    |  1 Pers | Conf=0.918
+  ... und 117 weitere
 
 [ANALYZER] Starte Bewegungsanalyse...
 
- detect_movements() aufgerufen mit 11 Detections
-  Zeitspanne: 2025-11-08 15:14:49.418445 bis 2025-11-08 15:15:08.475155
-  Input X: 5 Detections
-  Input Y: 6 Detections
+ detect_movements() aufgerufen mit 120 Detections
+  Zeitspanne: 2025-11-09 14:32:13.235517 bis 2025-11-09 14:32:43.080364
+  Input X: 67 Detections
+  Input Y: 53 Detections
 
    Input X Detections:
-      15:14:49 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:14:50 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:15:04 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:15:05 |  1 Pers. | Conf: 0.936 OK
-      15:15:06 |  1 Pers. | Conf: 0.935 OK
+      14:32:28 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:29 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:29 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:29 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:29 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
 
    Input Y Detections:
-      15:14:51 |  1 Pers. | Conf: 0.903 OK
-      15:14:52 |  1 Pers. | Conf: 0.903 OK
-      15:15:06 |  1 Pers. | Conf: 0.913 OK
-      15:15:07 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:15:08 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
 
      Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-         Abfall: -1 um 15:15:07
-      > Gefunden: 1 Abfälle in Y
-      > Bester Y-Abfall: -1 um 15:15:07
-      > X-Durchschnitt: 0.7
-   Exit erkannt: 1 Person(en)
-
- Gesamt gefunden: 1 Bewegung(en)
-
-[ANALYZER] 1 Bewegung(en) verarbeiten:
-
-  [1] EXIT
-      Personen: 1
-      Konfidenz: 0.58
-      Muster: Y decrease -1, X avg 0.7
-      Gespeichert: ID=18
-[ROOM] EXIT: 1 -> 0 (-1, Conf=0.58)
-
-[ANALYZER] 11 Detections als verarbeitet markiert
-
-================================================================================
-[ROOM] AKTUELLER ZUSTAND: 0 Personen im Raum
-================================================================================
-
-================================================================================
-[ANALYZER] Zyklus #36 - 2025-11-08 15:15:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:15:20 | input_x    |  1 Pers | Conf=0.930
-  15:15:21 | input_x    |  1 Pers | Conf=0.913
-  15:15:22 | input_x    |  1 Pers | Conf=0.939
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:15:20.740055 bis 2025-11-08 15:15:40.562046
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:15:21 |  1 Pers. | Conf: 0.913 OK
-      15:15:22 |  1 Pers. | Conf: 0.939 OK
-      15:15:36 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:15:37 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:15:38 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:15:23 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:15:24 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:15:39 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:15:39 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:15:40 |  1 Pers. | Conf: 0.898 OK
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-         Anstieg: +1 um 15:15:40
+      > Analysiere 53 Y-Detections auf Anstiege...
+         Anstieg: +1 um 14:32:30
       > Gefunden: 1 Anstiege in Y
-      > Bester Y-Anstieg: +1 um 15:15:40
+      > Bester Y-Anstieg: +1 um 14:32:30
       > X-Durchschnitt: 0.0
    Entry erkannt: 1 Person(en)
 
    Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 1 Bewegung(en)
-
-[ANALYZER] 1 Bewegung(en) verarbeiten:
-
-  [1] ENTRY
-      Personen: 1
-      Konfidenz: 0.51
-      Muster: Y increase 1, X avg 0.0
-      Gespeichert: ID=19
-[ROOM] ENTRY: 0 -> 1 (+1, Conf=0.51)
-
-[ANALYZER] 12 Detections als verarbeitet markiert
-
-================================================================================
-[ROOM] AKTUELLER ZUSTAND: 1 Personen im Raum
-================================================================================
-
-================================================================================
-[ANALYZER] Zyklus #37 - 2025-11-08 15:16:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:15:52 | input_x    |  0 Pers | Conf=0.000
-  15:15:53 | input_x    |  1 Pers | Conf=0.900
-  15:15:54 | input_x    |  1 Pers | Conf=0.935
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:15:52.836721 bis 2025-11-08 15:16:12.236992
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:15:53 |  1 Pers. | Conf: 0.900 OK
-      15:15:54 |  1 Pers. | Conf: 0.935 OK
-      15:16:08 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:09 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:10 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:15:55 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:15:56 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:10 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:11 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:12 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-         Abfall: -1 um 15:15:55
+      > Analysiere 53 Y-Detections auf Abfälle...
+         Abfall: -1 um 14:32:33
       > Gefunden: 1 Abfälle in Y
-      > Bester Y-Abfall: -1 um 15:15:55
-      > X-Durchschnitt: 0.7
-   Exit erkannt: 1 Person(en)
-
- Gesamt gefunden: 1 Bewegung(en)
-
-[ANALYZER] 1 Bewegung(en) verarbeiten:
-
-  [1] EXIT
-      Personen: 1
-      Konfidenz: 0.48
-      Muster: Y decrease -1, X avg 0.7
-      Gespeichert: ID=20
-[ROOM] Bewegung ignoriert: Konfidenz zu niedrig (0.48)
-      Raumzustand nicht aktualisiert (Konfidenz/Plausibilitaet)
-
-[ANALYZER] 12 Detections als verarbeitet markiert
-
-================================================================================
-[ROOM] AKTUELLER ZUSTAND: 1 Personen im Raum
-================================================================================
-
-================================================================================
-[ANALYZER] Zyklus #38 - 2025-11-08 15:16:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:16:24 | input_x    |  0 Pers | Conf=0.000
-  15:16:25 | input_x    |  0 Pers | Conf=0.000
-  15:16:26 | input_x    |  0 Pers | Conf=0.000
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:16:24.501368 bis 2025-11-08 15:16:43.819021
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:16:25 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:26 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:40 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:41 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:16:27 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:28 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #39 - 2025-11-08 15:17:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:16:56 | input_x    |  0 Pers | Conf=0.000
-  15:16:56 | input_x    |  0 Pers | Conf=0.000
-  15:16:57 | input_x    |  0 Pers | Conf=0.000
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:16:56.081258 bis 2025-11-08 15:17:15.458592
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:16:56 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:57 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:12 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:12 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:13 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:16:59 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:16:59 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:14 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:14 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:15 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #40 - 2025-11-08 15:17:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 11
-[ANALYZER] Input X: 6 | Input Y: 5
-[ANALYZER] Erste Detections:
-  15:17:28 | input_x    |  0 Pers | Conf=0.000
-  15:17:28 | input_x    |  0 Pers | Conf=0.000
-  15:17:29 | input_x    |  0 Pers | Conf=0.000
-  ... und 8 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 11 Detections
-  Zeitspanne: 2025-11-08 15:17:28.322897 bis 2025-11-08 15:17:46.451014
-  Input X: 6 Detections
-  Input Y: 5 Detections
-
-   Input X Detections:
-      15:17:28 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:29 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:44 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:45 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:17:30 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:30 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:31 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:46 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:17:46 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-     Suche Entry-Muster...
-      > Analysiere 5 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 5 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #41 - 2025-11-08 15:18:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 10
-[ANALYZER] Input X: 6 | Input Y: 4
-[ANALYZER] Erste Detections:
-  15:17:47 | input_y    |  0 Pers | Conf=0.000
-  15:17:59 | input_x    |  0 Pers | Conf=0.000
-  15:18:00 | input_x    |  0 Pers | Conf=0.000
-  ... und 7 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 10 Detections
-  Zeitspanne: 2025-11-08 15:17:47.802731 bis 2025-11-08 15:18:17.609369
-  Input X: 6 Detections
-  Input Y: 4 Detections
-
-   Input X Detections:
-      15:18:00 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:01 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:16 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:16 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:17 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:17:47 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:01 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:02 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:03 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-     Suche Entry-Muster...
-      > Analysiere 4 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 4 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #42 - 2025-11-08 15:18:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 9
-[ANALYZER] Input X: 3 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:18:18 | input_y    |  0 Pers | Conf=0.000
-  15:18:19 | input_y    |  0 Pers | Conf=0.000
-  15:18:19 | input_y    |  0 Pers | Conf=0.000
-  ... und 6 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 9 Detections
-  Zeitspanne: 2025-11-08 15:18:18.371416 bis 2025-11-08 15:18:35.928956
-  Input X: 3 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:18:32 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:32 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:33 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:18:19 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:19 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:34 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:35 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:35 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #43 - 2025-11-08 15:19:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:18:48 | input_x    |  0 Pers | Conf=0.000
-  15:18:48 | input_x    |  0 Pers | Conf=0.000
-  15:18:49 | input_x    |  0 Pers | Conf=0.000
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:18:48.195274 bis 2025-11-08 15:19:08.703269
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:18:48 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:49 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:04 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:05 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:06 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:18:51 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:18:51 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:06 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:07 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:08 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #44 - 2025-11-08 15:19:47
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:19:21 | input_x    |  0 Pers | Conf=0.000
-  15:19:21 | input_x    |  0 Pers | Conf=0.000
-  15:19:22 | input_x    |  0 Pers | Conf=0.000
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:19:21.070363 bis 2025-11-08 15:19:41.121706
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:19:21 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:22 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:36 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:37 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:38 |  1 Pers. | Conf: 0.917 OK
-
-   Input Y Detections:
-      15:19:24 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:24 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:39 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:40 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:41 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-      > Gefunden: 0 Anstiege in Y
-   Kein Entry erkannt
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-      > Gefunden: 0 Abfälle in Y
-   Kein Exit erkannt
-
- Gesamt gefunden: 0 Bewegung(en)
-[ANALYZER] Keine Bewegungen erkannt
-
-================================================================================
-[ANALYZER] Zyklus #45 - 2025-11-08 15:20:17
-================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
-[ANALYZER] Erste Detections:
-  15:19:53 | input_x    |  0 Pers | Conf=0.000
-  15:19:54 | input_x    |  0 Pers | Conf=0.000
-  15:19:55 | input_x    |  0 Pers | Conf=0.000
-  ... und 9 weitere
-
-[ANALYZER] Starte Bewegungsanalyse...
-
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:19:53.893426 bis 2025-11-08 15:20:15.520942
-  Input X: 6 Detections
-  Input Y: 6 Detections
-
-   Input X Detections:
-      15:19:54 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:19:55 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:11 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:11 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:13 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-   Input Y Detections:
-      15:19:57 |  1 Pers. | Conf: 0.865 OK
-      15:19:57 |  1 Pers. | Conf: 0.897 OK
-      15:20:13 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:14 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:15 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-
-     Suche Entry-Muster...
-      > Analysiere 6 Y-Detections auf Anstiege...
-         Anstieg: +1 um 15:19:57
-      > Gefunden: 1 Anstiege in Y
-      > Bester Y-Anstieg: +1 um 15:19:57
-      > X-Durchschnitt: 0.0
-   Entry erkannt: 1 Person(en)
-
-   Suche Exit-Muster...
-      > Analysiere 6 Y-Detections auf Abfälle...
-         Abfall: -1 um 15:20:13
-      > Gefunden: 1 Abfälle in Y
-      > Bester Y-Abfall: -1 um 15:20:13
+      > Bester Y-Abfall: -1 um 14:32:33
       > X-Durchschnitt: 0.0
    Exit erkannt: 1 Person(en)
 
@@ -1119,19 +91,257 @@
 
   [1] ENTRY
       Personen: 1
-      Konfidenz: 0.45
+      Konfidenz: 0.51
       Muster: Y increase 1, X avg 0.0
-      Gespeichert: ID=21
-[ROOM] Bewegung ignoriert: Konfidenz zu niedrig (0.45)
-      Raumzustand nicht aktualisiert (Konfidenz/Plausibilitaet)
+      Gespeichert: ID=57
+[ROOM] ENTRY: 1 -> 2 (+1, Conf=0.51)
 
   [2] EXIT
       Personen: 1
-      Konfidenz: 0.45
+      Konfidenz: 0.51
       Muster: Y decrease -1, X avg 0.0
-      Gespeichert: ID=22
-[ROOM] Bewegung ignoriert: Konfidenz zu niedrig (0.45)
-      Raumzustand nicht aktualisiert (Konfidenz/Plausibilitaet)
+      Gespeichert: ID=58
+[ROOM] EXIT: 2 -> 1 (-1, Conf=0.51)
+
+[ANALYZER] 120 Detections als verarbeitet markiert
+
+================================================================================
+[ROOM] AKTUELLER ZUSTAND: 1 Personen im Raum
+================================================================================
+
+================================================================================
+[ANALYZER] Zyklus #3 - 2025-11-09 14:33:13
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 43
+[ANALYZER] Input X: 12 | Input Y: 31
+[ANALYZER] Erste Detections:
+  14:32:43 | input_y    |  0 Pers | Conf=0.000
+  14:32:43 | input_y    |  0 Pers | Conf=0.000
+  14:32:43 | input_y    |  0 Pers | Conf=0.000
+  ... und 40 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 43 Detections
+  Zeitspanne: 2025-11-09 14:32:43.328970 bis 2025-11-09 14:33:11.928999
+  Input X: 12 Detections
+  Input Y: 31 Detections
+
+   Input X Detections:
+      14:32:56 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:56 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:10 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:11 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:11 |  1 Pers. | Conf: 0.936 OK
+
+   Input Y Detections:
+      14:32:51 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:32:52 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:01 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:01 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:02 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+     Suche Entry-Muster...
+      > Analysiere 31 Y-Detections auf Anstiege...
+      > Gefunden: 0 Anstiege in Y
+   Kein Entry erkannt
+
+   Suche Exit-Muster...
+      > Analysiere 31 Y-Detections auf Abfälle...
+      > Gefunden: 0 Abfälle in Y
+   Kein Exit erkannt
+
+ Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #4 - 2025-11-09 14:33:43
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 11
+[ANALYZER] Input X: 5 | Input Y: 6
+[ANALYZER] Erste Detections:
+  14:33:16 | input_y    |  0 Pers | Conf=0.000
+  14:33:16 | input_y    |  0 Pers | Conf=0.000
+  14:33:17 | input_y    |  0 Pers | Conf=0.000
+  ... und 8 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 11 Detections
+  Zeitspanne: 2025-11-09 14:33:16.195462 bis 2025-11-09 14:33:43.233565
+  Input X: 5 Detections
+  Input Y: 6 Detections
+
+   Input X Detections:
+      14:33:25 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:26 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:27 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+   Input Y Detections:
+      14:33:16 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:17 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:32 |  1 Pers. | Conf: 0.903 OK
+      14:33:32 |  1 Pers. | Conf: 0.913 OK
+      14:33:33 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+     Suche Entry-Muster...
+      > Analysiere 6 Y-Detections auf Anstiege...
+         Anstieg: +1 um 14:33:32
+      > Gefunden: 1 Anstiege in Y
+      > Bester Y-Anstieg: +1 um 14:33:32
+      > X-Durchschnitt: 0.0
+   Entry erkannt: 1 Person(en)
+
+   Suche Exit-Muster...
+      > Analysiere 6 Y-Detections auf Abfälle...
+         Abfall: -1 um 14:33:33
+      > Gefunden: 1 Abfälle in Y
+      > Bester Y-Abfall: -1 um 14:33:33
+      > X-Durchschnitt: 0.0
+   Exit erkannt: 1 Person(en)
+
+ Gesamt gefunden: 2 Bewegung(en)
+
+[ANALYZER] 2 Bewegung(en) verarbeiten:
+
+  [1] ENTRY
+      Personen: 1
+      Konfidenz: 0.51
+      Muster: Y increase 1, X avg 0.0
+      Gespeichert: ID=59
+[ROOM] ENTRY: 1 -> 2 (+1, Conf=0.51)
+
+  [2] EXIT
+      Personen: 1
+      Konfidenz: 0.51
+      Muster: Y decrease -1, X avg 0.0
+      Gespeichert: ID=60
+[ROOM] EXIT: 2 -> 1 (-1, Conf=0.51)
+
+[ANALYZER] 11 Detections als verarbeitet markiert
+
+================================================================================
+[ROOM] AKTUELLER ZUSTAND: 1 Personen im Raum
+================================================================================
+
+================================================================================
+[ANALYZER] Zyklus #5 - 2025-11-09 14:34:13
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 10
+[ANALYZER] Input X: 4 | Input Y: 6
+[ANALYZER] Erste Detections:
+  14:33:43 | input_x    |  0 Pers | Conf=0.000
+  14:33:48 | input_y    |  0 Pers | Conf=0.000
+  14:33:49 | input_y    |  0 Pers | Conf=0.000
+  ... und 7 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 10 Detections
+  Zeitspanne: 2025-11-09 14:33:43.989903 bis 2025-11-09 14:34:05.410625
+  Input X: 4 Detections
+  Input Y: 6 Detections
+
+   Input X Detections:
+      14:33:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:58 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:58 |  1 Pers. | Conf: 0.946 OK
+      14:33:59 |  1 Pers. | Conf: 0.941 OK
+
+   Input Y Detections:
+      14:33:49 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:33:49 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:04 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:04 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:05 |  1 Pers. | Conf: 0.900 OK
+
+     Suche Entry-Muster...
+      > Analysiere 6 Y-Detections auf Anstiege...
+         Anstieg: +1 um 14:34:05
+      > Gefunden: 1 Anstiege in Y
+      > Bester Y-Anstieg: +1 um 14:34:05
+      > X-Durchschnitt: 0.7
+   Entry erkannt: 1 Person(en)
+
+   Suche Exit-Muster...
+      > Analysiere 6 Y-Detections auf Abfälle...
+      > Gefunden: 0 Abfälle in Y
+   Kein Exit erkannt
+
+ Gesamt gefunden: 1 Bewegung(en)
+
+[ANALYZER] 1 Bewegung(en) verarbeiten:
+
+  [1] ENTRY
+      Personen: 1
+      Konfidenz: 0.58
+      Muster: Y increase 1, X avg 0.7
+      Gespeichert: ID=61
+[ROOM] ENTRY: 1 -> 2 (+1, Conf=0.58)
+
+[ANALYZER] 10 Detections als verarbeitet markiert
+
+================================================================================
+[ROOM] AKTUELLER ZUSTAND: 2 Personen im Raum
+================================================================================
+
+================================================================================
+[ANALYZER] Zyklus #6 - 2025-11-09 14:34:43
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 12
+[ANALYZER] Input X: 6 | Input Y: 6
+[ANALYZER] Erste Detections:
+  14:34:14 | input_x    |  0 Pers | Conf=0.000
+  14:34:14 | input_x    |  0 Pers | Conf=0.000
+  14:34:15 | input_x    |  0 Pers | Conf=0.000
+  ... und 9 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 12 Detections
+  Zeitspanne: 2025-11-09 14:34:14.172960 bis 2025-11-09 14:34:38.083258
+  Input X: 6 Detections
+  Input Y: 6 Detections
+
+   Input X Detections:
+      14:34:14 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:15 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:30 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:31 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:31 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+   Input Y Detections:
+      14:34:20 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:21 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:36 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:37 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:38 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+     Suche Entry-Muster...
+      > Analysiere 6 Y-Detections auf Anstiege...
+      > Gefunden: 0 Anstiege in Y
+   Kein Entry erkannt
+
+   Suche Exit-Muster...
+      > Analysiere 6 Y-Detections auf Abfälle...
+         Abfall: -1 um 14:34:20
+      > Gefunden: 1 Abfälle in Y
+      > Bester Y-Abfall: -1 um 14:34:20
+      > X-Durchschnitt: 0.0
+   Exit erkannt: 1 Person(en)
+
+ Gesamt gefunden: 1 Bewegung(en)
+
+[ANALYZER] 1 Bewegung(en) verarbeiten:
+
+  [1] EXIT
+      Personen: 1
+      Konfidenz: 0.48
+      Muster: Y decrease -1, X avg 0.0
+      Gespeichert: ID=62
+[ROOM] EXIT: 2 -> 1 (-1, Conf=0.48)
 
 [ANALYZER] 12 Detections als verarbeitet markiert
 
@@ -1140,43 +350,44 @@
 ================================================================================
 
 ================================================================================
-[ANALYZER] Zyklus #46 - 2025-11-08 15:20:47
+[ANALYZER] Zyklus #7 - 2025-11-09 14:35:13
 ================================================================================
-[ANALYZER] Unverarbeitete Detections: 10
-[ANALYZER] Input X: 6 | Input Y: 4
+[ANALYZER] Unverarbeitete Detections: 12
+[ANALYZER] Input X: 6 | Input Y: 6
 [ANALYZER] Erste Detections:
-  15:20:29 | input_x    |  0 Pers | Conf=0.000
-  15:20:30 | input_x    |  0 Pers | Conf=0.000
-  15:20:30 | input_x    |  0 Pers | Conf=0.000
-  ... und 7 weitere
+  14:34:47 | input_x    |  0 Pers | Conf=0.000
+  14:34:48 | input_x    |  0 Pers | Conf=0.000
+  14:34:48 | input_x    |  0 Pers | Conf=0.000
+  ... und 9 weitere
 
 [ANALYZER] Starte Bewegungsanalyse...
 
- detect_movements() aufgerufen mit 10 Detections
-  Zeitspanne: 2025-11-08 15:20:29.285518 bis 2025-11-08 15:20:47.702163
+ detect_movements() aufgerufen mit 12 Detections
+  Zeitspanne: 2025-11-09 14:34:47.350264 bis 2025-11-09 14:35:11.149512
   Input X: 6 Detections
-  Input Y: 4 Detections
+  Input Y: 6 Detections
 
    Input X Detections:
-      15:20:30 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:30 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:45 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:46 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:47 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:48 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:48 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:03 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:04 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:04 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
 
    Input Y Detections:
-      15:20:31 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:32 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:33 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:47 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:53 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:34:54 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:09 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:10 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:11 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
 
      Suche Entry-Muster...
-      > Analysiere 4 Y-Detections auf Anstiege...
+      > Analysiere 6 Y-Detections auf Anstiege...
       > Gefunden: 0 Anstiege in Y
    Kein Entry erkannt
 
    Suche Exit-Muster...
-      > Analysiere 4 Y-Detections auf Abfälle...
+      > Analysiere 6 Y-Detections auf Abfälle...
       > Gefunden: 0 Abfälle in Y
    Kein Exit erkannt
 
@@ -1184,34 +395,36 @@
 [ANALYZER] Keine Bewegungen erkannt
 
 ================================================================================
-[ANALYZER] Zyklus #47 - 2025-11-08 15:21:17
+[ANALYZER] Zyklus #8 - 2025-11-09 14:35:43
 ================================================================================
-[ANALYZER] Unverarbeitete Detections: 8
-[ANALYZER] Input X: 3 | Input Y: 5
+[ANALYZER] Unverarbeitete Detections: 11
+[ANALYZER] Input X: 6 | Input Y: 5
 [ANALYZER] Erste Detections:
-  15:20:49 | input_y    |  0 Pers | Conf=0.000
-  15:20:49 | input_y    |  0 Pers | Conf=0.000
-  15:21:02 | input_x    |  0 Pers | Conf=0.000
-  ... und 5 weitere
+  14:35:19 | input_x    |  0 Pers | Conf=0.000
+  14:35:20 | input_x    |  0 Pers | Conf=0.000
+  14:35:21 | input_x    |  0 Pers | Conf=0.000
+  ... und 8 weitere
 
 [ANALYZER] Starte Bewegungsanalyse...
 
- detect_movements() aufgerufen mit 8 Detections
-  Zeitspanne: 2025-11-08 15:20:49.056903 bis 2025-11-08 15:21:05.838753
-  Input X: 3 Detections
+ detect_movements() aufgerufen mit 11 Detections
+  Zeitspanne: 2025-11-09 14:35:19.903612 bis 2025-11-09 14:35:42.932293
+  Input X: 6 Detections
   Input Y: 5 Detections
 
    Input X Detections:
-      15:21:02 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:02 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:03 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:20 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:21 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:36 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:37 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:37 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
 
    Input Y Detections:
-      15:20:49 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:20:49 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:04 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:05 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:05 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:26 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:26 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:27 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
 
      Suche Entry-Muster...
       > Analysiere 5 Y-Detections auf Anstiege...
@@ -1227,36 +440,79 @@
 [ANALYZER] Keine Bewegungen erkannt
 
 ================================================================================
-[ANALYZER] Zyklus #48 - 2025-11-08 15:21:47
+[ANALYZER] Zyklus #9 - 2025-11-09 14:36:13
 ================================================================================
-[ANALYZER] Unverarbeitete Detections: 12
-[ANALYZER] Input X: 6 | Input Y: 6
+[ANALYZER] Unverarbeitete Detections: 10
+[ANALYZER] Input X: 6 | Input Y: 4
 [ANALYZER] Erste Detections:
-  15:21:18 | input_x    |  0 Pers | Conf=0.000
-  15:21:19 | input_x    |  0 Pers | Conf=0.000
-  15:21:20 | input_x    |  0 Pers | Conf=0.000
-  ... und 9 weitere
+  14:35:43 | input_y    |  0 Pers | Conf=0.000
+  14:35:53 | input_x    |  0 Pers | Conf=0.000
+  14:35:54 | input_x    |  0 Pers | Conf=0.000
+  ... und 7 weitere
 
 [ANALYZER] Starte Bewegungsanalyse...
 
- detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:21:18.703961 bis 2025-11-08 15:21:38.099833
+ detect_movements() aufgerufen mit 10 Detections
+  Zeitspanne: 2025-11-09 14:35:43.687850 bis 2025-11-09 14:36:11.511995
   Input X: 6 Detections
+  Input Y: 4 Detections
+
+   Input X Detections:
+      14:35:54 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:54 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:10 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:10 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:11 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+   Input Y Detections:
+      14:35:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:35:59 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:00 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:01 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+     Suche Entry-Muster...
+      > Analysiere 4 Y-Detections auf Anstiege...
+      > Gefunden: 0 Anstiege in Y
+   Kein Entry erkannt
+
+   Suche Exit-Muster...
+      > Analysiere 4 Y-Detections auf Abfälle...
+      > Gefunden: 0 Abfälle in Y
+   Kein Exit erkannt
+
+ Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #10 - 2025-11-09 14:36:43
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 10
+[ANALYZER] Input X: 4 | Input Y: 6
+[ANALYZER] Erste Detections:
+  14:36:15 | input_y    |  0 Pers | Conf=0.000
+  14:36:16 | input_y    |  0 Pers | Conf=0.000
+  14:36:17 | input_y    |  0 Pers | Conf=0.000
+  ... und 7 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 10 Detections
+  Zeitspanne: 2025-11-09 14:36:15.770243 bis 2025-11-09 14:36:43.116800
+  Input X: 4 Detections
   Input Y: 6 Detections
 
    Input X Detections:
-      15:21:19 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:20 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:34 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:34 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:36 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:26 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:27 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:28 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
 
    Input Y Detections:
-      15:21:21 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:21 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:36 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:37 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:38 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:16 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:17 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:32 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:33 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:33 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
 
      Suche Entry-Muster...
       > Analysiere 6 Y-Detections auf Anstiege...
@@ -1272,36 +528,171 @@
 [ANALYZER] Keine Bewegungen erkannt
 
 ================================================================================
-[ANALYZER] Zyklus #49 - 2025-11-08 15:22:17
+[ANALYZER] Zyklus #11 - 2025-11-09 14:37:13
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 11
+[ANALYZER] Input X: 5 | Input Y: 6
+[ANALYZER] Erste Detections:
+  14:36:43 | input_x    |  0 Pers | Conf=0.000
+  14:36:44 | input_x    |  0 Pers | Conf=0.000
+  14:36:49 | input_y    |  0 Pers | Conf=0.000
+  ... und 8 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 11 Detections
+  Zeitspanne: 2025-11-09 14:36:43.874034 bis 2025-11-09 14:37:06.902845
+  Input X: 5 Detections
+  Input Y: 6 Detections
+
+   Input X Detections:
+      14:36:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:44 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:59 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:59 |  1 Pers. | Conf: 0.928 OK
+      14:37:00 |  1 Pers. | Conf: 0.912 OK
+
+   Input Y Detections:
+      14:36:50 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:36:50 |  1 Pers. | Conf: 0.904 OK
+      14:37:05 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:06 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:06 |  1 Pers. | Conf: 0.537 OK
+
+     Suche Entry-Muster...
+      > Analysiere 6 Y-Detections auf Anstiege...
+         Anstieg: +1 um 14:36:50
+         Anstieg: +1 um 14:37:06
+      > Gefunden: 2 Anstiege in Y
+      > Bester Y-Anstieg: +1 um 14:36:50
+      > X-Durchschnitt: 0.4
+   Entry erkannt: 1 Person(en)
+
+   Suche Exit-Muster...
+      > Analysiere 6 Y-Detections auf Abfälle...
+         Abfall: -1 um 14:37:05
+      > Gefunden: 1 Abfälle in Y
+      > Bester Y-Abfall: -1 um 14:37:05
+      > X-Durchschnitt: 0.7
+   Exit erkannt: 1 Person(en)
+
+ Gesamt gefunden: 2 Bewegung(en)
+
+[ANALYZER] 2 Bewegung(en) verarbeiten:
+
+  [1] ENTRY
+      Personen: 1
+      Konfidenz: 0.56
+      Muster: Y increase 1, X avg 0.4
+      Gespeichert: ID=63
+[ROOM] ENTRY: 1 -> 2 (+1, Conf=0.56)
+
+  [2] EXIT
+      Personen: 1
+      Konfidenz: 0.56
+      Muster: Y decrease -1, X avg 0.7
+      Gespeichert: ID=64
+[ROOM] EXIT: 2 -> 1 (-1, Conf=0.56)
+
+[ANALYZER] 11 Detections als verarbeitet markiert
+
+================================================================================
+[ROOM] AKTUELLER ZUSTAND: 1 Personen im Raum
+================================================================================
+
+================================================================================
+[ANALYZER] Zyklus #12 - 2025-11-09 14:37:43
 ================================================================================
 [ANALYZER] Unverarbeitete Detections: 12
 [ANALYZER] Input X: 6 | Input Y: 6
 [ANALYZER] Erste Detections:
-  15:21:50 | input_x    |  0 Pers | Conf=0.000
-  15:21:51 | input_x    |  0 Pers | Conf=0.000
-  15:21:52 | input_x    |  0 Pers | Conf=0.000
+  14:37:15 | input_x    |  0 Pers | Conf=0.000
+  14:37:16 | input_x    |  0 Pers | Conf=0.000
+  14:37:17 | input_x    |  0 Pers | Conf=0.000
   ... und 9 weitere
 
 [ANALYZER] Starte Bewegungsanalyse...
 
  detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:21:50.364434 bis 2025-11-08 15:22:10.439005
+  Zeitspanne: 2025-11-09 14:37:15.660329 bis 2025-11-09 14:37:39.447249
   Input X: 6 Detections
   Input Y: 6 Detections
 
    Input X Detections:
-      15:21:51 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:52 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:07 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:07 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:08 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:16 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:17 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:31 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:32 |  1 Pers. | Conf: 0.920 OK
+      14:37:33 |  1 Pers. | Conf: 0.927 OK
 
    Input Y Detections:
-      15:21:54 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:21:54 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:08 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:09 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:10 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:22 |  1 Pers. | Conf: 0.914 OK
+      14:37:22 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:37 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:38 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:39 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+     Suche Entry-Muster...
+      > Analysiere 6 Y-Detections auf Anstiege...
+      > Gefunden: 0 Anstiege in Y
+   Kein Entry erkannt
+
+   Suche Exit-Muster...
+      > Analysiere 6 Y-Detections auf Abfälle...
+         Abfall: -1 um 14:37:22
+      > Gefunden: 1 Abfälle in Y
+      > Bester Y-Abfall: -1 um 14:37:22
+      > X-Durchschnitt: 0.2
+   Exit erkannt: 1 Person(en)
+
+ Gesamt gefunden: 1 Bewegung(en)
+
+[ANALYZER] 1 Bewegung(en) verarbeiten:
+
+  [1] EXIT
+      Personen: 1
+      Konfidenz: 0.57
+      Muster: Y decrease -1, X avg 0.2
+      Gespeichert: ID=65
+[ROOM] EXIT: 1 -> 0 (-1, Conf=0.57)
+
+[ANALYZER] 12 Detections als verarbeitet markiert
+
+================================================================================
+[ROOM] AKTUELLER ZUSTAND: 0 Personen im Raum
+================================================================================
+
+================================================================================
+[ANALYZER] Zyklus #13 - 2025-11-09 14:38:13
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 12
+[ANALYZER] Input X: 6 | Input Y: 6
+[ANALYZER] Erste Detections:
+  14:37:48 | input_x    |  0 Pers | Conf=0.000
+  14:37:48 | input_x    |  0 Pers | Conf=0.000
+  14:37:49 | input_x    |  0 Pers | Conf=0.000
+  ... und 9 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 12 Detections
+  Zeitspanne: 2025-11-09 14:37:48.208942 bis 2025-11-09 14:38:12.010330
+  Input X: 6 Detections
+  Input Y: 6 Detections
+
+   Input X Detections:
+      14:37:48 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:49 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:04 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:05 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:05 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+   Input Y Detections:
+      14:37:55 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:37:55 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:10 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:11 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:12 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
 
      Suche Entry-Muster...
       > Analysiere 6 Y-Detections auf Anstiege...
@@ -1317,31 +708,226 @@
 [ANALYZER] Keine Bewegungen erkannt
 
 ================================================================================
-[ANALYZER] Zyklus #50 - 2025-11-08 15:22:47
+[ANALYZER] Zyklus #14 - 2025-11-09 14:38:43
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 10
+[ANALYZER] Input X: 6 | Input Y: 4
+[ANALYZER] Erste Detections:
+  14:38:20 | input_x    |  0 Pers | Conf=0.000
+  14:38:21 | input_x    |  0 Pers | Conf=0.000
+  14:38:22 | input_x    |  0 Pers | Conf=0.000
+  ... und 7 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 10 Detections
+  Zeitspanne: 2025-11-09 14:38:20.772190 bis 2025-11-09 14:38:43.193111
+  Input X: 6 Detections
+  Input Y: 4 Detections
+
+   Input X Detections:
+      14:38:21 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:22 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:36 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:37 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:38 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+   Input Y Detections:
+      14:38:27 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:27 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:28 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+     Suche Entry-Muster...
+      > Analysiere 4 Y-Detections auf Anstiege...
+      > Gefunden: 0 Anstiege in Y
+   Kein Entry erkannt
+
+   Suche Exit-Muster...
+      > Analysiere 4 Y-Detections auf Abfälle...
+      > Gefunden: 0 Abfälle in Y
+   Kein Exit erkannt
+
+ Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #15 - 2025-11-09 14:39:13
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 11
+[ANALYZER] Input X: 6 | Input Y: 5
+[ANALYZER] Erste Detections:
+  14:38:43 | input_y    |  0 Pers | Conf=0.000
+  14:38:44 | input_y    |  0 Pers | Conf=0.000
+  14:38:52 | input_x    |  0 Pers | Conf=0.000
+  ... und 8 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 11 Detections
+  Zeitspanne: 2025-11-09 14:38:43.942929 bis 2025-11-09 14:39:10.513016
+  Input X: 6 Detections
+  Input Y: 5 Detections
+
+   Input X Detections:
+      14:38:53 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:54 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:09 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:09 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:10 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+   Input Y Detections:
+      14:38:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:44 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:58 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:38:59 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:00 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+     Suche Entry-Muster...
+      > Analysiere 5 Y-Detections auf Anstiege...
+      > Gefunden: 0 Anstiege in Y
+   Kein Entry erkannt
+
+   Suche Exit-Muster...
+      > Analysiere 5 Y-Detections auf Abfälle...
+      > Gefunden: 0 Abfälle in Y
+   Kein Exit erkannt
+
+ Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #16 - 2025-11-09 14:39:43
 ================================================================================
 [ANALYZER] Unverarbeitete Detections: 12
 [ANALYZER] Input X: 6 | Input Y: 6
 [ANALYZER] Erste Detections:
-  15:22:22 | input_x    |  0 Pers | Conf=0.000
-  15:22:23 | input_x    |  0 Pers | Conf=0.000
-  15:22:24 | input_x    |  0 Pers | Conf=0.000
+  14:39:15 | input_y    |  0 Pers | Conf=0.000
+  14:39:16 | input_y    |  0 Pers | Conf=0.000
+  14:39:16 | input_y    |  0 Pers | Conf=0.000
   ... und 9 weitere
 
 [ANALYZER] Starte Bewegungsanalyse...
 
  detect_movements() aufgerufen mit 12 Detections
-  Zeitspanne: 2025-11-08 15:22:22.708919 bis 2025-11-08 15:22:43.629447
+  Zeitspanne: 2025-11-09 14:39:15.381956 bis 2025-11-09 14:39:43.257746
   Input X: 6 Detections
   Input Y: 6 Detections
 
    Input X Detections:
-      15:22:23 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:24 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:40 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:41 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:41 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:26 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:27 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:41 |  1 Pers. | Conf: 0.939 OK
+      14:39:42 |  1 Pers. | Conf: 0.912 OK
+      14:39:43 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
 
    Input Y Detections:
-      15:22:26 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:26 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
-      15:22:42 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:16 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:16 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:32 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:32 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:32 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+     Suche Entry-Muster...
+      > Analysiere 6 Y-Detections auf Anstiege...
+      > Gefunden: 0 Anstiege in Y
+   Kein Entry erkannt
+
+   Suche Exit-Muster...
+      > Analysiere 6 Y-Detections auf Abfälle...
+      > Gefunden: 0 Abfälle in Y
+   Kein Exit erkannt
+
+ Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #17 - 2025-11-09 14:40:13
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 9
+[ANALYZER] Input X: 3 | Input Y: 6
+[ANALYZER] Erste Detections:
+  14:39:48 | input_y    |  0 Pers | Conf=0.000
+  14:39:48 | input_y    |  1 Pers | Conf=0.906
+  14:39:49 | input_y    |  1 Pers | Conf=0.912
+  ... und 6 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 9 Detections
+  Zeitspanne: 2025-11-09 14:39:48.018537 bis 2025-11-09 14:40:05.540437
+  Input X: 3 Detections
+  Input Y: 6 Detections
+
+   Input X Detections:
+      14:39:58 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:59 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:39:59 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+   Input Y Detections:
+      14:39:48 |  1 Pers. | Conf: 0.906 OK
+      14:39:49 |  1 Pers. | Conf: 0.912 OK
+      14:40:04 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:40:04 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+      14:40:05 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)
+
+     Suche Entry-Muster...
+      > Analysiere 6 Y-Detections auf Anstiege...
+         Anstieg: +1 um 14:39:48
+      > Gefunden: 1 Anstiege in Y
+      > Bester Y-Anstieg: +1 um 14:39:48
+      > X-Durchschnitt: 0.0
+   Entry erkannt: 1 Person(en)
+
+   Suche Exit-Muster...
+      > Analysiere 6 Y-Detections auf Abfälle...
+         Abfall: -1 um 14:40:04
+      > Gefunden: 1 Abfälle in Y
+      > Bester Y-Abfall: -1 um 14:40:04
+      > X-Durchschnitt: 0.0
+   Exit erkannt: 1 Person(en)
+
+ Gesamt gefunden: 2 Bewegung(en)
+
+[ANALYZER] 2 Bewegung(en) verarbeiten:
+
+  [1] ENTRY
+      Personen: 1
+      Konfidenz: 0.51
+      Muster: Y increase 1, X avg 0.0
+      Gespeichert: ID=66
+[ROOM] ENTRY: 0 -> 1 (+1, Conf=0.51)
+
+  [2] EXIT
+      Personen: 1
+      Konfidenz: 0.51
+      Muster: Y decrease -1, X avg 0.0
+      Gespeichert: ID=67
+[ROOM] EXIT: 1 -> 0 (-1, Conf=0.51)
+
+[ANALYZER] 9 Detections als verarbeitet markiert
+
+================================================================================
+[ROOM] AKTUELLER ZUSTAND: 0 Personen im Raum
+================================================================================
+
+================================================================================
+[ANALYZER] Zyklus #18 - 2025-11-09 14:40:43
+================================================================================
+[ANALYZER] Unverarbeitete Detections: 12
+[ANALYZER] Input X: 6 | Input Y: 6
+[ANALYZER] Erste Detections:
+  14:40:14 | input_x    |  0 Pers | Conf=0.000
+  14:40:15 | input_x    |  0 Pers | Conf=0.000
+  14:40:15 | input_x    |  0 Pers | Conf=0.000
+  ... und 9 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+ detect_movements() aufgerufen mit 12 Detections
+  Zeitspanne: 2025-11-09 14:40:14.902857 bis 2025-11-09 14:40:40.192271
+  Input X: 6 Detections
+  Input Y: 6 Detections
+
+   Input X Detections:
+      14:40:15 |  0 Pers. | Conf: 0.000 ERROR (zu niedrig)

@@ -225,7 +225,7 @@ class MovementDetector:
         x_confs = [d.get('avg_confidence') or 0.5 for d in x_seq]
         y_confs = [d.get('avg_confidence') or 0.5 for d in y_seq]
         avg_conf = (np.mean(x_confs) + np.mean(y_confs)) / 2
-        return round(min(1.0, max(0.4, avg_conf * 0.8)), 3)
+        return round(min(1.0, max(0.4, avg_conf * 0.9)), 3)
 
 
 # =====================================================================================

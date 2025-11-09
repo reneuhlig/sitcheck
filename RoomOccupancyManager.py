@@ -56,6 +56,8 @@ class RoomOccupancyManager:
         Returns:
             True wenn Zustand aktualisiert wurde, sonst False
         """
+
+        
         if not self.initialized:
             print("[ROOM] Warnung: Manager nicht initialisiert")
             return False
@@ -65,7 +67,7 @@ class RoomOccupancyManager:
         confidence = movement['confidence']
         
         # Niedrige Konfidenz -> Ignorieren
-        if confidence < 0.5:
+        if confidence < 0.4:
             print(f"[ROOM] Bewegung ignoriert: Konfidenz zu niedrig ({confidence:.2f})")
             return False
         

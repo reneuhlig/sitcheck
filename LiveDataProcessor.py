@@ -45,7 +45,7 @@ class LiveDetectionProcessor:
                     # Erzeuge einmal eine Run-ID beim Start
                     run_id = self.processor._setup_database(run_id=str(time.time()))
 
-                print(f"▶️ Verarbeitung: {temp_path.name} ({source})")
+                print(f"> Verarbeitung: {temp_path.name} ({source})")
                 result = self.processor._process_single_image(
                     run_id=run_id,
                     current=1,
@@ -64,4 +64,4 @@ class LiveDetectionProcessor:
     def stop(self):
         """Beendet den Live-Betrieb"""
         self.loader.stop()
-        print("🛑 Live-Verarbeitung gestoppt.")
+        print("[INFO:] Live-Verarbeitung gestoppt.")
