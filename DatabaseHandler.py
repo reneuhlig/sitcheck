@@ -31,10 +31,10 @@ class DatabaseHandler:
                 timeout=10
             )
             self.connection.autocommit = True
-            print(f"✓ Erfolgreich mit PostgreSQL verbunden ({self.host}:{self.port})")
+            print(f"Erfolgreich mit PostgreSQL verbunden ({self.host}:{self.port})")
             return True
         except pg8000.dbapi.InterfaceError as e:
-            print(f"✗ Fehler bei Datenbankverbindung: {e}")
+            print(f"Fehler bei Datenbankverbindung: {e}")
             return False
     
     def create_tables(self) -> bool:
@@ -55,7 +55,9 @@ class DatabaseHandler:
             max_confidence REAL,
             min_confidence REAL,
             detection_data JSONB,
-            processed BOOLEAN DEFAULT FALSE
+            processed BOOLEAN DEFAULT FALSE,
+            used_in_pattern BOOLEAN DEFAULT FALSE,
+            pattern_id INTEGER
         );
         """
         
@@ -63,6 +65,7 @@ class DatabaseHandler:
         CREATE INDEX IF NOT EXISTS idx_detections_timestamp ON live_detections (timestamp);
         CREATE INDEX IF NOT EXISTS idx_detections_source ON live_detections (source);
         CREATE INDEX IF NOT EXISTS idx_detections_processed ON live_detections (processed);
+        CREATE INDEX IF NOT EXISTS idx_detections_used_in_pattern ON live_detections (used_in_pattern);
         """
         
         # Tabelle für korrelierte/bereinigte Daten (alte Tabelle, bleibt erhalten)
@@ -82,7 +85,7 @@ class DatabaseHandler:
         CREATE INDEX IF NOT EXISTS idx_correlated_timestamp ON correlated_persons (timestamp);
         """
         
-        # NEU: Tabelle für Bewegungs-Tracking
+        # Tabelle für Bewegungs-Tracking
         create_movement_table = """
         CREATE TABLE IF NOT EXISTS movement_tracking (
             id SERIAL PRIMARY KEY,
@@ -96,7 +99,7 @@ class DatabaseHandler:
         CREATE INDEX IF NOT EXISTS idx_movement_timestamp ON movement_tracking (timestamp);
         """
         
-        # NEU: Tabelle für Raumzustand
+        # Tabelle für Raumzustand
         create_room_state_table = """
         CREATE TABLE IF NOT EXISTS room_state (
             id SERIAL PRIMARY KEY,
@@ -117,10 +120,8 @@ class DatabaseHandler:
             cursor.execute(create_movement_table)
             cursor.execute(create_room_state_table)
             
-            # Erstelle Indices (nachdem Tabellen existieren)
-            cursor.execute(create_detections_indices)
-            
-            # Füge 'processed' Spalte zu existierenden Tabellen hinzu falls nicht vorhanden
+            # Füge Spalten zu existierenden Tabellen hinzu falls nicht vorhanden
+            # WICHTIG: VOR Index-Erstellung!
             try:
                 cursor.execute("""
                     ALTER TABLE live_detections 
@@ -129,19 +130,29 @@ class DatabaseHandler:
             except:
                 pass
             
-            # Erstelle Index falls noch nicht vorhanden
             try:
                 cursor.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_detections_processed 
-                    ON live_detections (processed)
+                    ALTER TABLE live_detections 
+                    ADD COLUMN IF NOT EXISTS used_in_pattern BOOLEAN DEFAULT FALSE
                 """)
             except:
                 pass
             
-            print("✓ Datenbanktabellen erstellt/überprüft")
+            try:
+                cursor.execute("""
+                    ALTER TABLE live_detections 
+                    ADD COLUMN IF NOT EXISTS pattern_id INTEGER
+                """)
+            except:
+                pass
+            
+            # Erstelle Indices NACH Spalten-Erstellung
+            cursor.execute(create_detections_indices)
+            
+            print("Datenbanktabellen erstellt/überprüft")
             return True
         except pg8000.dbapi.DatabaseError as e:
-            print(f"✗ Fehler beim Erstellen der Tabellen: {e}")
+            print(f"Fehler beim Erstellen der Tabellen: {e}")
             return False
         finally:
             cursor.close()
@@ -217,23 +228,69 @@ class DatabaseHandler:
         finally:
             cursor.close()
     
-    # NEU: Methoden für Bewegungs-Tracking
-    
-    def get_unprocessed_detections(self, window_seconds: float = 5.0) -> List[Dict]:
+    def get_detections_for_analysis(self, analysis_window: float = 30.0, 
+                                     lookback_window: float = 60.0) -> List[Dict]:
         """
-        Holt unverarbeitete Detections aus Zeitfenster
+        Holt Detections für Analyse mit Lookback für zyklusübergreifende Muster
         
         Args:
-            window_seconds: Zeitfenster in Sekunden
+            analysis_window: Zeitfenster für neue Detections (Sekunden)
+            lookback_window: Zusätzliches Zeitfenster für alte Detections (Sekunden)
             
         Returns:
-            Liste von unverarbeiteten Detections
+            Liste von Detections mit allen relevanten Feldern
         """
         if not self.connection:
             return []
             
         cursor = self.connection.cursor()
-        # PostgreSQL: INTERVAL mit make_interval() für dynamische Werte
+        query = """
+        SELECT id, timestamp, source, persons_detected, 
+               avg_confidence, detection_data, processed, used_in_pattern
+        FROM live_detections
+        WHERE (
+            (processed = FALSE AND timestamp >= NOW() - make_interval(secs => %s))
+            OR
+            (processed = TRUE 
+             AND used_in_pattern = FALSE 
+             AND timestamp >= NOW() - make_interval(secs => %s))
+        )
+        ORDER BY timestamp ASC
+        """
+        
+        try:
+            cursor.execute(query, (analysis_window, lookback_window))
+            results = []
+            
+            for row in cursor.fetchall():
+                detection_data = row[5] if row[5] is not None else {}
+                
+                results.append({
+                    'id': row[0],
+                    'timestamp': row[1],
+                    'source': row[2],
+                    'persons_detected': row[3],
+                    'avg_confidence': row[4],
+                    'detection_data': detection_data,
+                    'processed': row[6],
+                    'used_in_pattern': row[7]
+                })
+            return results
+        except pg8000.dbapi.DatabaseError as e:
+            self.logger.error(f"Fehler beim Abrufen der Detections für Analyse: {e}")
+            return []
+        finally:
+            cursor.close()
+    
+    def get_unprocessed_detections(self, window_seconds: float = 5.0) -> List[Dict]:
+        """
+        DEPRECATED: Verwende get_detections_for_analysis() stattdessen
+        Holt unverarbeitete Detections aus Zeitfenster
+        """
+        if not self.connection:
+            return []
+            
+        cursor = self.connection.cursor()
         query = """
         SELECT id, timestamp, source, persons_detected, avg_confidence, detection_data
         FROM live_detections
@@ -247,7 +304,6 @@ class DatabaseHandler:
             results = []
             
             for row in cursor.fetchall():
-                # row[5] ist bereits ein Dict bei JSONB, nicht json.loads() nötig
                 detection_data = row[5] if row[5] is not None else {}
                 
                 results.append({
@@ -286,6 +342,39 @@ class DatabaseHandler:
             return True
         except pg8000.dbapi.DatabaseError as e:
             self.logger.error(f"Fehler beim Markieren der Detections: {e}")
+            return False
+        finally:
+            cursor.close()
+    
+    def mark_detections_used_in_pattern(self, detection_ids: List[int], 
+                                        pattern_id: int) -> bool:
+        """
+        Markiert Detections als in Muster verwendet
+        
+        Args:
+            detection_ids: Liste von Detection-IDs
+            pattern_id: ID des Movement-Eintrags
+            
+        Returns:
+            True bei Erfolg
+        """
+        if not self.connection or not detection_ids:
+            return False
+            
+        cursor = self.connection.cursor()
+        query = """
+        UPDATE live_detections 
+        SET used_in_pattern = TRUE, 
+            pattern_id = %s,
+            processed = TRUE
+        WHERE id = ANY(%s)
+        """
+        
+        try:
+            cursor.execute(query, (pattern_id, detection_ids))
+            return True
+        except pg8000.dbapi.DatabaseError as e:
+            self.logger.error(f"Fehler beim Markieren als verwendet: {e}")
             return False
         finally:
             cursor.close()
@@ -510,4 +599,4 @@ class DatabaseHandler:
         """Schließt die Datenbankverbindung"""
         if self.connection:
             self.connection.close()
-            print("✓ Datenbankverbindung geschlossen")
+            print("Datenbankverbindung geschlossen")

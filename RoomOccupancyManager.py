@@ -56,8 +56,6 @@ class RoomOccupancyManager:
         Returns:
             True wenn Zustand aktualisiert wurde, sonst False
         """
-
-        
         if not self.initialized:
             print("[ROOM] Warnung: Manager nicht initialisiert")
             return False
@@ -66,9 +64,10 @@ class RoomOccupancyManager:
         person_count = movement['person_count']
         confidence = movement['confidence']
         
-        # Niedrige Konfidenz -> Ignorieren
-        if confidence < 0.4:
-            print(f"[ROOM] Bewegung ignoriert: Konfidenz zu niedrig ({confidence:.2f})")
+        # Angepasster Schwellwert: 0.3 statt 0.4
+        # Pattern-Confidence ist bereits konservativ berechnet
+        if confidence < 0.3:
+            print(f"[ROOM] Bewegung ignoriert: Confidence zu niedrig ({confidence:.2f} < 0.3)")
             return False
         
         # Berechne neue Personenanzahl
@@ -81,7 +80,7 @@ class RoomOccupancyManager:
             return False
         
         # Plausibilitaetspruefung
-        if not self._is_plausible(new_count, person_count):
+        if not self._is_plausible(new_count, person_count, confidence):
             print(f"[ROOM] Implausible Aenderung: {self.current_occupancy} -> {new_count}")
             return False
         
@@ -95,7 +94,7 @@ class RoomOccupancyManager:
             change_reason=movement_type,
             movement_id=movement_id,
             confidence=confidence,
-            notes=f"Delta: {person_count}, Zeit-Diff: {movement.get('time_diff', 0):.2f}s"
+            notes=f"Delta: {person_count}, Pattern: {movement.get('pattern', 'N/A')}"
         )
         
         if success:
@@ -110,13 +109,14 @@ class RoomOccupancyManager:
             print(f"[ROOM] Fehler beim Speichern des Raumzustands")
             return False
     
-    def _is_plausible(self, new_count: int, change: int) -> bool:
+    def _is_plausible(self, new_count: int, change: int, confidence: float) -> bool:
         """
         Prueft Plausibilitaet einer Aenderung
         
         Args:
             new_count: Neue Gesamtanzahl
             change: Aenderung (Delta)
+            confidence: Confidence des Musters
             
         Returns:
             True wenn plausibel, sonst False
@@ -130,9 +130,21 @@ class RoomOccupancyManager:
             print(f"[ROOM] Warnung: Ueber Maximalkapazitaet: {new_count} > {self.max_capacity}")
             return False
         
-        # Nicht mehr als 10 Personen auf einmal (anpassbar)
-        if abs(change) > 10:
-            print(f"[ROOM] Warnung: Zu grosse Aenderung: {abs(change)} Personen")
+        # Dynamische Grenze basierend auf Confidence
+        # Hohe Confidence: Erlaube größere Änderungen
+        # Niedrige Confidence: Nur kleine Änderungen
+        if confidence >= 0.7:
+            max_change = 10
+        elif confidence >= 0.5:
+            max_change = 5
+        elif confidence >= 0.3:
+            max_change = 3
+        else:
+            max_change = 1
+        
+        if abs(change) > max_change:
+            print(f"[ROOM] Warnung: Zu grosse Aenderung fuer Confidence: "
+                  f"{abs(change)} > {max_change} bei Conf={confidence:.2f}")
             return False
         
         return True
