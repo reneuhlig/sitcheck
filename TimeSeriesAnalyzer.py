@@ -26,7 +26,7 @@ class TimeSeriesAnalyzer:
         """
         self.db = DatabaseHandler(**db_config)
         self.movement_detector = MovementDetector(
-            transition_window=10.0,
+            transition_window=20.0,
             min_pattern_confidence=0.3,
             max_patterns_per_type=3
         )
