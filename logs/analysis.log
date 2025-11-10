@@ -1471,3 +1471,923 @@ Datenbanktabellen erstellt/überprüft
 [MOVEMENT]     ID=14356 | 09:11:08 |  0 Pers | Conf=  N/A | FREE
 
 [MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14350 | 09:11:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14351 | 09:11:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14352 | 09:11:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14353 | 09:11:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14354 | 09:11:05 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=41, Y=30 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=41, Y=30 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #27 - 2025-11-10 09:11:38
+================================================================================
+[ANALYZER] Detections: 79 total
+[ANALYZER]   Neu: 39
+[ANALYZER]   Lookback (wiederverwendbar): 40
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 39 | Input Y: 40
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14317 | 09:10:38 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14318 | 09:10:38 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14319 | 09:10:39 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14320 | 09:10:39 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14321 | 09:10:40 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 74 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 79 Detections
+[MOVEMENT] Verfügbare Detections: 79/79
+[MOVEMENT] Zeitspanne: 2025-11-10 09:10:38.526548 bis 2025-11-10 09:11:37.957176
+[MOVEMENT] Input X: 39 Detections
+[MOVEMENT] Input Y: 40 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14386 | 09:11:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14387 | 09:11:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14388 | 09:11:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14389 | 09:11:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14395 | 09:11:37 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14390 | 09:11:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14391 | 09:11:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14392 | 09:11:34 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14393 | 09:11:34 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14394 | 09:11:35 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=39, Y=40 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=39, Y=40 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #28 - 2025-11-10 09:12:08
+================================================================================
+[ANALYZER] Detections: 79 total
+[ANALYZER]   Neu: 40
+[ANALYZER]   Lookback (wiederverwendbar): 39
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 39 | Input Y: 40
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14357 | 09:11:08 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14358 | 09:11:09 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14359 | 09:11:09 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14360 | 09:11:10 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14361 | 09:11:10 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 74 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 79 Detections
+[MOVEMENT] Verfügbare Detections: 79/79
+[MOVEMENT] Zeitspanne: 2025-11-10 09:11:08.826349 bis 2025-11-10 09:12:07.804783
+[MOVEMENT] Input X: 39 Detections
+[MOVEMENT] Input Y: 40 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14426 | 09:12:00 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14427 | 09:12:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14428 | 09:12:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14429 | 09:12:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14435 | 09:12:07 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14430 | 09:12:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14431 | 09:12:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14432 | 09:12:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14433 | 09:12:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14434 | 09:12:05 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=39, Y=40 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=39, Y=40 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #29 - 2025-11-10 09:12:38
+================================================================================
+[ANALYZER] Detections: 83 total
+[ANALYZER]   Neu: 43
+[ANALYZER]   Lookback (wiederverwendbar): 40
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 43 | Input Y: 40
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14396 | 09:11:38 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14397 | 09:11:38 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14398 | 09:11:39 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14399 | 09:11:40 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14400 | 09:11:40 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 78 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 83 Detections
+[MOVEMENT] Verfügbare Detections: 83/83
+[MOVEMENT] Zeitspanne: 2025-11-10 09:11:38.717774 bis 2025-11-10 09:12:37.732388
+[MOVEMENT] Input X: 43 Detections
+[MOVEMENT] Input Y: 40 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14469 | 09:12:30 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14475 | 09:12:35 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14476 | 09:12:36 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14477 | 09:12:37 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14478 | 09:12:37 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14470 | 09:12:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14471 | 09:12:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14472 | 09:12:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14473 | 09:12:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14474 | 09:12:33 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=43, Y=40 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=43, Y=40 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #30 - 2025-11-10 09:13:08
+================================================================================
+[ANALYZER] Detections: 86 total
+[ANALYZER]   Neu: 43
+[ANALYZER]   Lookback (wiederverwendbar): 43
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 44 | Input Y: 42
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14436 | 09:12:08 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14437 | 09:12:08 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14438 | 09:12:09 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14439 | 09:12:09 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14440 | 09:12:10 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 81 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 86 Detections
+[MOVEMENT] Verfügbare Detections: 86/86
+[MOVEMENT] Zeitspanne: 2025-11-10 09:12:08.559408 bis 2025-11-10 09:13:08.155709
+[MOVEMENT] Input X: 44 Detections
+[MOVEMENT] Input Y: 42 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14515 | 09:13:05 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14516 | 09:13:05 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14517 | 09:13:06 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14518 | 09:13:06 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14519 | 09:13:07 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14512 | 09:13:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14513 | 09:13:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14514 | 09:13:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14520 | 09:13:07 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14521 | 09:13:08 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=44, Y=42 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=44, Y=42 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #31 - 2025-11-10 09:13:38
+================================================================================
+[ANALYZER] Detections: 86 total
+[ANALYZER]   Neu: 43
+[ANALYZER]   Lookback (wiederverwendbar): 43
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 41 | Input Y: 45
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14479 | 09:12:38 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14480 | 09:12:38 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14481 | 09:12:39 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14482 | 09:12:39 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14483 | 09:12:40 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 81 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 86 Detections
+[MOVEMENT] Verfügbare Detections: 86/86
+[MOVEMENT] Zeitspanne: 2025-11-10 09:12:38.485869 bis 2025-11-10 09:13:38.234617
+[MOVEMENT] Input X: 41 Detections
+[MOVEMENT] Input Y: 45 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14555 | 09:13:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14556 | 09:13:34 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14557 | 09:13:34 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14558 | 09:13:35 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14559 | 09:13:35 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14560 | 09:13:36 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14561 | 09:13:36 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14562 | 09:13:37 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14563 | 09:13:37 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14564 | 09:13:38 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=41, Y=45 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=41, Y=45 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #32 - 2025-11-10 09:14:08
+================================================================================
+[ANALYZER] Detections: 76 total
+[ANALYZER]   Neu: 33
+[ANALYZER]   Lookback (wiederverwendbar): 43
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 38 | Input Y: 38
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14522 | 09:13:08 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14523 | 09:13:09 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14524 | 09:13:09 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14525 | 09:13:12 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14526 | 09:13:12 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 71 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 76 Detections
+[MOVEMENT] Verfügbare Detections: 76/76
+[MOVEMENT] Zeitspanne: 2025-11-10 09:13:08.412301 bis 2025-11-10 09:14:07.650249
+[MOVEMENT] Input X: 38 Detections
+[MOVEMENT] Input Y: 38 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14588 | 09:14:00 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14589 | 09:14:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14595 | 09:14:06 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14596 | 09:14:07 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14597 | 09:14:07 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14590 | 09:14:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14591 | 09:14:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14592 | 09:14:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14593 | 09:14:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14594 | 09:14:04 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=38, Y=38 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=38, Y=38 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #33 - 2025-11-10 09:14:38
+================================================================================
+[ANALYZER] Detections: 79 total
+[ANALYZER]   Neu: 46
+[ANALYZER]   Lookback (wiederverwendbar): 33
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 40 | Input Y: 39
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14565 | 09:13:40 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14566 | 09:13:41 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14567 | 09:13:42 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14568 | 09:13:43 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14569 | 09:13:44 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 74 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 79 Detections
+[MOVEMENT] Verfügbare Detections: 79/79
+[MOVEMENT] Zeitspanne: 2025-11-10 09:13:40.997277 bis 2025-11-10 09:14:37.845556
+[MOVEMENT] Input X: 40 Detections
+[MOVEMENT] Input Y: 39 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14635 | 09:14:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14636 | 09:14:34 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14637 | 09:14:35 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14638 | 09:14:35 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14639 | 09:14:36 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14634 | 09:14:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14640 | 09:14:36 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14641 | 09:14:36 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14642 | 09:14:37 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14643 | 09:14:37 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=40, Y=39 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=40, Y=39 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #34 - 2025-11-10 09:15:08
+================================================================================
+[ANALYZER] Detections: 87 total
+[ANALYZER]   Neu: 41
+[ANALYZER]   Lookback (wiederverwendbar): 46
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 42 | Input Y: 45
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14598 | 09:14:08 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14599 | 09:14:08 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14600 | 09:14:08 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14601 | 09:14:09 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14602 | 09:14:10 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 82 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 87 Detections
+[MOVEMENT] Verfügbare Detections: 87/87
+[MOVEMENT] Zeitspanne: 2025-11-10 09:14:08.408272 bis 2025-11-10 09:15:05.791346
+[MOVEMENT] Input X: 42 Detections
+[MOVEMENT] Input Y: 45 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14675 | 09:15:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14676 | 09:15:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14677 | 09:15:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14678 | 09:15:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14679 | 09:15:03 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14680 | 09:15:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14681 | 09:15:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14682 | 09:15:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14683 | 09:15:05 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14684 | 09:15:05 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=42, Y=45 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=42, Y=45 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #35 - 2025-11-10 09:15:38
+================================================================================
+[ANALYZER] Detections: 82 total
+[ANALYZER]   Neu: 41
+[ANALYZER]   Lookback (wiederverwendbar): 41
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 41 | Input Y: 41
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14644 | 09:14:38 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14645 | 09:14:40 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14646 | 09:14:41 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14647 | 09:14:41 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14648 | 09:14:42 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 77 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 82 Detections
+[MOVEMENT] Verfügbare Detections: 82/82
+[MOVEMENT] Zeitspanne: 2025-11-10 09:14:38.594396 bis 2025-11-10 09:15:37.890909
+[MOVEMENT] Input X: 41 Detections
+[MOVEMENT] Input Y: 41 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14716 | 09:15:30 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14717 | 09:15:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14718 | 09:15:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14719 | 09:15:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14725 | 09:15:37 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14720 | 09:15:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14721 | 09:15:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14722 | 09:15:34 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14723 | 09:15:34 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14724 | 09:15:35 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=41, Y=41 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=41, Y=41 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #36 - 2025-11-10 09:16:08
+================================================================================
+[ANALYZER] Detections: 80 total
+[ANALYZER]   Neu: 39
+[ANALYZER]   Lookback (wiederverwendbar): 41
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 40 | Input Y: 40
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14685 | 09:15:08 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14686 | 09:15:08 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14687 | 09:15:09 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14688 | 09:15:09 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14689 | 09:15:10 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 75 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 80 Detections
+[MOVEMENT] Verfügbare Detections: 80/80
+[MOVEMENT] Zeitspanne: 2025-11-10 09:15:08.646226 bis 2025-11-10 09:16:06.422189
+[MOVEMENT] Input X: 40 Detections
+[MOVEMENT] Input Y: 40 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14755 | 09:16:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14756 | 09:16:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14757 | 09:16:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14758 | 09:16:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14759 | 09:16:04 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14760 | 09:16:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14761 | 09:16:05 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14762 | 09:16:05 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14763 | 09:16:06 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14764 | 09:16:06 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=40, Y=40 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=40, Y=40 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #37 - 2025-11-10 09:16:38
+================================================================================
+[ANALYZER] Detections: 79 total
+[ANALYZER]   Neu: 40
+[ANALYZER]   Lookback (wiederverwendbar): 39
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 39 | Input Y: 40
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14726 | 09:15:38 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14727 | 09:15:39 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14728 | 09:15:40 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14729 | 09:15:40 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14730 | 09:15:41 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 74 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 79 Detections
+[MOVEMENT] Verfügbare Detections: 79/79
+[MOVEMENT] Zeitspanne: 2025-11-10 09:15:38.641872 bis 2025-11-10 09:16:36.690426
+[MOVEMENT] Input X: 39 Detections
+[MOVEMENT] Input Y: 40 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14795 | 09:16:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14796 | 09:16:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14797 | 09:16:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14798 | 09:16:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14799 | 09:16:34 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14800 | 09:16:34 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14801 | 09:16:35 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14802 | 09:16:35 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14803 | 09:16:36 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14804 | 09:16:36 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=39, Y=40 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=39, Y=40 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #38 - 2025-11-10 09:17:08
+================================================================================
+[ANALYZER] Detections: 82 total
+[ANALYZER]   Neu: 42
+[ANALYZER]   Lookback (wiederverwendbar): 40
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 42 | Input Y: 40
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14765 | 09:16:09 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14766 | 09:16:09 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14767 | 09:16:10 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14768 | 09:16:10 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14769 | 09:16:11 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 77 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 82 Detections
+[MOVEMENT] Verfügbare Detections: 82/82
+[MOVEMENT] Zeitspanne: 2025-11-10 09:16:09.277380 bis 2025-11-10 09:17:07.929091
+[MOVEMENT] Input X: 42 Detections
+[MOVEMENT] Input Y: 40 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14837 | 09:17:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14838 | 09:17:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14839 | 09:17:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14845 | 09:17:07 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14846 | 09:17:07 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14840 | 09:17:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14841 | 09:17:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14842 | 09:17:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14843 | 09:17:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14844 | 09:17:04 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=42, Y=40 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=42, Y=40 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #39 - 2025-11-10 09:17:38
+================================================================================
+[ANALYZER] Detections: 86 total
+[ANALYZER]   Neu: 44
+[ANALYZER]   Lookback (wiederverwendbar): 42
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 45 | Input Y: 41
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14805 | 09:16:38 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14806 | 09:16:39 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14807 | 09:16:40 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14808 | 09:16:40 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14809 | 09:16:41 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 81 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 86 Detections
+[MOVEMENT] Verfügbare Detections: 86/86
+[MOVEMENT] Zeitspanne: 2025-11-10 09:16:38.944347 bis 2025-11-10 09:17:38.353442
+[MOVEMENT] Input X: 45 Detections
+[MOVEMENT] Input Y: 41 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14885 | 09:17:36 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14886 | 09:17:36 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14887 | 09:17:37 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14888 | 09:17:37 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14889 | 09:17:38 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14881 | 09:17:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14882 | 09:17:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14883 | 09:17:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14884 | 09:17:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14890 | 09:17:38 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=45, Y=41 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=45, Y=41 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #40 - 2025-11-10 09:18:08
+================================================================================
+[ANALYZER] Detections: 85 total
+[ANALYZER]   Neu: 41
+[ANALYZER]   Lookback (wiederverwendbar): 44
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 43 | Input Y: 42
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14847 | 09:17:08 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14848 | 09:17:08 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14849 | 09:17:09 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14850 | 09:17:09 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14851 | 09:17:10 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 80 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 85 Detections
+[MOVEMENT] Verfügbare Detections: 85/85
+[MOVEMENT] Zeitspanne: 2025-11-10 09:17:08.670284 bis 2025-11-10 09:18:07.732434
+[MOVEMENT] Input X: 43 Detections
+[MOVEMENT] Input Y: 42 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14925 | 09:18:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14926 | 09:18:05 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14927 | 09:18:05 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14928 | 09:18:06 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14929 | 09:18:06 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14922 | 09:18:00 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14923 | 09:18:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14924 | 09:18:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14930 | 09:18:06 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14931 | 09:18:07 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=43, Y=42 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=43, Y=42 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #41 - 2025-11-10 09:18:38
+================================================================================
+[ANALYZER] Detections: 84 total
+[ANALYZER]   Neu: 43
+[ANALYZER]   Lookback (wiederverwendbar): 41
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 40 | Input Y: 44
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14891 | 09:17:39 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14892 | 09:17:39 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14893 | 09:17:40 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14894 | 09:17:40 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14895 | 09:17:43 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 79 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 84 Detections
+[MOVEMENT] Verfügbare Detections: 84/84
+[MOVEMENT] Zeitspanne: 2025-11-10 09:17:39.107873 bis 2025-11-10 09:18:37.643190
+[MOVEMENT] Input X: 40 Detections
+[MOVEMENT] Input Y: 44 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=14965 | 09:18:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14966 | 09:18:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14967 | 09:18:33 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14968 | 09:18:34 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14969 | 09:18:34 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=14970 | 09:18:35 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14971 | 09:18:35 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14972 | 09:18:36 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14973 | 09:18:36 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=14974 | 09:18:37 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=40, Y=44 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=40, Y=44 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #42 - 2025-11-10 09:19:08
+================================================================================
+[ANALYZER] Detections: 84 total
+[ANALYZER]   Neu: 41
+[ANALYZER]   Lookback (wiederverwendbar): 43
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 41 | Input Y: 43
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14932 | 09:18:08 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14933 | 09:18:08 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14934 | 09:18:09 | input_y    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14935 | 09:18:11 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14936 | 09:18:12 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 79 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 84 Detections
+[MOVEMENT] Verfügbare Detections: 84/84
+[MOVEMENT] Zeitspanne: 2025-11-10 09:18:08.495399 bis 2025-11-10 09:19:08.103160
+[MOVEMENT] Input X: 41 Detections
+[MOVEMENT] Input Y: 43 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=15006 | 09:19:01 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15007 | 09:19:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15008 | 09:19:02 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15009 | 09:19:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15015 | 09:19:08 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=15010 | 09:19:03 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15011 | 09:19:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15012 | 09:19:04 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15013 | 09:19:05 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15014 | 09:19:05 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT] === SUCHE ENTRY-MUSTER (Y→X Sequenz) ===
+[MOVEMENT]   Entry-Versuch 1: X=41, Y=43 verfügbar
+[MOVEMENT]     Analysiere Y→X Sequenzen für Entry...
+[MOVEMENT]     Keine Y-Anstiege gefunden
+[MOVEMENT] Entry-Muster gefunden: 0
+
+[MOVEMENT] === SUCHE EXIT-MUSTER (X→Y Sequenz) ===
+[MOVEMENT]   Exit-Versuch 1: X=41, Y=43 verfügbar
+[MOVEMENT]     Analysiere X→Y Sequenzen für Exit...
+[MOVEMENT]     Keine X-Anstiege gefunden
+[MOVEMENT] Exit-Muster gefunden: 0
+
+[MOVEMENT] Gesamt gefunden: 0 Bewegung(en)
+[ANALYZER] Keine Bewegungen erkannt
+
+================================================================================
+[ANALYZER] Zyklus #43 - 2025-11-10 09:19:38
+================================================================================
+[ANALYZER] Detections: 82 total
+[ANALYZER]   Neu: 41
+[ANALYZER]   Lookback (wiederverwendbar): 41
+[ANALYZER]   Bereits in Muster: 0
+[ANALYZER] Input X: 42 | Input Y: 40
+
+[ANALYZER] Detections-Übersicht (erste 5):
+  ID=14975 | 09:18:39 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14976 | 09:18:40 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14977 | 09:18:40 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14978 | 09:18:41 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ID=14979 | 09:18:41 | input_x    |  0 Pers | Det-Conf=  N/A | PROC | FREE
+  ... und 77 weitere
+
+[ANALYZER] Starte Bewegungsanalyse...
+
+[MOVEMENT] detect_movements() mit 82 Detections
+[MOVEMENT] Verfügbare Detections: 82/82
+[MOVEMENT] Zeitspanne: 2025-11-10 09:18:39.900239 bis 2025-11-10 09:19:37.981706
+[MOVEMENT] Input X: 42 Detections
+[MOVEMENT] Input Y: 40 Detections
+
+[MOVEMENT]   === Input X Detections (letzte 5) ===
+[MOVEMENT]     ID=15047 | 09:19:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15048 | 09:19:31 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15049 | 09:19:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15055 | 09:19:37 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15056 | 09:19:37 |  0 Pers | Conf=  N/A | FREE
+
+[MOVEMENT]   === Input Y Detections (letzte 5) ===
+[MOVEMENT]     ID=15050 | 09:19:32 |  0 Pers | Conf=  N/A | FREE
+[MOVEMENT]     ID=15051 | 09:19:33 |  0 Pers | Conf=  N/A | FREE
