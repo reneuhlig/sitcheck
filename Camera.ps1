@@ -1,312 +1,301 @@
 # ============================================================================
-# ULTRA-OPTIMIERTES KAMERA-SYSTEM (2+ FPS)
+# OPTIMIERTES KAMERA-UPLOAD-SYSTEM (KORRIGIERT)
 # ============================================================================
 
+# === KONFIGURATION ===
 $Config = @{
+    # Server
     ServerIP    = "192.168.194.65"
     ServerUser  = "kiadmin"
     ServerPass  = "DHBW1234!?"
     RemotePathX = "/sitcheck/input_x"
     RemotePathY = "/sitcheck/input_y"
+    
+    # Kameras
     CameraX     = 2
     CameraY     = 3
+    
+    # Performance
+    CaptureMode = "parallel"  # "parallel" oder "sequential"
+    UploadMode  = "batch"     # "batch" oder "immediate"
+    BatchSize   = 1           # Anzahl Bilder pro Batch-Upload (reduziert auf 3)
+    
+    # Timing
+    Interval    = 0.05       # Sekunden zwischen Captures
+    
+    # Qualitaet
     Quality     = 80
-    Resolution  = @{ Width = 1920; Height = 1080 }
+    Resolution  = @{
+        Width  = 1920
+        Height = 1080
+    }
+    
+    # Dateien
     TempDir     = "$env:TEMP\camera_snapshots"
-    BatchSize   = 5        # Upload alle 5 Bilder
-    TargetFPS   = 2        # Ziel: 2 FPS pro Kamera
-    Debug       = $true
+    UsePuTTY    = $true
+    
+    # Debug
+    Debug       = $true       # Aktiviert detaillierte Ausgaben
 }
 
+# Verzeichnisse erstellen
 $QueueX = Join-Path $Config.TempDir "queue_x"
 $QueueY = Join-Path $Config.TempDir "queue_y"
+
 New-Item -ItemType Directory -Path $Config.TempDir, $QueueX, $QueueY -Force -ErrorAction SilentlyContinue | Out-Null
 
-# Python Worker Script erstellen
-$WorkerScriptPath = Join-Path $Config.TempDir "camera_worker.py"
+# ============================================================================
+# PYTHON-SCRIPTS
+# ============================================================================
 
-$PythonWorkerCode = @"
+$PythonCaptureScript = @"
 import cv2
 import sys
-import time
-import os
 
-def main():
-    if len(sys.argv) != 6:
-        print("ERROR: Invalid arguments", file=sys.stderr)
-        sys.exit(1)
-    
-    camera_index = int(sys.argv[1])
-    output_dir = sys.argv[2]
-    quality = int(sys.argv[3])
-    width = int(sys.argv[4])
-    height = int(sys.argv[5])
-    
-    # Kamera einmalig öffnen
-    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    cap.set(cv2.CAP_PROP_FPS, 30)
-    
-    if not cap.isOpened():
-        print("ERROR: Cannot open camera", file=sys.stderr)
-        sys.exit(1)
-    
-    # Initial frames überspringen
-    for _ in range(2):
-        cap.read()
-    
-    print("READY")
-    sys.stdout.flush()
-    
-    frame_count = 0
-    
-    while True:
-        try:
-            cmd = input().strip()
-            
-            if cmd == "CAPTURE":
-                ret, frame = cap.read()
-                
-                if ret:
-                    timestamp = time.strftime("%Y%m%d_%H%M%S") + f"_{frame_count:04d}"
-                    filename = f"{timestamp}.jpg"
-                    filepath = os.path.join(output_dir, filename)
-                    
-                    cv2.imwrite(filepath, frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
-                    print(f"OK:{filepath}")
-                    frame_count += 1
-                else:
-                    print("ERROR:Frame capture failed")
-                
-                sys.stdout.flush()
-                
-            elif cmd == "EXIT":
-                break
-                
-        except EOFError:
-            break
-        except Exception as e:
-            print(f"ERROR:{str(e)}", file=sys.stderr)
-            sys.stderr.flush()
-    
-    cap.release()
-    print("CLOSED")
-    sys.stdout.flush()
+camera_index = int(sys.argv[1])
+output_path = sys.argv[2]
+quality = int(sys.argv[3])
+width = int(sys.argv[4])
+height = int(sys.argv[5])
 
-if __name__ == "__main__":
-    main()
+cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+if not cap.isOpened():
+    print("ERROR: Cannot open camera", file=sys.stderr)
+    sys.exit(1)
+
+# Nur 2 Frames ueberspringen
+for _ in range(2):
+    cap.read()
+
+ret, frame = cap.read()
+cap.release()
+
+if ret:
+    cv2.imwrite(output_path, frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    print("OK")
+else:
+    print("ERROR: Cannot capture frame", file=sys.stderr)
+    sys.exit(1)
 "@
 
-$PythonWorkerCode | Out-File -FilePath $WorkerScriptPath -Encoding UTF8
+$PythonDiagnoseScript = @"
+import cv2
+
+print("[DIAGNOSE] Suche verfuegbare Kameras...")
+available = []
+
+for i in range(5):
+    cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+    if cap.isOpened():
+        ret, frame = cap.read()
+        if ret:
+            available.append(i)
+            print(f"  [OK] Kamera {i}: {frame.shape[1]}x{frame.shape[0]}")
+        else:
+            print(f"  [WARN] Kamera {i}: Geoeffnet, aber kein Frame")
+        cap.release()
+
+if not available:
+    print("[ERROR] Keine Kameras gefunden!")
+else:
+    print(f"[INFO] Verfuegbare Indizes: {available}")
+"@
+
+# Python-Scripts speichern
+$ScriptCapture = Join-Path $Config.TempDir "capture.py"
+$ScriptDiagnose = Join-Path $Config.TempDir "diagnose.py"
+
+$PythonCaptureScript | Out-File -FilePath $ScriptCapture -Encoding UTF8
+$PythonDiagnoseScript | Out-File -FilePath $ScriptDiagnose -Encoding UTF8
 
 # ============================================================================
-# KLASSE: Persistenter Kamera-Worker
+# FUNKTIONEN: KAMERA-CAPTURE
 # ============================================================================
 
-class CameraWorker {
-    [System.Diagnostics.Process]$Process
-    [string]$Name
-    [bool]$IsReady = $false
-    [string]$WorkerScriptPath
+function Invoke-CameraCapture {
+    param(
+        [int]$DeviceIndex,
+        [string]$OutputPath
+    )
     
-    CameraWorker([int]$cameraIndex, [string]$outputDir, [hashtable]$config, [string]$name, [string]$scriptPath) {
-        $this.Name = $name
-        $this.WorkerScriptPath = $scriptPath
+    try {
+        $args = @(
+            $ScriptCapture,
+            $DeviceIndex,
+            $OutputPath,
+            $Config.Quality,
+            $Config.Resolution.Width,
+            $Config.Resolution.Height
+        )
         
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = "python"
-        $psi.Arguments = @(
-            $this.WorkerScriptPath,
-            $cameraIndex,
-            $outputDir,
-            $config.Quality,
-            $config.Resolution.Width,
-            $config.Resolution.Height
-        ) -join " "
-        $psi.UseShellExecute = $false
-        $psi.RedirectStandardInput = $true
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError = $true
-        $psi.CreateNoWindow = $true
+        $result = & python @args 2>&1
         
-        $this.Process = New-Object System.Diagnostics.Process
-        $this.Process.StartInfo = $psi
-        $this.Process.Start() | Out-Null
-        
-        # Warte auf READY Signal
-        $timeout = [DateTime]::Now.AddSeconds(5)
-        $output = ""
-        
-        while ([DateTime]::Now -lt $timeout) {
-            if ($this.Process.StandardOutput.Peek() -ge 0) {
-                $output = $this.Process.StandardOutput.ReadLine()
-                break
+        if ($LASTEXITCODE -eq 0 -and (Test-Path $OutputPath)) {
+            return @{
+                Success = $true
+                FilePath = $OutputPath
+                Size = (Get-Item $OutputPath).Length
             }
-            Start-Sleep -Milliseconds 100
-        }
-        
-        if ($output -eq "READY") {
-            $this.IsReady = $true
-            Write-Host "[OK] Worker $($this.Name) bereit" -ForegroundColor Green
         } else {
-            $error = $this.Process.StandardError.ReadToEnd()
-            throw "Worker $($this.Name) failed to start. Output: $output, Error: $error"
+            return @{ Success = $false; Error = $result }
         }
-    }
-    
-    [string] Capture() {
-        if (-not $this.IsReady) { return $null }
-        
-        try {
-            $this.Process.StandardInput.WriteLine("CAPTURE")
-            $this.Process.StandardInput.Flush()
-            
-            $result = $this.Process.StandardOutput.ReadLine()
-            
-            if ($result -match "^OK:(.+)$") {
-                return $Matches[1]
-            }
-        } catch {
-            Write-Host "[ERROR] Capture failed for $($this.Name): $_" -ForegroundColor Red
-        }
-        
-        return $null
-    }
-    
-    [void] Stop() {
-        if ($this.Process -and -not $this.Process.HasExited) {
-            try {
-                $this.Process.StandardInput.WriteLine("EXIT")
-                $this.Process.StandardInput.Flush()
-                $this.Process.WaitForExit(2000)
-            } catch {}
-            
-            if (-not $this.Process.HasExited) {
-                $this.Process.Kill()
-            }
-        }
+    } catch {
+        return @{ Success = $false; Error = $_.Exception.Message }
     }
 }
 
 # ============================================================================
-# KLASSE: Asynchroner Upload-Manager
+# FUNKTIONEN: UPLOAD (KORRIGIERT)
 # ============================================================================
 
-class UploadManager {
-    [System.Collections.Concurrent.ConcurrentQueue[string]]$QueueX
-    [System.Collections.Concurrent.ConcurrentQueue[string]]$QueueY
-    [hashtable]$Config
-    [bool]$Running = $true
-    [int]$UploadedCount = 0
-    [System.Management.Automation.Runspaces.Runspace]$Runspace
-    [System.Management.Automation.PowerShell]$PowerShell
+function Send-FileBatch {
+    param(
+        [string[]]$LocalFiles,
+        [string]$RemotePath,
+        [string]$CameraName
+    )
     
-    UploadManager([hashtable]$config) {
-        $this.Config = $config
-        $this.QueueX = New-Object System.Collections.Concurrent.ConcurrentQueue[string]
-        $this.QueueY = New-Object System.Collections.Concurrent.ConcurrentQueue[string]
-        
-        # Runspace für Upload-Thread
-        $this.Runspace = [runspacefactory]::CreateRunspace()
-        $this.Runspace.Open()
-        
-        $this.PowerShell = [powershell]::Create()
-        $this.PowerShell.Runspace = $this.Runspace
-        
-        $scriptBlock = {
-            param($manager)
-            
-            while ($manager.Running) {
-                $uploadedAny = $false
-                
-                # Upload Queue X
-                if ($manager.QueueX.Count -ge $manager.Config.BatchSize) {
-                    $files = @()
-                    for ($i = 0; $i -lt $manager.Config.BatchSize; $i++) {
-                        $file = $null
-                        if ($manager.QueueX.TryDequeue([ref]$file)) {
-                            $files += $file
-                        }
-                    }
-                    if ($files.Count -gt 0) {
-                        $manager.UploadBatch($files, $manager.Config.RemotePathX, "X")
-                        $uploadedAny = $true
-                    }
-                }
-                
-                # Upload Queue Y
-                if ($manager.QueueY.Count -ge $manager.Config.BatchSize) {
-                    $files = @()
-                    for ($i = 0; $i -lt $manager.Config.BatchSize; $i++) {
-                        $file = $null
-                        if ($manager.QueueY.TryDequeue([ref]$file)) {
-                            $files += $file
-                        }
-                    }
-                    if ($files.Count -gt 0) {
-                        $manager.UploadBatch($files, $manager.Config.RemotePathY, "Y")
-                        $uploadedAny = $true
-                    }
-                }
-                
-                if (-not $uploadedAny) {
-                    Start-Sleep -Milliseconds 200
-                }
-            }
-        }
-        
-        $this.PowerShell.AddScript($scriptBlock).AddArgument($this) | Out-Null
-        $this.PowerShell.BeginInvoke() | Out-Null
+    if ($LocalFiles.Count -eq 0) {
+        return $true
     }
     
-    [void] AddFile([string]$path, [string]$camera) {
-        if ($camera -eq "X") {
-            $this.QueueX.Enqueue($path)
-        } else {
-            $this.QueueY.Enqueue($path)
-        }
-    }
+    $timestamp = Get-Date -Format "HH:mm:ss"
+    $successCount = 0
+    $errorCount = 0
     
-    [void] UploadBatch([string[]]$files, [string]$remotePath, [string]$camera) {
-        $timestamp = Get-Date -Format "HH:mm:ss"
-        $success = 0
-        
-        foreach ($file in $files) {
-            if (-not (Test-Path $file)) {
-                continue
-            }
-            
+    try {
+        foreach ($file in $LocalFiles) {
             $fileName = Split-Path $file -Leaf
-            $remoteFile = "$remotePath/$fileName"
+            $remoteFile = "$RemotePath/$fileName"
             
-            $null = & pscp.exe -batch -pw $this.Config.ServerPass $file "$($this.Config.ServerUser)@$($this.Config.ServerIP):$remoteFile" 2>&1
+            if ($Config.Debug) {
+                Write-Host "[$timestamp] [DEBUG] Upload: $fileName -> $remoteFile" -ForegroundColor Gray
+            }
+            
+            # pscp Upload mit Fehlerbehandlung
+            $output = & pscp.exe -batch -pw $Config.ServerPass $file "$($Config.ServerUser)@$($Config.ServerIP):$remoteFile" 2>&1
             
             if ($LASTEXITCODE -eq 0) {
-                $success++
+                $successCount++
+                Remove-Item $file -Force -ErrorAction SilentlyContinue
+                
+                if ($Config.Debug) {
+                    Write-Host "[$timestamp] [DEBUG] OK: $fileName" -ForegroundColor Gray
+                }
+            } else {
+                $errorCount++
+                Write-Host "[$timestamp] [ERROR] $CameraName Upload: $fileName" -ForegroundColor Red
+                
+                if ($Config.Debug) {
+                    Write-Host "[$timestamp] [DEBUG] pscp output: $output" -ForegroundColor Red
+                }
+                
+                # Datei bei Fehler loeschen um Queue nicht zu blockieren
+                Remove-Item $file -Force -ErrorAction SilentlyContinue
             }
-            
-            Remove-Item $file -Force -ErrorAction SilentlyContinue
         }
         
-        $this.UploadedCount += $success
-        Write-Host "[$timestamp] [UPLOAD] $camera`: $success/$($files.Count) Bilder" -ForegroundColor Cyan
+        if ($successCount -gt 0) {
+            Write-Host "[$timestamp] [OK] $CameraName Batch: $successCount/$($LocalFiles.Count) Bilder" -ForegroundColor Green
+        }
+        
+        return ($errorCount -eq 0)
+        
+    } catch {
+        Write-Host "[$timestamp] [ERROR] $CameraName Exception: $($_.Exception.Message)" -ForegroundColor Red
+        return $false
     }
+}
+
+# ============================================================================
+# FUNKTIONEN: BATCH-QUEUE
+# ============================================================================
+
+function Get-BatchQueueFiles {
+    param(
+        [string]$QueueDir,
+        [int]$MaxCount
+    )
     
-    [void] Stop() {
-        $this.Running = $false
-        Start-Sleep -Seconds 2
+    try {
+        $files = Get-ChildItem -Path $QueueDir -Filter "*.jpg" -File -ErrorAction SilentlyContinue | 
+                 Sort-Object LastWriteTime | 
+                 Select-Object -First $MaxCount
         
-        if ($this.PowerShell) {
-            $this.PowerShell.Stop()
-            $this.PowerShell.Dispose()
+        return $files.FullName
+    } catch {
+        return @()
+    }
+}
+
+# ============================================================================
+# FUNKTIONEN: PARALLEL CAPTURE
+# ============================================================================
+
+function Start-ParallelCapture {
+    param(
+        [int]$CameraX,
+        [int]$CameraY,
+        [string]$OutputDirX,
+        [string]$OutputDirY
+    )
+    
+    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss_fff"
+    $fileX = Join-Path $OutputDirX "x_$timestamp.jpg"
+    $fileY = Join-Path $OutputDirY "y_$timestamp.jpg"
+    
+    # Runspaces fuer parallele Ausfuehrung
+    $rsPoolSize = 2
+    $rsPool = [runspacefactory]::CreateRunspacePool(1, $rsPoolSize)
+    $rsPool.Open()
+    
+    # Job X
+    $psX = [powershell]::Create().AddScript({
+        param($ScriptPath, $Index, $Output, $Quality, $Width, $Height)
+        $result = & python $ScriptPath $Index $Output $Quality $Width $Height 2>&1
+        return @{
+            Success = ($LASTEXITCODE -eq 0 -and (Test-Path $Output))
+            Path = $Output
+            Error = $result
         }
-        
-        if ($this.Runspace) {
-            $this.Runspace.Close()
-            $this.Runspace.Dispose()
+    }).AddArgument($ScriptCapture).AddArgument($CameraX).AddArgument($fileX).AddArgument($Config.Quality).AddArgument($Config.Resolution.Width).AddArgument($Config.Resolution.Height)
+    
+    $psX.RunspacePool = $rsPool
+    
+    # Job Y
+    $psY = [powershell]::Create().AddScript({
+        param($ScriptPath, $Index, $Output, $Quality, $Width, $Height)
+        $result = & python $ScriptPath $Index $Output $Quality $Width $Height 2>&1
+        return @{
+            Success = ($LASTEXITCODE -eq 0 -and (Test-Path $Output))
+            Path = $Output
+            Error = $result
         }
+    }).AddArgument($ScriptCapture).AddArgument($CameraY).AddArgument($fileY).AddArgument($Config.Quality).AddArgument($Config.Resolution.Width).AddArgument($Config.Resolution.Height)
+    
+    $psY.RunspacePool = $rsPool
+    
+    # Starten
+    $handleX = $psX.BeginInvoke()
+    $handleY = $psY.BeginInvoke()
+    
+    # Warten
+    $resultX = $psX.EndInvoke($handleX)
+    $resultY = $psY.EndInvoke($handleY)
+    
+    # Cleanup
+    $psX.Dispose()
+    $psY.Dispose()
+    $rsPool.Close()
+    $rsPool.Dispose()
+    
+    return @{
+        X = $resultX
+        Y = $resultY
     }
 }
 
@@ -314,91 +303,208 @@ class UploadManager {
 # SYSTEM-CHECKS
 # ============================================================================
 
-Write-Host "`n[SYSTEM] Starte Ultra-Fast System..." -ForegroundColor Cyan
+Write-Host "`n[SYSTEM] Pruefe Systemvoraussetzungen..." -ForegroundColor Cyan
 
+# Python
 try {
-    $null = & python --version 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "Python nicht gefunden" }
-    
-    $null = & python -c "import cv2" 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "OpenCV nicht gefunden" }
-    
-    $null = Get-Command pscp.exe -ErrorAction Stop
-    
-    Write-Host "[OK] Alle Dependencies gefunden" -ForegroundColor Green
+    $pythonVersion = & python --version 2>&1
+    Write-Host "[OK] Python: $pythonVersion" -ForegroundColor Green
 } catch {
-    Write-Host "[ERROR] Fehlende Dependencies: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Python nicht gefunden!" -ForegroundColor Red
     exit 1
 }
+
+# OpenCV
+try {
+    $opencvCheck = & python -c "import cv2; print('OK')" 2>&1
+    if ($opencvCheck -match "OK") {
+        Write-Host "[OK] OpenCV installiert" -ForegroundColor Green
+    } else {
+        Write-Host "[ERROR] OpenCV nicht gefunden!" -ForegroundColor Red
+        exit 1
+    }
+} catch {
+    Write-Host "[ERROR] OpenCV nicht gefunden!" -ForegroundColor Red
+    exit 1
+}
+
+# pscp
+if (Get-Command "pscp.exe" -ErrorAction SilentlyContinue) {
+    Write-Host "[OK] pscp.exe gefunden" -ForegroundColor Green
+} else {
+    Write-Host "[ERROR] pscp.exe nicht gefunden!" -ForegroundColor Red
+    exit 1
+}
+
+# Server-Ping
+try {
+    $ping = Test-Connection -ComputerName $Config.ServerIP -Count 1 -Quiet -ErrorAction Stop
+    if ($ping) {
+        Write-Host "[OK] Server erreichbar: $($Config.ServerIP)" -ForegroundColor Green
+    } else {
+        Write-Host "[ERROR] Server nicht erreichbar!" -ForegroundColor Red
+        exit 1
+    }
+} catch {
+    Write-Host "[ERROR] Ping fehlgeschlagen" -ForegroundColor Red
+    exit 1
+}
+
+# SSH-Verbindung testen
+Write-Host "`n[TEST] Teste SSH-Verbindung und Upload..." -ForegroundColor Cyan
+try {
+    # Test-Datei erstellen
+    $testFile = Join-Path $Config.TempDir "test_upload.txt"
+    "Test" | Out-File -FilePath $testFile -Encoding ASCII
+    
+    # Test-Upload zu X
+    $testRemoteX = "$($Config.RemotePathX)/test_upload.txt"
+    $result = & pscp.exe -batch -pw $Config.ServerPass $testFile "$($Config.ServerUser)@$($Config.ServerIP):$testRemoteX" 2>&1
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] SSH-Upload funktioniert" -ForegroundColor Green
+        
+        # Test-Datei auf Server loeschen
+        $null = & plink.exe -batch -pw $Config.ServerPass "$($Config.ServerUser)@$($Config.ServerIP)" "rm -f $testRemoteX" 2>&1
+    } else {
+        Write-Host "[ERROR] SSH-Upload fehlgeschlagen!" -ForegroundColor Red
+        Write-Host "[DEBUG] Output: $result" -ForegroundColor Red
+        
+        Write-Host "`n[HINWEIS] Moegliche Ursachen:" -ForegroundColor Yellow
+        Write-Host "  1. Falsches Passwort" -ForegroundColor Yellow
+        Write-Host "  2. Remote-Pfad existiert nicht: $($Config.RemotePathX)" -ForegroundColor Yellow
+        Write-Host "  3. Keine Schreibrechte auf Server" -ForegroundColor Yellow
+        Write-Host "`n[TIPP] Pruefe auf Server:" -ForegroundColor Yellow
+        Write-Host "  ssh $($Config.ServerUser)@$($Config.ServerIP)" -ForegroundColor Gray
+        Write-Host "  ls -la $($Config.RemotePathX)" -ForegroundColor Gray
+        Write-Host "  touch $($Config.RemotePathX)/test.txt" -ForegroundColor Gray
+        
+        exit 1
+    }
+    
+    # Cleanup
+    Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+    
+} catch {
+    Write-Host "[ERROR] SSH-Test fehlgeschlagen: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
+
+# Kamera-Diagnose
+Write-Host "`n[DIAGNOSE] Verfuegbare Kameras:" -ForegroundColor Cyan
+& python $ScriptDiagnose
 
 # ============================================================================
 # HAUPTPROGRAMM
 # ============================================================================
 
-Write-Host "[SYSTEM] Starte persistente Kamera-Worker..." -ForegroundColor Cyan
-
-try {
-    $workerX = [CameraWorker]::new($Config.CameraX, $QueueX, $Config, "X", $WorkerScriptPath)
-    $workerY = [CameraWorker]::new($Config.CameraY, $QueueY, $Config, "Y", $WorkerScriptPath)
-} catch {
-    Write-Host "[ERROR] Konnte Worker nicht starten: $_" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "[SYSTEM] Starte Upload-Manager..." -ForegroundColor Cyan
-$uploadMgr = [UploadManager]::new($Config)
-
-Write-Host "`n[INFO] System läuft - Ziel: $($Config.TargetFPS) FPS" -ForegroundColor Yellow
-Write-Host "[INFO] Druecke Strg+C zum Beenden`n" -ForegroundColor Yellow
+Write-Host "`n[SYSTEM] Starte Kamera-Upload-System" -ForegroundColor Cyan
+Write-Host "[CONFIG] Capture-Modus: $($Config.CaptureMode)" -ForegroundColor Gray
+Write-Host "[CONFIG] Upload-Modus: $($Config.UploadMode)" -ForegroundColor Gray
+Write-Host "[CONFIG] Intervall: $($Config.Interval)s" -ForegroundColor Gray
+Write-Host "[CONFIG] Batch-Groesse: $($Config.BatchSize)" -ForegroundColor Gray
+Write-Host "[CONFIG] Server: $($Config.ServerUser)@$($Config.ServerIP)" -ForegroundColor Gray
+Write-Host "[CONFIG] Debug: $($Config.Debug)" -ForegroundColor Gray
+Write-Host "`n[INFO] Druecke Strg+C zum Beenden...`n" -ForegroundColor Yellow
 
 $stats = @{
-    Captured = 0
+    Success = 0
+    Error = 0
     StartTime = Get-Date
     LastStatTime = Get-Date
 }
-
-$intervalMs = [int]((1.0 / $Config.TargetFPS) * 1000)
 
 try {
     while ($true) {
         $loopStart = Get-Date
         
-        # Capture beide Kameras
-        $fileX = $workerX.Capture()
-        $fileY = $workerY.Capture()
-        
-        if ($fileX) {
-            $uploadMgr.AddFile($fileX, "X")
-            $stats.Captured++
-        }
-        if ($fileY) {
-            $uploadMgr.AddFile($fileY, "Y")
-            $stats.Captured++
-        }
-        
-        # Stats alle 5 Sekunden
-        $timeSinceStats = (Get-Date) - $stats.LastStatTime
-        if ($timeSinceStats.TotalSeconds -ge 5) {
-            $runtime = (Get-Date) - $stats.StartTime
-            $fps = [math]::Round($stats.Captured / $runtime.TotalSeconds, 2)
+        # === CAPTURE ===
+        if ($Config.CaptureMode -eq "parallel") {
+            # Parallel Capture
+            $results = Start-ParallelCapture -CameraX $Config.CameraX -CameraY $Config.CameraY -OutputDirX $QueueX -OutputDirY $QueueY
             
-            Write-Host "[STATS] Captured: $($stats.Captured) | FPS: $fps | Uploaded: $($uploadMgr.UploadedCount) | Queue: X=$($uploadMgr.QueueX.Count) Y=$($uploadMgr.QueueY.Count)" -ForegroundColor Green
-            $stats.LastStatTime = Get-Date
+            if ($results.X.Success -and $results.Y.Success) {
+                $stats.Success += 2
+            } else {
+                $stats.Error++
+                if (-not $results.X.Success) { 
+                    Write-Host "[ERROR] Kamera X Capture fehlgeschlagen" -ForegroundColor Red 
+                }
+                if (-not $results.Y.Success) { 
+                    Write-Host "[ERROR] Kamera Y Capture fehlgeschlagen" -ForegroundColor Red 
+                }
+            }
+        } else {
+            # Sequential Capture
+            $timestamp = Get-Date -Format "yyyyMMdd_HHmmss_fff"
+            $fileX = Join-Path $QueueX "x_$timestamp.jpg"
+            $fileY = Join-Path $QueueY "y_$timestamp.jpg"
+            
+            $snapX = Invoke-CameraCapture -DeviceIndex $Config.CameraX -OutputPath $fileX
+            $snapY = Invoke-CameraCapture -DeviceIndex $Config.CameraY -OutputPath $fileY
+            
+            if ($snapX.Success -and $snapY.Success) {
+                $stats.Success += 2
+            } else {
+                $stats.Error++
+            }
         }
         
-        # Timing
-        $elapsed = ((Get-Date) - $loopStart).TotalMilliseconds
-        $sleepMs = [math]::Max(0, $intervalMs - $elapsed)
-        if ($sleepMs -gt 0) {
-            Start-Sleep -Milliseconds $sleepMs
+        # === UPLOAD (BATCH) ===
+        if ($Config.UploadMode -eq "batch") {
+            # Pruefe Queue X
+            $filesX = Get-BatchQueueFiles -QueueDir $QueueX -MaxCount $Config.BatchSize
+            if ($filesX.Count -ge $Config.BatchSize) {
+                $uploadSuccess = Send-FileBatch -LocalFiles $filesX -RemotePath $Config.RemotePathX -CameraName "X"
+            }
+            
+            # Pruefe Queue Y
+            $filesY = Get-BatchQueueFiles -QueueDir $QueueY -MaxCount $Config.BatchSize
+            if ($filesY.Count -ge $Config.BatchSize) {
+                $uploadSuccess = Send-FileBatch -LocalFiles $filesY -RemotePath $Config.RemotePathY -CameraName "Y"
+            }
+        } elseif ($Config.UploadMode -eq "immediate") {
+            # Sofort-Upload: Upload neueste Dateien
+            $filesX = Get-BatchQueueFiles -QueueDir $QueueX -MaxCount 1
+            if ($filesX.Count -gt 0) {
+                Send-FileBatch -LocalFiles $filesX -RemotePath $Config.RemotePathX -CameraName "X"
+            }
+            
+            $filesY = Get-BatchQueueFiles -QueueDir $QueueY -MaxCount 1
+            if ($filesY.Count -gt 0) {
+                Send-FileBatch -LocalFiles $filesY -RemotePath $Config.RemotePathY -CameraName "Y"
+            }
+        }
+        
+        # === STATISTIK ===
+        $timeSinceStats = (Get-Date) - $stats.LastStatTime
+        if ($timeSinceStats.TotalSeconds -ge 10) {
+            $runtime = (Get-Date) - $stats.StartTime
+            $totalOps = $stats.Success + $stats.Error
+            
+            if ($totalOps -gt 0) {
+                $rate = [math]::Round(($stats.Success / $totalOps) * 100, 1)
+                $fps = [math]::Round($totalOps / $runtime.TotalSeconds, 2)
+                
+                # Queue-Status
+                $queueXCount = (Get-ChildItem -Path $QueueX -Filter "*.jpg" -ErrorAction SilentlyContinue).Count
+                $queueYCount = (Get-ChildItem -Path $QueueY -Filter "*.jpg" -ErrorAction SilentlyContinue).Count
+                
+                Write-Host "`n[STATS] Erfolg: $($stats.Success) | Fehler: $($stats.Error) | Rate: $rate% | FPS: $fps | Queue: X=$queueXCount Y=$queueYCount" -ForegroundColor Cyan
+                
+                $stats.LastStatTime = Get-Date
+            }
+        }
+        
+        # === INTERVALL ===
+        $elapsed = ((Get-Date) - $loopStart).TotalSeconds
+        $sleepTime = [math]::Max(0, $Config.Interval - $elapsed)
+        if ($sleepTime -gt 0) {
+            Start-Sleep -Seconds $sleepTime
         }
     }
 } catch {
-    Write-Host "`n[ERROR] Exception: $_" -ForegroundColor Red
+    Write-Host "`n[ERROR] Exception: $($_.Exception.Message)" -ForegroundColor Red
 } finally {
-    Write-Host "`n[CLEANUP] Beende System..." -ForegroundColor Yellow
-    $workerX.Stop()
-    $workerY.Stop()
-    $uploadMgr.Stop()
-    Write-Host "[INFO] System beendet" -ForegroundColor Green
+    Write-Host "`n[INFO] System beendet" -ForegroundColor Yellow
 }
