@@ -18,6 +18,24 @@ Default tracking runtime is configured for CPU with YOLO26:
 - `tracking.model_path: yolo26n.pt`
 - `tracking.device: cpu`
 
+Für bessere Erkennung von weiter entfernten Personen und weniger Box-Flimmern:
+- `tracking.imgsz` erhöhen (z. B. `640`, `768`, `960`, `1280`; meist Vielfache von 32 sinnvoll)
+- `preprocess.enabled: true` mit leichtem `preprocess.upscale` (z. B. `1.2-1.4`)
+- `tracking.stabilization_enabled: true` für temporale Glättung + kurze Hold-Phase
+- `tracking.track_hold_frames`, `tracking.box_ema_alpha`, `tracking.hold_confidence_decay` feinjustieren
+- `tracking.trail_length` und `tracking.motion_min_pixels` für Bewegungsrichtung-Overlay abstimmen
+- optional `tracking.tta_enabled: true` nur bei genügend CPU/GPU-Reserve
+
+Dashboard ROI-Cropping (spart Rechenzeit und reduziert Störbereiche):
+- Im Dashboard unter **Analysis ROI** den Analysebereich (`x_min`, `y_min`, `x_max`, `y_max`) setzen
+- Mit **Save ROI** speichern; Werte werden in `config.yaml` unter `tracking.analysis_roi` persistiert
+- Nur dieser Bildausschnitt wird von Ultralytics analysiert, Overlays/Zonen bleiben im Vollbild sichtbar
+
+Tracker-Auswahl nach Ultralytics `track`-Doku:
+- `tracking.tracker: bytetrack_entrance.yaml` (hier Standard) ist robust bei niedrigen Confidence-Werten und kurzen Aussetzern
+- `tracking.tracker: botsort.yaml` kann bei stärkeren Okklusionen helfen (optional mit ReID im Tracker-YAML)
+- Für eigene Profile: YAML aus Ultralytics-Trackern kopieren und nur Parameter (nicht `tracker_type`) anpassen
+
 Production start wrapper uses its own runtime venv automatically:
 ```bash
 ./start_system.sh start

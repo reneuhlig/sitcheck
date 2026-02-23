@@ -33,23 +33,46 @@ class VisualizationOutputModule:
         entries_total: int,
         exits_total: int,
         events_in_frame,
+        analysis_roi: Optional[Dict] = None,
     ):
         output = frame.copy()
         self._frame_shape = output.shape
         self._zone_config = zone_config
 
         self._draw_zone(output, zone_config)
+        self._draw_analysis_roi(output, analysis_roi)
 
         for track in tracks:
             x1, y1, x2, y2 = track["bbox"]
             track_id = track.get("track_id")
             confidence = track.get("confidence", 0.0)
-            color = (0, 200, 0)
+            is_stale = bool(track.get("is_stale", False))
+            color = (50, 170, 255) if is_stale else (0, 200, 0)
 
             cv2.rectangle(output, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+
+            trail = track.get("trail", [])
+            if len(trail) >= 2:
+                trail_points = [(int(px), int(py)) for px, py in trail]
+                for idx in range(1, len(trail_points)):
+                    cv2.line(output, trail_points[idx - 1], trail_points[idx], (180, 180, 180), 2)
+
+            center = track.get("center")
+            motion_vector = track.get("motion_vector", (0.0, 0.0))
+            motion_magnitude = float(track.get("motion_magnitude", 0.0))
+            motion_direction = str(track.get("motion_direction", "still"))
+            if center is not None and motion_magnitude >= 2.0 and len(motion_vector) == 2:
+                start_point = (int(center[0]), int(center[1]))
+                arrow_scale = 4.0
+                end_point = (
+                    int(center[0] + float(motion_vector[0]) * arrow_scale),
+                    int(center[1] + float(motion_vector[1]) * arrow_scale),
+                )
+                cv2.arrowedLine(output, start_point, end_point, (0, 255, 255), 2, tipLength=0.35)
+
             cv2.putText(
                 output,
-                f"ID {track_id} | {confidence:.2f}",
+                f"ID {track_id} | {confidence:.2f} | {motion_direction}",
                 (int(x1), max(20, int(y1) - 8)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5,
@@ -215,3 +238,44 @@ class VisualizationOutputModule:
             for p in points:
                 cv2.circle(output, p, 4, (255, 100, 0), -1)
             cv2.putText(output, "Zone: polygon (outside->inside)", (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 100, 0), 2)
+
+    @staticmethod
+    def _draw_analysis_roi(output, analysis_roi: Optional[Dict]):
+        if not analysis_roi or not bool(analysis_roi.get("enabled", False)):
+            return
+
+        frame_h, frame_w = output.shape[:2]
+        mode = str(analysis_roi.get("mode", "rect")).lower()
+        if mode == "polygon":
+            points_norm = analysis_roi.get("polygon_points", []) or []
+            points = []
+            for pt in points_norm:
+                if not isinstance(pt, (list, tuple)) or len(pt) != 2:
+                    continue
+                px = max(0.0, min(1.0, float(pt[0])))
+                py = max(0.0, min(1.0, float(pt[1])))
+                points.append((int(px * frame_w), int(py * frame_h)))
+
+            if len(points) >= 2:
+                for idx in range(len(points) - 1):
+                    cv2.line(output, points[idx], points[idx + 1], (255, 0, 255), 2)
+            if len(points) >= 3:
+                cv2.line(output, points[-1], points[0], (255, 0, 255), 2)
+            for point in points:
+                cv2.circle(output, point, 4, (255, 0, 255), -1)
+            if points:
+                cv2.putText(output, "Analysis ROI (polygon)", (points[0][0], max(20, points[0][1] - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 0, 255), 2)
+            return
+
+        x_min = max(0.0, min(1.0, float(analysis_roi.get("x_min", 0.0))))
+        y_min = max(0.0, min(1.0, float(analysis_roi.get("y_min", 0.0))))
+        x_max = max(0.0, min(1.0, float(analysis_roi.get("x_max", 1.0))))
+        y_max = max(0.0, min(1.0, float(analysis_roi.get("y_max", 1.0))))
+
+        if x_max <= x_min or y_max <= y_min:
+            return
+
+        p1 = (int(x_min * frame_w), int(y_min * frame_h))
+        p2 = (int(x_max * frame_w), int(y_max * frame_h))
+        cv2.rectangle(output, p1, p2, (255, 0, 255), 2)
+        cv2.putText(output, "Analysis ROI", (p1[0], max(20, p1[1] - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 0, 255), 2)

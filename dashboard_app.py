@@ -9,6 +9,7 @@ import time
 from typing import Any, Dict, Optional
 
 import cv2
+import numpy as np
 from flask import Flask, jsonify, render_template_string, request, send_from_directory
 
 from ConfigManager import ConfigManager
@@ -106,6 +107,33 @@ HTML_PAGE = """
           <button id="reload">Reload Zone</button>
         </div>
         <div class="muted">Current line clicks: <span id="line_stage">0</span>/2</div>
+
+        <h3 class="title" style="margin-top:16px;">Analysis ROI</h3>
+        <div class="row">
+          <label><input type="checkbox" id="roi_enabled"> Enable Crop</label>
+          <label>Mode</label>
+          <select id="roi_mode">
+            <option value="rect">rect</option>
+            <option value="polygon">polygon</option>
+          </select>
+          <label><input type="checkbox" id="roi_edit_mode"> ROI Edit</label>
+        </div>
+        <div class="row">
+          <label>X min</label><input id="roi_xmin" type="number" min="0" max="1" step="0.01" value="0" style="width:90px;" />
+          <label>Y min</label><input id="roi_ymin" type="number" min="0" max="1" step="0.01" value="0" style="width:90px;" />
+        </div>
+        <div class="row">
+          <label>X max</label><input id="roi_xmax" type="number" min="0" max="1" step="0.01" value="1" style="width:90px;" />
+          <label>Y max</label><input id="roi_ymax" type="number" min="0" max="1" step="0.01" value="1" style="width:90px;" />
+        </div>
+        <div class="row">
+          <button id="save_roi">Save ROI</button>
+          <button id="reload_roi">Reload ROI</button>
+        </div>
+        <div class="row">
+          <button id="undo_roi">Undo ROI Point</button>
+          <button id="clear_roi">Clear ROI Polygon</button>
+        </div>
       </div>
     </div>
   </div>
@@ -130,6 +158,13 @@ HTML_PAGE = """
     const statusEl = document.getElementById('status');
     const streamStatusEl = document.getElementById('stream_status');
     const activePolySel = document.getElementById('activePoly');
+    const roiEnabledEl = document.getElementById('roi_enabled');
+    const roiModeEl = document.getElementById('roi_mode');
+    const roiEditModeEl = document.getElementById('roi_edit_mode');
+    const roiXMinEl = document.getElementById('roi_xmin');
+    const roiYMinEl = document.getElementById('roi_ymin');
+    const roiXMaxEl = document.getElementById('roi_xmax');
+    const roiYMaxEl = document.getElementById('roi_ymax');
     const HLS_ENABLED = {{ hls_enabled|tojson }};
 
     let zone = {
@@ -143,7 +178,21 @@ HTML_PAGE = """
       min_event_cooldown_frames: 8
     };
     let lineStage = 0;
+    let analysisRoi = { enabled: false, mode: 'rect', x_min: 0.0, y_min: 0.0, x_max: 1.0, y_max: 1.0, polygon_points: [] };
     let hlsController = null;
+
+    function keepNearLiveEdge() {
+      if (!hlsController || !hlsFeed || !Number.isFinite(hlsFeed.currentTime)) return;
+      const liveSync = hlsController.liveSyncPosition;
+      if (!Number.isFinite(liveSync)) return;
+      const lag = liveSync - hlsFeed.currentTime;
+      if (lag > 1.4) {
+        hlsFeed.currentTime = Math.max(0, liveSync - 0.2);
+      }
+      if (hlsFeed.playbackRate !== 1.0) {
+        hlsFeed.playbackRate = 1.0;
+      }
+    }
 
     function initHlsPlayer() {
       if (!HLS_ENABLED) {
@@ -156,16 +205,27 @@ HTML_PAGE = """
       const hlsUrl = `/hls/stream.m3u8?_t=${Date.now()}`;
       if (window.Hls && window.Hls.isSupported()) {
         hlsController = new window.Hls({
-          lowLatencyMode: true,
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 10,
-          backBufferLength: 30,
+          lowLatencyMode: false,
+          liveSyncDurationCount: 2,
+          liveMaxLatencyDurationCount: 4,
+          maxLiveSyncPlaybackRate: 1.0,
+          maxBufferLength: 2,
+          maxMaxBufferLength: 4,
+          backBufferLength: 2,
+          highBufferWatchdogPeriod: 1,
         });
         hlsController.loadSource(hlsUrl);
         hlsController.attachMedia(hlsFeed);
         hlsController.on(window.Hls.Events.MANIFEST_PARSED, () => {
           streamStatusEl.textContent = 'HLS aktiv';
+          hlsFeed.playbackRate = 1.0;
           hlsFeed.play().catch(() => {});
+        });
+        hlsController.on(window.Hls.Events.FRAG_BUFFERED, () => {
+          keepNearLiveEdge();
+        });
+        hlsController.on(window.Hls.Events.LEVEL_LOADED, () => {
+          keepNearLiveEdge();
         });
         hlsController.on(window.Hls.Events.ERROR, (_ev, data) => {
           if (data && data.fatal) {
@@ -243,7 +303,88 @@ HTML_PAGE = """
         ctx.fillStyle = '#ef4444';
         for (const p of exitPts) { ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, Math.PI * 2); ctx.fill(); }
       }
+
+      if (analysisRoi && analysisRoi.enabled) {
+        ctx.strokeStyle = '#ff00ff';
+        ctx.lineWidth = 2;
+        if ((analysisRoi.mode || 'rect') === 'polygon') {
+          const pts = (analysisRoi.polygon_points || []).map(p => [p[0] * canvas.width, p[1] * canvas.height]);
+          if (pts.length >= 2) {
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+            if (pts.length >= 3) ctx.closePath();
+            ctx.stroke();
+          }
+          ctx.fillStyle = '#ff00ff';
+          for (const p of pts) { ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, Math.PI * 2); ctx.fill(); }
+        } else {
+          const rx1 = analysisRoi.x_min * canvas.width;
+          const ry1 = analysisRoi.y_min * canvas.height;
+          const rx2 = analysisRoi.x_max * canvas.width;
+          const ry2 = analysisRoi.y_max * canvas.height;
+          ctx.strokeRect(rx1, ry1, rx2 - rx1, ry2 - ry1);
+        }
+      }
       lineStageEl.textContent = String(lineStage);
+    }
+
+    function setRoiForm(roi) {
+      analysisRoi = roi || analysisRoi;
+      roiEnabledEl.checked = !!analysisRoi.enabled;
+      roiModeEl.value = String(analysisRoi.mode || 'rect');
+      roiXMinEl.value = Number(analysisRoi.x_min ?? 0).toFixed(2);
+      roiYMinEl.value = Number(analysisRoi.y_min ?? 0).toFixed(2);
+      roiXMaxEl.value = Number(analysisRoi.x_max ?? 1).toFixed(2);
+      roiYMaxEl.value = Number(analysisRoi.y_max ?? 1).toFixed(2);
+      if (!Array.isArray(analysisRoi.polygon_points)) analysisRoi.polygon_points = [];
+    }
+
+    function getRoiFromForm() {
+      const clip = (v) => Math.max(0, Math.min(1, Number(v) || 0));
+      let xMin = clip(roiXMinEl.value);
+      let yMin = clip(roiYMinEl.value);
+      let xMax = clip(roiXMaxEl.value);
+      let yMax = clip(roiYMaxEl.value);
+
+      if (xMax <= xMin) xMax = Math.min(1, xMin + 0.01);
+      if (yMax <= yMin) yMax = Math.min(1, yMin + 0.01);
+
+      return {
+        enabled: !!roiEnabledEl.checked,
+        mode: roiModeEl.value === 'polygon' ? 'polygon' : 'rect',
+        x_min: xMin,
+        y_min: yMin,
+        x_max: xMax,
+        y_max: yMax,
+        polygon_points: Array.isArray(analysisRoi.polygon_points) ? analysisRoi.polygon_points : [],
+      };
+    }
+
+    async function loadRoi() {
+      const res = await fetch('/api/tracking-roi');
+      const payload = await res.json();
+      setRoiForm(payload.analysis_roi || payload);
+      drawZone();
+    }
+
+    async function saveRoi() {
+      const roi = getRoiFromForm();
+      const res = await fetch('/api/tracking-roi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysis_roi: roi }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setRoiForm(data.analysis_roi || roi);
+        statusEl.textContent = 'ROI saved and applied.';
+        statusEl.className = 'ok';
+      } else {
+        statusEl.textContent = 'ROI error: ' + (data.error || 'unknown');
+        statusEl.className = 'warn';
+      }
+      drawZone();
     }
 
     function clickToNorm(ev) {
@@ -291,6 +432,35 @@ HTML_PAGE = """
 
     canvas.addEventListener('click', (ev) => {
       const [nx, ny] = clickToNorm(ev);
+
+      if (roiEditModeEl.checked) {
+        const mode = roiModeEl.value;
+        if (mode === 'polygon') {
+          if (!Array.isArray(analysisRoi.polygon_points)) analysisRoi.polygon_points = [];
+          analysisRoi.polygon_points.push([nx, ny]);
+        } else {
+          const xMin = Number(roiXMinEl.value);
+          const yMin = Number(roiYMinEl.value);
+          const xMax = Number(roiXMaxEl.value);
+          const yMax = Number(roiYMaxEl.value);
+          const hasRect = xMax > xMin && yMax > yMin;
+          if (!hasRect || !analysisRoi._rectStage) {
+            roiXMinEl.value = nx.toFixed(2);
+            roiYMinEl.value = ny.toFixed(2);
+            roiXMaxEl.value = nx.toFixed(2);
+            roiYMaxEl.value = ny.toFixed(2);
+            analysisRoi._rectStage = 1;
+          } else {
+            roiXMaxEl.value = nx.toFixed(2);
+            roiYMaxEl.value = ny.toFixed(2);
+            analysisRoi._rectStage = 0;
+          }
+        }
+        analysisRoi = getRoiFromForm();
+        drawZone();
+        return;
+      }
+
       zone.mode = modeSel.value;
       if (zone.mode === 'line') {
         if (lineStage === 0) {
@@ -331,13 +501,32 @@ HTML_PAGE = """
 
     document.getElementById('save').addEventListener('click', saveZone);
     document.getElementById('reload').addEventListener('click', reloadZone);
+    document.getElementById('save_roi').addEventListener('click', saveRoi);
+    document.getElementById('reload_roi').addEventListener('click', loadRoi);
+    document.getElementById('undo_roi').addEventListener('click', () => {
+      if (!Array.isArray(analysisRoi.polygon_points)) analysisRoi.polygon_points = [];
+      if (analysisRoi.polygon_points.length) analysisRoi.polygon_points.pop();
+      drawZone();
+    });
+    document.getElementById('clear_roi').addEventListener('click', () => {
+      analysisRoi.polygon_points = [];
+      drawZone();
+    });
     modeSel.addEventListener('change', drawZone);
     directionSel.addEventListener('change', drawZone);
     activePolySel.addEventListener('change', drawZone);
+    roiModeEl.addEventListener('change', () => {
+      analysisRoi = getRoiFromForm();
+      drawZone();
+    });
 
     window.addEventListener('resize', drawZone);
+    hlsFeed.addEventListener('ratechange', () => {
+      if (hlsFeed.playbackRate !== 1.0) hlsFeed.playbackRate = 1.0;
+    });
 
     reloadZone();
+    loadRoi();
     initHlsPlayer();
     setInterval(pollState, 1000);
     setInterval(drawZone, 1000);
@@ -348,11 +537,28 @@ HTML_PAGE = """
 
 
 class HLSStreamer:
-  def __init__(self, output_dir: str, fps: float, segment_time: float = 1.0, list_size: int = 12):
+  def __init__(
+    self,
+    output_dir: str,
+    fps: float,
+    segment_time: float = 1.0,
+    list_size: int = 12,
+    x264_preset: str = "veryfast",
+    x264_tune: str = "zerolatency",
+    x264_crf: int = 28,
+    hwaccel: str = "auto",
+    vaapi_device: str = "/dev/dri/renderD128",
+  ):
     self.output_dir = output_dir
     self.fps = max(1.0, float(fps))
     self.segment_time = max(0.5, float(segment_time))
     self.list_size = max(3, int(list_size))
+    self.x264_preset = str(x264_preset or "veryfast")
+    self.x264_tune = str(x264_tune or "zerolatency")
+    self.x264_crf = max(18, min(45, int(x264_crf)))
+    self.hwaccel = str(hwaccel or "auto").lower()
+    self.vaapi_device = str(vaapi_device or "/dev/dri/renderD128")
+    self.encoder_name = "libx264"
     self._process: Optional[subprocess.Popen] = None
     self._ffmpeg_executable = self._resolve_ffmpeg_executable()
     self._enabled = self._ffmpeg_executable is not None
@@ -394,7 +600,7 @@ class HLSStreamer:
     playlist_path = os.path.join(self.output_dir, "stream.m3u8")
     gop = max(10, int(round(self.fps * 2.0)))
 
-    command = [
+    base_input = [
       self._ffmpeg_executable,
       "-hide_banner",
       "-loglevel",
@@ -407,14 +613,8 @@ class HLSStreamer:
       "-i",
       "pipe:0",
       "-an",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-tune",
-      "zerolatency",
-      "-pix_fmt",
-      "yuv420p",
+    ]
+    hls_output = [
       "-g",
       str(gop),
       "-keyint_min",
@@ -434,12 +634,82 @@ class HLSStreamer:
       playlist_path,
     ]
 
-    self._process = subprocess.Popen(
-      command,
-      stdin=subprocess.PIPE,
-      stdout=subprocess.DEVNULL,
-      stderr=subprocess.DEVNULL,
+    candidates = []
+    use_vaapi = self.hwaccel in {"auto", "vaapi"} and os.path.exists(self.vaapi_device)
+    if use_vaapi:
+      candidates.append(
+        (
+          "h264_vaapi",
+          [
+            self._ffmpeg_executable,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-vaapi_device",
+            self.vaapi_device,
+            "-f",
+            "mjpeg",
+            "-r",
+            str(self.fps),
+            "-i",
+            "pipe:0",
+            "-an",
+            "-vf",
+            "format=nv12,hwupload",
+            "-c:v",
+            "h264_vaapi",
+            "-qp",
+            "26",
+            *hls_output,
+          ],
+        )
+      )
+
+    candidates.append(
+      (
+        "libx264",
+        [
+          *base_input,
+          "-c:v",
+          "libx264",
+          "-preset",
+          self.x264_preset,
+          "-tune",
+          self.x264_tune,
+          "-crf",
+          str(self.x264_crf),
+          "-pix_fmt",
+          "yuv420p",
+          *hls_output,
+        ],
+      )
     )
+
+    self._process = None
+    for encoder_name, command in candidates:
+      process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+      )
+      time.sleep(0.15)
+      if process.poll() is None:
+        self._process = process
+        self.encoder_name = encoder_name
+        break
+      try:
+        process.kill()
+      except Exception:
+        pass
+      try:
+        process.wait(timeout=0.2)
+      except Exception:
+        pass
+
+    if self._process is None:
+      self._enabled = False
 
   def write_jpeg(self, jpeg: bytes):
     if not self._enabled or self._process is None or self._process.stdin is None:
@@ -506,12 +776,21 @@ class TrackingEngine:
             confidence_threshold=float(tracking_cfg["confidence_threshold"]),
             iou_threshold=float(tracking_cfg["iou_threshold"]),
             image_size=int(tracking_cfg["imgsz"]),
+            tta_enabled=bool(tracking_cfg.get("tta_enabled", False)),
+            max_detections=int(tracking_cfg.get("max_detections", 300)),
+            stabilization_enabled=bool(tracking_cfg.get("stabilization_enabled", True)),
+            track_hold_frames=int(tracking_cfg.get("track_hold_frames", 5)),
+            box_ema_alpha=float(tracking_cfg.get("box_ema_alpha", 0.65)),
+            hold_confidence_decay=float(tracking_cfg.get("hold_confidence_decay", 0.85)),
+            trail_length=int(tracking_cfg.get("trail_length", 12)),
+            motion_min_pixels=float(tracking_cfg.get("motion_min_pixels", 2.0)),
           preprocess_enabled=bool(self.config.get("preprocess", {}).get("enabled", False)),
           preprocess_upscale=float(self.config.get("preprocess", {}).get("upscale", 1.0)),
           preprocess_clahe_clip=float(self.config.get("preprocess", {}).get("clahe_clip", 2.0)),
           preprocess_denoise=bool(self.config.get("preprocess", {}).get("denoise", False)),
         )
         self.process_every_n_frames = max(1, int(tracking_cfg.get("process_every_n_frames", 1)))
+        self.analysis_roi = self._normalize_analysis_roi(tracking_cfg.get("analysis_roi", {}))
 
         self.zone_config = EntranceZoneConfig.from_dict(self.config["zone"])
         self.entry_analysis = TrajectoryEntryAnalysisModule(zone_config=self.zone_config)
@@ -520,20 +799,42 @@ class TrackingEngine:
 
         dashboard_cfg = self.config.get("dashboard", {})
         self.stream_fps = float(dashboard_cfg.get("stream_fps", 25.0))
-        self.jpeg_quality = max(40, min(95, int(dashboard_cfg.get("jpeg_quality", 80))))
+        self.capture_max_fps = max(0.0, float(dashboard_cfg.get("capture_max_fps", 0.0)))
+        self.capture_frame_interval = (1.0 / self.capture_max_fps) if self.capture_max_fps > 0 else 0.0
+        self.visual_update_fps = max(0.0, float(dashboard_cfg.get("visual_update_fps", self.stream_fps)))
+        self.visual_update_interval = (1.0 / self.visual_update_fps) if self.visual_update_fps > 0 else 0.0
+        self.jpeg_quality = max(20, min(95, int(dashboard_cfg.get("jpeg_quality", 80))))
+        self.jpeg_optimize = bool(dashboard_cfg.get("jpeg_optimize", False))
         self.stream_max_width = max(320, int(dashboard_cfg.get("stream_max_width", 960)))
         hls_cfg = dashboard_cfg.get("hls", {})
         self.hls_enabled = bool(hls_cfg.get("enabled", True))
         self.hls_output_dir = str(hls_cfg.get("output_dir", "hls"))
         self.hls_segment_time = float(hls_cfg.get("segment_time", 1.0))
         self.hls_list_size = int(hls_cfg.get("list_size", 12))
+        self.hls_x264_preset = str(hls_cfg.get("preset", "veryfast"))
+        self.hls_x264_tune = str(hls_cfg.get("tune", "zerolatency"))
+        self.hls_x264_crf = int(hls_cfg.get("crf", 28))
+        self.hls_hwaccel = str(hls_cfg.get("hwaccel", "auto"))
+        self.hls_vaapi_device = str(hls_cfg.get("vaapi_device", "/dev/dri/renderD128"))
         self.analysis_queue_frames = max(8, int(dashboard_cfg.get("analysis_queue_frames", 64)))
         self.analysis_skip_threshold_frames = max(0, int(dashboard_cfg.get("analysis_skip_threshold_frames", 0)))
+        self.visual_stale_fallback_sec = max(0.0, float(dashboard_cfg.get("visual_stale_fallback_sec", 0.5)))
+        self.dynamic_skip_enabled = bool(dashboard_cfg.get("dynamic_skip_enabled", True))
+        self.dynamic_skip_queue_threshold = max(1, int(dashboard_cfg.get("dynamic_skip_queue_threshold", 6)))
+        self.dynamic_skip_max_n = max(
+          self.process_every_n_frames,
+          int(dashboard_cfg.get("dynamic_skip_max_n", max(4, self.process_every_n_frames))),
+        )
         self.hls_streamer = HLSStreamer(
           output_dir=self.hls_output_dir,
           fps=self.stream_fps,
           segment_time=self.hls_segment_time,
           list_size=self.hls_list_size,
+          x264_preset=self.hls_x264_preset,
+          x264_tune=self.hls_x264_tune,
+          x264_crf=self.hls_x264_crf,
+          hwaccel=self.hls_hwaccel,
+          vaapi_device=self.hls_vaapi_device,
         )
         if not self.hls_enabled:
           self.hls_streamer._enabled = False
@@ -545,6 +846,7 @@ class TrackingEngine:
         self.last_exits = 0
         self.last_fps = 0.0
         self.last_inference_fps = 0.0
+        self._fps_ema = 0.0
         self.analysis_skipped_frames = 0
 
         self._lock = threading.Lock()
@@ -558,7 +860,12 @@ class TrackingEngine:
         self._analysis_queue = deque()
         self._latest_visual_jpeg: Optional[bytes] = None
         self._latest_raw_jpeg: Optional[bytes] = None
+        self._latest_visual_ts = 0.0
+        self._latest_raw_ts = 0.0
         self._hls_frame_counter = 0
+        self._next_capture_deadline_ts = 0.0
+        self._last_visual_update_ts = 0.0
+        self._current_effective_process_n = self.process_every_n_frames
 
     def start(self):
       if self._running:
@@ -599,34 +906,63 @@ class TrackingEngine:
           int(cv2.IMWRITE_JPEG_QUALITY),
           self.jpeg_quality,
           int(cv2.IMWRITE_JPEG_OPTIMIZE),
-          1,
+          1 if self.jpeg_optimize else 0,
         ],
       )
 
     def _capture_loop(self):
       while self._running:
+        if self.capture_frame_interval > 0:
+          now_ts = time.monotonic()
+          if self._next_capture_deadline_ts <= 0:
+            self._next_capture_deadline_ts = now_ts
+          sleep_for = self._next_capture_deadline_ts - now_ts
+          if sleep_for > 0:
+            time.sleep(min(sleep_for, 0.02))
+
         frame = None
         ok, frame = self.video_input.read()
         if not ok or frame is None:
           time.sleep(0.02)
           continue
 
-        enqueued = False
-        while self._running and not enqueued:
-          with self._lock:
-            if len(self._analysis_queue) < self.analysis_queue_frames:
-              self._capture_frame_idx += 1
-              frame_id = self._capture_frame_idx
-              self._analysis_queue.append((frame_id, frame))
-              enqueued = True
-          if not enqueued:
-            time.sleep(0.002)
+        if self.capture_frame_interval > 0:
+          now_ts = time.monotonic()
+          if self._next_capture_deadline_ts <= 0:
+            self._next_capture_deadline_ts = now_ts + self.capture_frame_interval
+          else:
+            while self._next_capture_deadline_ts <= now_ts:
+              self._next_capture_deadline_ts += self.capture_frame_interval
 
-        ok_jpeg, encoded = self._encode_stream_jpeg(frame)
-        if ok_jpeg:
-          with self._packet_cv:
-            self._latest_raw_jpeg = encoded.tobytes()
-            self._packet_cv.notify_all()
+        with self._lock:
+          if len(self._analysis_queue) >= self.analysis_queue_frames:
+            try:
+              self._analysis_queue.popleft()
+              self.analysis_skipped_frames += 1
+            except IndexError:
+              pass
+
+          self._capture_frame_idx += 1
+          frame_id = self._capture_frame_idx
+          self._analysis_queue.append((frame_id, frame))
+
+        should_update_raw = False
+        now_ts = time.monotonic()
+        with self._packet_cv:
+          if self._latest_visual_jpeg is None:
+            should_update_raw = True
+          else:
+            visual_age = now_ts - self._latest_visual_ts
+            if visual_age > self.visual_stale_fallback_sec:
+              should_update_raw = True
+
+        if should_update_raw:
+          ok_jpeg, encoded = self._encode_stream_jpeg(frame)
+          if ok_jpeg:
+            with self._packet_cv:
+              self._latest_raw_jpeg = encoded.tobytes()
+              self._latest_raw_ts = time.monotonic()
+              self._packet_cv.notify_all()
 
     def _inference_loop(self):
       while self._running:
@@ -635,11 +971,13 @@ class TrackingEngine:
         with self._lock:
           if not self._analysis_queue:
             frame_tuple = None
+            queue_len = 0
           else:
             if self.analysis_skip_threshold_frames > 0:
               while len(self._analysis_queue) > self.analysis_skip_threshold_frames:
                 self._analysis_queue.popleft()
                 self.analysis_skipped_frames += 1
+            queue_len = len(self._analysis_queue)
             frame_tuple = self._analysis_queue.popleft() if self._analysis_queue else None
 
         if frame_tuple is None:
@@ -647,11 +985,24 @@ class TrackingEngine:
           continue
 
         frame_id, frame = frame_tuple
-        run_tracking_now = (frame_id % self.process_every_n_frames) == 0
+        effective_process_n = self.process_every_n_frames
+        if self.dynamic_skip_enabled and queue_len > self.dynamic_skip_queue_threshold:
+          pressure_ratio = queue_len / float(self.dynamic_skip_queue_threshold)
+          extra_skip = int(pressure_ratio)
+          effective_process_n = min(
+            self.dynamic_skip_max_n,
+            self.process_every_n_frames + max(1, extra_skip),
+          )
+
+        self._current_effective_process_n = effective_process_n
+        run_tracking_now = (frame_id % effective_process_n) == 0
 
         if run_tracking_now:
           infer_t0 = time.time()
-          tracks = self.tracking_module.track(frame)
+          analysis_frame, roi_offset = self._crop_to_analysis_roi(frame)
+          tracks = self.tracking_module.track(analysis_frame)
+          if roi_offset != (0, 0):
+            tracks = self._remap_tracks_to_full_frame(tracks, roi_offset)
           self._last_tracks_cache = tracks
           infer_elapsed = max(1e-6, time.time() - infer_t0)
           self.last_inference_fps = round(1.0 / infer_elapsed, 2)
@@ -670,26 +1021,41 @@ class TrackingEngine:
               self.exits_total += 1
               frame_exits += 1
 
-        output = self.visualizer.draw(
-          frame=frame,
-          tracks=tracks,
-          zone_config=self.zone_config,
-          occupancy=self.occupancy_state.occupancy,
-          entries_total=self.entries_total,
-          exits_total=self.exits_total,
-          events_in_frame={"entry": frame_entries, "exit": frame_exits},
-        )
+        now_visual = time.monotonic()
+        should_update_visual = run_tracking_now
+        if not should_update_visual and self.visual_update_interval > 0:
+          should_update_visual = (now_visual - self._last_visual_update_ts) >= self.visual_update_interval
 
-        ok_jpeg, encoded = self._encode_stream_jpeg(output)
-        if ok_jpeg:
-          with self._packet_cv:
-            self._latest_visual_jpeg = encoded.tobytes()
-            self.last_tracks = len(tracks)
-            self.last_entries = frame_entries
-            self.last_exits = frame_exits
-            elapsed = max(1e-6, time.time() - t0)
-            self.last_fps = round(1.0 / elapsed, 2)
-            self._packet_cv.notify_all()
+        if should_update_visual:
+          output = self.visualizer.draw(
+            frame=frame,
+            tracks=tracks,
+            zone_config=self.zone_config,
+            occupancy=self.occupancy_state.occupancy,
+            entries_total=self.entries_total,
+            exits_total=self.exits_total,
+            events_in_frame={"entry": frame_entries, "exit": frame_exits},
+            analysis_roi=self.analysis_roi,
+          )
+
+          ok_jpeg, encoded = self._encode_stream_jpeg(output)
+          if ok_jpeg:
+            with self._packet_cv:
+              self._latest_visual_jpeg = encoded.tobytes()
+              self._latest_visual_ts = time.monotonic()
+              self._packet_cv.notify_all()
+            self._last_visual_update_ts = now_visual
+
+        self.last_tracks = len(tracks)
+        self.last_entries = frame_entries
+        self.last_exits = frame_exits
+        elapsed = max(1e-4, time.time() - t0)
+        current_fps = min(120.0, 1.0 / elapsed)
+        if self._fps_ema <= 0:
+          self._fps_ema = current_fps
+        else:
+          self._fps_ema = (0.85 * self._fps_ema) + (0.15 * current_fps)
+        self.last_fps = round(self._fps_ema, 2)
 
     def _packetizer_loop(self):
       packet_interval = 1.0 / max(1.0, self.stream_fps)
@@ -700,14 +1066,31 @@ class TrackingEngine:
         if sleep_for > 0:
           time.sleep(sleep_for)
 
+        encoded_frame = None
         with self._packet_cv:
-          frame = self._latest_visual_jpeg or self._latest_raw_jpeg
-          if frame is not None:
-            self._hls_frame_counter += 1
-            self.hls_streamer.write_jpeg(frame)
-            if self._hls_frame_counter % max(1, int(self.stream_fps)) == 0:
-              self.hls_streamer.write_preview(frame)
-            self._packet_cv.notify_all()
+          now = time.monotonic()
+          visual_age = now - self._latest_visual_ts if self._latest_visual_jpeg is not None else 10_000.0
+          raw_age = now - self._latest_raw_ts if self._latest_raw_jpeg is not None else 10_000.0
+
+          visual_valid = self._latest_visual_jpeg is not None and visual_age <= max(0.1, self.visual_stale_fallback_sec * 3.0)
+          raw_valid = self._latest_raw_jpeg is not None and raw_age <= max(0.1, self.visual_stale_fallback_sec * 3.0)
+
+          if visual_valid and raw_valid:
+            encoded_frame = self._latest_visual_jpeg if self._latest_visual_ts >= self._latest_raw_ts else self._latest_raw_jpeg
+          elif visual_valid:
+            encoded_frame = self._latest_visual_jpeg
+          elif raw_valid:
+            encoded_frame = self._latest_raw_jpeg
+          elif self._latest_visual_jpeg is not None:
+            encoded_frame = self._latest_visual_jpeg
+          elif self._latest_raw_jpeg is not None:
+            encoded_frame = self._latest_raw_jpeg
+
+        if encoded_frame is not None:
+          self._hls_frame_counter += 1
+          self.hls_streamer.write_jpeg(encoded_frame)
+          if self._hls_frame_counter % max(1, int(self.stream_fps)) == 0:
+            self.hls_streamer.write_preview(encoded_frame)
 
         next_deadline += packet_interval
         now = time.monotonic()
@@ -727,9 +1110,13 @@ class TrackingEngine:
                 "inference_fps": self.last_inference_fps,
                 "analysis_queue": len(self._analysis_queue),
                 "analysis_skipped_frames": self.analysis_skipped_frames,
+                "capture_max_fps": self.capture_max_fps,
+                "effective_process_every_n_frames": self._current_effective_process_n,
                 "hls_enabled": self.hls_streamer.enabled,
+                "hls_encoder": self.hls_streamer.encoder_name,
                 "hls_output_dir": self.hls_output_dir,
                 "zone": self.zone_config.to_dict(),
+                "analysis_roi": self.analysis_roi,
             }
 
     def get_zone(self) -> Dict[str, Any]:
@@ -740,6 +1127,131 @@ class TrackingEngine:
         self.zone_config = updated
         self.entry_analysis.set_zone_config(updated)
         self.config_manager.update_zone(updated.to_dict())
+
+    @staticmethod
+    def _normalize_analysis_roi(payload: Dict[str, Any]) -> Dict[str, Any]:
+      defaults = {
+        "enabled": False,
+        "mode": "rect",
+        "x_min": 0.0,
+        "y_min": 0.0,
+        "x_max": 1.0,
+        "y_max": 1.0,
+        "polygon_points": [],
+      }
+      merged = {**defaults, **(payload or {})}
+      mode = "polygon" if str(merged.get("mode", "rect")).lower() == "polygon" else "rect"
+      x_min = max(0.0, min(1.0, float(merged.get("x_min", 0.0))))
+      y_min = max(0.0, min(1.0, float(merged.get("y_min", 0.0))))
+      x_max = max(0.0, min(1.0, float(merged.get("x_max", 1.0))))
+      y_max = max(0.0, min(1.0, float(merged.get("y_max", 1.0))))
+
+      polygon_points = []
+      for pt in merged.get("polygon_points", []) or []:
+        if not isinstance(pt, (list, tuple)) or len(pt) != 2:
+          continue
+        px = max(0.0, min(1.0, float(pt[0])))
+        py = max(0.0, min(1.0, float(pt[1])))
+        polygon_points.append([px, py])
+
+      if x_max <= x_min:
+        x_max = min(1.0, x_min + 0.01)
+      if y_max <= y_min:
+        y_max = min(1.0, y_min + 0.01)
+
+      return {
+        "enabled": bool(merged.get("enabled", False)),
+        "mode": mode,
+        "x_min": x_min,
+        "y_min": y_min,
+        "x_max": x_max,
+        "y_max": y_max,
+        "polygon_points": polygon_points,
+      }
+
+    def _crop_to_analysis_roi(self, frame):
+      roi = self.analysis_roi
+      if not roi.get("enabled", False):
+        return frame, (0, 0)
+
+      mode = str(roi.get("mode", "rect")).lower()
+      if mode == "polygon":
+        polygon_points_raw = roi.get("polygon_points", [])
+        polygon_points = polygon_points_raw if isinstance(polygon_points_raw, list) else []
+        if len(polygon_points) >= 3:
+          frame_h, frame_w = frame.shape[:2]
+          points_px = []
+          for point in polygon_points:
+            if not isinstance(point, (list, tuple)) or len(point) != 2:
+              continue
+            px = int(float(point[0]) * frame_w)
+            py = int(float(point[1]) * frame_h)
+            points_px.append([px, py])
+          if len(points_px) < 3:
+            return frame, (0, 0)
+
+          pts = np.array(points_px, dtype=np.int32)
+          x, y, w, h = cv2.boundingRect(pts)
+          if w >= 8 and h >= 8:
+            crop = frame[y : y + h, x : x + w]
+            shifted_pts = pts - np.array([x, y], dtype=np.int32)
+            mask = np.zeros((h, w), dtype=np.uint8)
+            cv2.fillPoly(mask, [shifted_pts], 255)
+            masked_crop = cv2.bitwise_and(crop, crop, mask=mask)
+            return masked_crop, (x, y)
+
+      frame_h, frame_w = frame.shape[:2]
+      x1 = max(0, min(frame_w - 1, int(roi["x_min"] * frame_w)))
+      y1 = max(0, min(frame_h - 1, int(roi["y_min"] * frame_h)))
+      x2 = max(1, min(frame_w, int(roi["x_max"] * frame_w)))
+      y2 = max(1, min(frame_h, int(roi["y_max"] * frame_h)))
+
+      if x2 - x1 < 8 or y2 - y1 < 8:
+        return frame, (0, 0)
+
+      return frame[y1:y2, x1:x2], (x1, y1)
+
+    @staticmethod
+    def _remap_tracks_to_full_frame(tracks, roi_offset):
+      offset_x, offset_y = roi_offset
+      remapped = []
+
+      for track in tracks:
+        item = dict(track)
+        bbox = item.get("bbox")
+        center = item.get("center")
+        trail = item.get("trail")
+
+        if bbox and len(bbox) == 4:
+          item["bbox"] = [
+            float(bbox[0]) + offset_x,
+            float(bbox[1]) + offset_y,
+            float(bbox[2]) + offset_x,
+            float(bbox[3]) + offset_y,
+          ]
+        if center and len(center) == 2:
+          item["center"] = (float(center[0]) + offset_x, float(center[1]) + offset_y)
+        if isinstance(trail, list):
+          item["trail"] = [
+            (float(pt[0]) + offset_x, float(pt[1]) + offset_y)
+            for pt in trail
+            if isinstance(pt, (list, tuple)) and len(pt) == 2
+          ]
+
+        remapped.append(item)
+
+      return remapped
+
+    def get_analysis_roi(self) -> Dict[str, Any]:
+      return dict(self.analysis_roi)
+
+    def update_analysis_roi(self, roi_payload: Dict[str, Any]):
+      roi = self._normalize_analysis_roi(roi_payload)
+      self.analysis_roi = roi
+
+      config = self.config_manager.load()
+      config.setdefault("tracking", {})["analysis_roi"] = roi
+      self.config_manager.save(config)
 
 
 def create_app(config_path: str) -> Flask:
@@ -775,6 +1287,19 @@ def create_app(config_path: str) -> Flask:
         try:
             engine.update_zone(payload)
             return jsonify({"ok": True, "zone": engine.get_zone()})
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+
+    @app.route("/api/tracking-roi", methods=["GET", "POST"])
+    def api_tracking_roi():
+        if request.method == "GET":
+            return jsonify({"ok": True, "analysis_roi": engine.get_analysis_roi()})
+
+        payload = request.get_json(silent=True) or {}
+        roi_payload = payload.get("analysis_roi", payload)
+        try:
+            engine.update_analysis_roi(roi_payload)
+            return jsonify({"ok": True, "analysis_roi": engine.get_analysis_roi()})
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc)}), 400
 

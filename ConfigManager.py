@@ -16,10 +16,27 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "tracking": {
         "model_path": "yolo26n.pt",
         "device": "cpu",
-        "tracker": "bytetrack.yaml",
+        "tracker": "bytetrack_entrance.yaml",
         "confidence_threshold": 0.25,
         "iou_threshold": 0.45,
-        "imgsz": 512,
+        "imgsz": 640,
+        "analysis_roi": {
+            "enabled": False,
+            "mode": "rect",
+            "x_min": 0.0,
+            "y_min": 0.0,
+            "x_max": 1.0,
+            "y_max": 1.0,
+            "polygon_points": [],
+        },
+        "tta_enabled": False,
+        "max_detections": 300,
+        "stabilization_enabled": True,
+        "track_hold_frames": 5,
+        "box_ema_alpha": 0.65,
+        "hold_confidence_decay": 0.85,
+        "trail_length": 12,
+        "motion_min_pixels": 2.0,
         "process_every_n_frames": 2,
     },
     "preprocess": {
@@ -30,6 +47,27 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "dashboard": {
         "stream_fps": 25,
+        "capture_max_fps": 20,
+        "visual_update_fps": 12,
+        "jpeg_quality": 40,
+        "jpeg_optimize": False,
+        "stream_max_width": 640,
+        "analysis_queue_frames": 64,
+        "analysis_skip_threshold_frames": 16,
+        "dynamic_skip_enabled": True,
+        "dynamic_skip_queue_threshold": 6,
+        "dynamic_skip_max_n": 4,
+        "hls": {
+            "enabled": True,
+            "output_dir": "hls",
+            "segment_time": 1.0,
+            "list_size": 12,
+            "preset": "ultrafast",
+            "tune": "zerolatency",
+            "crf": 36,
+            "hwaccel": "auto",
+            "vaapi_device": "/dev/dri/renderD128",
+        },
         "capture_buffer_size": 24,
         "model_buffer_size": 6,
         "model_latency_frames": 2,
@@ -106,6 +144,19 @@ class ConfigManager:
             "SITCHECK_CONFIDENCE": ("tracking", "confidence_threshold", float),
             "SITCHECK_IOU": ("tracking", "iou_threshold", float),
             "SITCHECK_IMGSZ": ("tracking", "imgsz", int),
+            "SITCHECK_ANALYSIS_ROI_ENABLED": ("tracking", "analysis_roi.enabled", self._parse_bool),
+            "SITCHECK_ANALYSIS_ROI_X_MIN": ("tracking", "analysis_roi.x_min", float),
+            "SITCHECK_ANALYSIS_ROI_Y_MIN": ("tracking", "analysis_roi.y_min", float),
+            "SITCHECK_ANALYSIS_ROI_X_MAX": ("tracking", "analysis_roi.x_max", float),
+            "SITCHECK_ANALYSIS_ROI_Y_MAX": ("tracking", "analysis_roi.y_max", float),
+            "SITCHECK_TTA_ENABLED": ("tracking", "tta_enabled", self._parse_bool),
+            "SITCHECK_MAX_DETECTIONS": ("tracking", "max_detections", int),
+            "SITCHECK_STABILIZATION_ENABLED": ("tracking", "stabilization_enabled", self._parse_bool),
+            "SITCHECK_TRACK_HOLD_FRAMES": ("tracking", "track_hold_frames", int),
+            "SITCHECK_BOX_EMA_ALPHA": ("tracking", "box_ema_alpha", float),
+            "SITCHECK_HOLD_CONFIDENCE_DECAY": ("tracking", "hold_confidence_decay", float),
+            "SITCHECK_TRAIL_LENGTH": ("tracking", "trail_length", int),
+            "SITCHECK_MOTION_MIN_PIXELS": ("tracking", "motion_min_pixels", float),
             "SITCHECK_PROCESS_EVERY_N_FRAMES": ("tracking", "process_every_n_frames", int),
             "SITCHECK_PREPROCESS_ENABLED": ("preprocess", "enabled", self._parse_bool),
             "SITCHECK_PREPROCESS_UPSCALE": ("preprocess", "upscale", float),
@@ -130,7 +181,16 @@ class ConfigManager:
             raw = os.getenv(env_key)
             if raw is None:
                 continue
-            config[section][key] = caster(raw)
+            if "." in key:
+                parts = key.split(".")
+                target = config[section]
+                for part in parts[:-1]:
+                    if part not in target or not isinstance(target.get(part), dict):
+                        target[part] = {}
+                    target = target[part]
+                target[parts[-1]] = caster(raw)
+            else:
+                config[section][key] = caster(raw)
 
     @staticmethod
     def _deep_update(target: Dict[str, Any], incoming: Dict[str, Any]):

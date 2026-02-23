@@ -5,10 +5,26 @@ video:
 tracking:
   model_path: yolo26n.pt
   device: cpu
-  tracker: bytetrack.yaml
+  tracker: bytetrack_entrance.yaml
   confidence_threshold: 0.15
   iou_threshold: 0.45
-  imgsz: 512
+  imgsz: 640
+  analysis_roi:
+    enabled: false
+    mode: rect
+    x_min: 0.0
+    y_min: 0.0
+    x_max: 1.0
+    y_max: 1.0
+    polygon_points: []
+  tta_enabled: false
+  max_detections: 300
+  stabilization_enabled: true
+  track_hold_frames: 8
+  box_ema_alpha: 0.6
+  hold_confidence_decay: 0.88
+  trail_length: 16
+  motion_min_pixels: 1.8
   process_every_n_frames: 1
 preprocess:
   enabled: false
@@ -17,15 +33,31 @@ preprocess:
   denoise: false
 dashboard:
   stream_fps: 20
-  jpeg_quality: 65
-  stream_max_width: 960
+  capture_max_fps: 20
+  visual_update_fps: 20
+  jpeg_quality: 40
+  jpeg_optimize: false
+  stream_max_width: 640
   analysis_queue_frames: 64
-  analysis_skip_threshold_frames: 0
+  analysis_skip_threshold_frames: 8
+  dynamic_skip_enabled: false
+  dynamic_skip_queue_threshold: 4
+  dynamic_skip_max_n: 5
   hls:
     enabled: true
     output_dir: hls
-    segment_time: 1.0
-    list_size: 12
+    segment_time: 0.5
+    list_size: 6
+    preset: ultrafast
+    tune: zerolatency
+    crf: 36
+    hwaccel: auto
+    vaapi_device: /dev/dri/renderD128
+  capture_buffer_size: 24
+  model_buffer_size: 6
+  model_latency_frames: 2
+  render_buffer_size: 12
+  visual_stale_fallback_sec: 0.25
 zone:
   mode: dual_polygon
   line:

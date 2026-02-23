@@ -90,6 +90,8 @@ class UltralyticsPersonDetector(BaseDetector):
         conf: float = 0.4,
         iou: float = 0.5,
         imgsz: int = 640,
+        augment: bool = False,
+        max_det: int = 300,
     ) -> List[Dict[str, Any]]:
         """
         Fuehrt YOLO-Tracking mit persistenten IDs aus.
@@ -105,6 +107,8 @@ class UltralyticsPersonDetector(BaseDetector):
                 conf=max(conf, self.confidence_threshold),
                 iou=iou,
                 imgsz=imgsz,
+                augment=augment,
+                max_det=max_det,
                 device=self.device,
                 verbose=False,
             )
