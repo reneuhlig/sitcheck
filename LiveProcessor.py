@@ -1,170 +1,178 @@
 import time
-from pathlib import Path
-from typing import Dict, Any
-from datetime import datetime
-from DataLoader import LiveImageLoader
+from typing import Dict, Optional, Any, Callable
+
 from DatabaseHandler import DatabaseHandler
-from BaseDetector import BaseDetector
+from VideoInputModule import VideoInputModule
+from YOLOTrackingModule import YOLOTrackingModule
+from TrajectoryEntryAnalysisModule import (
+    EntranceZoneConfig,
+    TrajectoryEntryAnalysisModule,
+)
+from OccupancyStateModule import OccupancyStateModule
+from VisualizationOutputModule import VisualizationOutputModule
 
 
 class LiveProcessor:
-    """Live-Verarbeitung von Bildern aus zwei Ordnern"""
-    
-    def __init__(self,
-                 detector: BaseDetector,
-                 db_config: Dict[str, str],
-                 input_x: str,
-                 input_y: str,
-                 poll_interval: float = 0.5):
-        """
-        Initialisiert den Live-Processor
-        
-        Args:
-            detector: Detector-Instanz (z.B. UltralyticsPersonDetector)
-            db_config: Datenbank-Konfiguration
-            input_x: Pfad zu Ordner X
-            input_y: Pfad zu Ordner Y
-            poll_interval: Intervall zwischen Checks (Sekunden)
-        """
-        self.detector = detector
-        self.db = DatabaseHandler(**db_config)
-        self.input_x = Path(input_x)
-        self.input_y = Path(input_y)
-        self.poll_interval = poll_interval
-        
-        # Loader initialisieren
-        self.loader = LiveImageLoader(
-            str(self.input_x),
-            str(self.input_y),
-            poll_interval=poll_interval
+    """Live-Orchestrierung für YOLO-Tracking und Entry-Pass-by-Analyse."""
+
+    def __init__(
+        self,
+        detector,
+        video_source: str,
+        zone_config: EntranceZoneConfig,
+        tracker_config: str = "bytetrack.yaml",
+        confidence_threshold: float = 0.4,
+        iou_threshold: float = 0.5,
+        image_size: int = 640,
+        process_every_n_frames: int = 1,
+        preprocess_enabled: bool = False,
+        preprocess_upscale: float = 1.0,
+        preprocess_clahe_clip: float = 2.0,
+        preprocess_denoise: bool = False,
+        reconnect_delay: float = 1.0,
+        max_retries: int = 0,
+        show_window: bool = True,
+        window_name: str = "Library Entry Tracking",
+        enable_zone_editor: bool = True,
+        on_zone_changed: Optional[Callable[[EntranceZoneConfig], None]] = None,
+        db_config: Optional[Dict[str, Any]] = None,
+    ):
+        self.video_input = VideoInputModule(
+            source=video_source,
+            reconnect_delay=reconnect_delay,
+            max_retries=max_retries,
         )
-        
-        self._running = False
-    
+
+        self.tracking_module = YOLOTrackingModule(
+            detector=detector,
+            tracker_config=tracker_config,
+            confidence_threshold=confidence_threshold,
+            iou_threshold=iou_threshold,
+            image_size=image_size,
+            preprocess_enabled=preprocess_enabled,
+            preprocess_upscale=preprocess_upscale,
+            preprocess_clahe_clip=preprocess_clahe_clip,
+            preprocess_denoise=preprocess_denoise,
+        )
+        self.process_every_n_frames = max(1, int(process_every_n_frames))
+        self._last_tracks = []
+
+        self.entry_analysis = TrajectoryEntryAnalysisModule(zone_config=zone_config)
+        self.zone_config = zone_config
+
+        self.db = None
+        if db_config:
+            self.db = DatabaseHandler(**db_config)
+
+        self.occupancy_state = OccupancyStateModule(db=self.db)
+        self.visualization = VisualizationOutputModule(
+            show_window=show_window,
+            window_name=window_name,
+            enable_zone_editor=enable_zone_editor,
+            on_zone_changed=self._handle_zone_changed,
+        )
+        self._on_zone_changed = on_zone_changed
+
+        self.running = False
+
     def start(self):
-        """Startet die Live-Ueberwachung und Verarbeitung"""
-        # Datenbank vorbereiten
-        if not self.db.connect():
-            print("[ERROR] Datenbankverbindung fehlgeschlagen")
+        if self.db:
+            if not self.db.connect():
+                print("[ERROR] Datenbankverbindung fehlgeschlagen")
+                return
+            if not self.db.create_tables():
+                print("[ERROR] Tabellen konnten nicht erstellt werden")
+                return
+            self.occupancy_state.initialize_from_db()
+
+        if not self.video_input.open():
+            print("[ERROR] Videoquelle konnte nicht geöffnet werden")
             return
-        
-        if not self.db.create_tables():
-            print("[ERROR] Tabellenerstellung fehlgeschlagen")
-            return
-        
-        print(f"\n{'='*80}")
-        print(f"[SYSTEM] LIVE-PERSONENERKENNUNG GESTARTET")
-        print(f"{'='*80}")
-        print(f"  Modell: {self.detector.model_name} v{self.detector.model_version}")
-        print(f"  Ordner X: {self.input_x}")
-        print(f"  Ordner Y: {self.input_y}")
-        print(f"  Poll-Intervall: {self.poll_interval}s")
-        print(f"{'='*80}\n")
-        print("[INFO] Warte auf neue Bilder...\n")
-        
-        self._running = True
-        processed_count = 0
-        
+
+        print("\n" + "=" * 80)
+        print("[SYSTEM] LIVE TRACKING GESTARTET (YOLO TRACK)")
+        print("=" * 80)
+        print(f"  Modell: {self.tracking_module.detector.model_name} v{self.tracking_module.detector.model_version}")
+        print(f"  Tracker: {self.tracking_module.tracker_config}")
+        print(f"  Nur Klasse: person (COCO=0)")
+        print("  Beenden: Taste 'q' oder ESC")
+        print("=" * 80 + "\n")
+
+        self.running = True
+        frame_idx = 0
+
         try:
-            # watch() gibt 3 Werte zurueck: (source, img, file_path)
-            for source, img, file_path in self.loader.watch():
-                if not self._running:
-                    break
-                
-                if img is None:
+            while self.running:
+                ok, frame = self.video_input.read()
+                if not ok or frame is None:
+                    print("[WARN] Kein Frame verfügbar – retry...")
+                    time.sleep(0.05)
                     continue
-                
-                processed_count += 1
-                success = self._process_image(source, img, processed_count)
-                
-                # Loesche Datei nach erfolgreicher Verarbeitung
-                if success:
-                    self.loader.confirm_processed(file_path)
+
+                frame_idx += 1
+                run_tracking_now = (frame_idx % self.process_every_n_frames) == 0
+                if run_tracking_now:
+                    tracks = self.tracking_module.track(frame)
+                    self._last_tracks = tracks
                 else:
-                    # Bei Fehler trotzdem loeschen um Endlosschleife zu vermeiden
-                    self.loader.confirm_processed(file_path)
-                
+                    tracks = self._last_tracks
+
+                events = self.entry_analysis.update(tracks=tracks, frame_shape=frame.shape) if run_tracking_now else []
+                frame_entries = 0
+                frame_exits = 0
+
+                for event in events:
+                    if self.occupancy_state.handle_event(event):
+                        event_type = str(event.get("type", "entry")).upper()
+                        if event_type == "ENTRY":
+                            frame_entries += 1
+                        elif event_type == "EXIT":
+                            frame_exits += 1
+                        print(
+                            f"[{event_type}] Frame={frame_idx} | TrackID={event['track_id']} | "
+                            f"Occupancy={self.occupancy_state.occupancy}"
+                        )
+
+                frame_h, frame_w = frame.shape[:2]
+                vis_frame = self.visualization.draw(
+                    frame=frame,
+                    tracks=tracks,
+                    zone_config=self.zone_config,
+                    occupancy=self.occupancy_state.occupancy,
+                    entries_total=self.occupancy_state.entries_total,
+                    exits_total=self.occupancy_state.exits_total,
+                    events_in_frame={"entry": frame_entries, "exit": frame_exits},
+                )
+                self.visualization.show(vis_frame)
+
+                if self.visualization.show_window:
+                    key = self.visualization.wait_key(1)
+                    self.visualization.handle_key(key)
+                    if self.visualization.should_quit(key):
+                        break
+
+                if not self.visualization.show_window:
+                    time.sleep(0.001)
+
         except KeyboardInterrupt:
-            print("\n\n[INFO] Verarbeitung durch Benutzer abgebrochen")
+            print("\n[INFO] Abbruch durch Benutzer")
         finally:
             self.stop()
-    
-    def _process_image(self, source: str, img, count: int) -> bool:
-        """
-        Verarbeitet ein einzelnes Bild
-        
-        Args:
-            source: Quelle (input_x oder input_y)
-            img: OpenCV Bildobjekt
-            count: Laufende Nummer
-            
-        Returns:
-            True bei Erfolg, False bei Fehler
-        """
-        start_time = time.time()
-        timestamp = datetime.now()
-        
-        try:
-            # Detection durchfuehren
-            result = self.detector.detect(img)
-            processing_time = time.time() - start_time
-            
-            # In Datenbank speichern
-            detection_id = self.db.insert_detection(
-                source=source,
-                persons_detected=result['persons_detected'],
-                avg_confidence=result['avg_confidence'],
-                max_confidence=result['max_confidence'],
-                min_confidence=result['min_confidence'],
-                detection_data=result
-            )
-            
-            # Komprimierte Log-Ausgabe
-            status = "[OK]" if detection_id else "[ERROR]"
-            print(f"[{count:04d}] {timestamp.strftime('%H:%M:%S.%f')[:-3]} | "
-                  f"{source:10s} | {result['persons_detected']:2d} Pers | "
-                  f"Conf: {result['avg_confidence']:.3f} | "
-                  f"{processing_time:.3f}s {status}")
-            
-            return detection_id is not None
-            
-        except Exception as e:
-            print(f"[{count:04d}] {timestamp.strftime('%H:%M:%S.%f')[:-3]} | "
-                  f"{source:10s} | [ERROR] {e}")
-            return False
-    
+
+    def _handle_zone_changed(self, new_zone_config: EntranceZoneConfig):
+        self.zone_config = new_zone_config
+        self.entry_analysis.set_zone_config(new_zone_config)
+        if self._on_zone_changed:
+            self._on_zone_changed(new_zone_config)
+
     def stop(self):
-        """Stoppt die Verarbeitung"""
-        print("\n[INFO] Stoppe Live-Verarbeitung...")
-        self._running = False
-        self.loader.stop()
-        self.db.close()
-        print("[INFO] Verarbeitung beendet")
-
-
-if __name__ == "__main__":
-    # Beispiel-Verwendung
-    from UltralyticsPersonDetector import UltralyticsPersonDetector
-    
-    db_config = {
-        'host': 'localhost',
-        'user': 'aiuser',
-        'password': 'DHBW1234!?',
-        'database': 'ai_detection',
-        'port': 5432
-    }
-    
-    detector = UltralyticsPersonDetector(
-        model_path="yolov8n.pt",
-        confidence_threshold=0.5
-    )
-    
-    processor = LiveProcessor(
-        detector=detector,
-        db_config=db_config,
-        input_x="input_x",
-        input_y="input_y",
-        poll_interval=0.5
-    )
-    
-    processor.start()
+        self.running = False
+        self.video_input.release()
+        self.visualization.close()
+        if self.db:
+            self.db.close()
+        print(
+            f"[INFO] Tracking beendet | Entries={self.occupancy_state.entries_total} | "
+            f"Exits={self.occupancy_state.exits_total} | "
+            f"Occupancy={self.occupancy_state.occupancy}"
+        )

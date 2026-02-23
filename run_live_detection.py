@@ -1,129 +1,109 @@
 #!/usr/bin/env python3
 """
-Hauptprogramm fuer Live-Personenerkennung
-Ueberwacht zwei Ordner und verarbeitet Bilder in Echtzeit
+Startskript für YOLO26-Tracking basierte Live-Erkennung am Bibliothekseingang.
 """
 
 import argparse
-import sys
 import logging
-from pathlib import Path
+import sys
+from typing import Any, Dict, Optional
 
-from UltralyticsPersonDetector import UltralyticsPersonDetector
+from ConfigManager import ConfigManager
 from LiveProcessor import LiveProcessor
+from TrajectoryEntryAnalysisModule import EntranceZoneConfig
+from UltralyticsPersonDetector import UltralyticsPersonDetector
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def validate_arguments(args) -> bool:
-    """
-    Validiert die Kommandozeilenargumente
-    
-    Args:
-        args: Geparste Argumente
-        
-    Returns:
-        True bei Erfolg
-    """
-    # Ordner pruefen/erstellen
-    for folder in [args.input_x, args.input_y]:
-        folder_path = Path(folder)
-        if not folder_path.exists():
-            try:
-                folder_path.mkdir(parents=True, exist_ok=True)
-                print(f"[INFO] Ordner erstellt: {folder}")
-            except Exception as e:
-                logger.error(f"Fehler beim Erstellen von {folder}: {e}")
-                return False
-    
-    # Confidence-Threshold pruefen
-    if not 0.0 <= args.confidence_threshold <= 1.0:
-        logger.error(f"Confidence-Threshold muss zwischen 0.0 und 1.0 liegen: {args.confidence_threshold}")
-        return False
-    
-    return True
+def _parse_args():
+    parser = argparse.ArgumentParser(
+        description="Live people tracking + occupancy counting with Ultralytics YOLO track API",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--config", default="config.yaml", help="Pfad zur YAML-Konfiguration")
+    parser.add_argument("--video-source", default=None, help="Optionaler Override für Videoquelle")
+    parser.add_argument("--show-window", action="store_true", help="Window explizit aktivieren")
+    parser.add_argument("--headless", action="store_true", help="Window explizit deaktivieren")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Debug logging")
+    return parser.parse_args()
+
+
+def _build_db_config(config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    db = config["database"]
+    if not db.get("enabled", False):
+        return None
+    return {
+        "host": db["host"],
+        "user": db["user"],
+        "password": db["password"],
+        "database": db["database"],
+        "port": int(db["port"]),
+    }
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Live-Personenerkennung mit Ultralytics YOLO',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    
-    # Datenbank-Konfiguration
-    parser.add_argument('--db-host', default='localhost', help='PostgreSQL Host')
-    parser.add_argument('--db-user', required=True, help='PostgreSQL Benutzername')
-    parser.add_argument('--db-password', required=True, help='PostgreSQL Passwort')
-    parser.add_argument('--db-name', required=True, help='PostgreSQL Datenbankname')
-    parser.add_argument('--db-port', type=int, default=5432, help='PostgreSQL Port')
-    
-    # Ordner-Konfiguration
-    parser.add_argument('--input-x', default='input_x', help='Pfad zu Eingabeordner X')
-    parser.add_argument('--input-y', default='input_y', help='Pfad zu Eingabeordner Y')
-    
-    # Modell-Konfiguration
-    parser.add_argument('--yolo-model', default='yolov8n.pt', help='Pfad zum YOLO Modell')
-    parser.add_argument('--confidence-threshold', type=float, default=0.5, 
-                       help='Mindest-Konfidenz fuer Detections')
-    
-    # Verarbeitungs-Konfiguration
-    parser.add_argument('--poll-interval', type=float, default=0.5,
-                       help='Intervall zwischen Ordner-Checks (Sekunden)')
-    
-    # Debug-Optionen
-    parser.add_argument('--verbose', '-v', action='store_true', help='Detaillierte Ausgabe')
-    
-    args = parser.parse_args()
-    
-    # Logging-Level anpassen
+    args = _parse_args()
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
-    
-    # Argumente validieren
-    if not validate_arguments(args):
-        sys.exit(1)
-    
-    # Datenbankverbindung konfigurieren
-    db_config = {
-        'host': args.db_host,
-        'user': args.db_user,
-        'password': args.db_password,
-        'database': args.db_name,
-        'port': args.db_port
-    }
-    
+
+    config_manager = ConfigManager(config_path=args.config)
+    config = config_manager.load()
+
+    if args.video_source:
+        config["video"]["source"] = args.video_source
+    if args.show_window:
+        config["ui"]["show_window"] = True
+    if args.headless:
+        config["ui"]["show_window"] = False
+
+    zone_config = EntranceZoneConfig.from_dict(config["zone"])
+    db_config = _build_db_config(config)
+
+    def _persist_zone_update(updated_zone: EntranceZoneConfig):
+        # Nicht-trivial: Änderungen aus der Live-UI sollen sofort wirksam und
+        # reboot-sicher sein. Deshalb schreiben wir direkt zurück in die YAML.
+        config_manager.update_zone(updated_zone.to_dict())
+
     try:
-        # Detector erstellen
-        print(f"[INFO] Initialisiere YOLO Detektor ({args.yolo_model})...")
         detector = UltralyticsPersonDetector(
-            model_path=args.yolo_model,
-            confidence_threshold=args.confidence_threshold
+            model_path=config["tracking"]["model_path"],
+            confidence_threshold=float(config["tracking"]["confidence_threshold"]),
+            device=str(config["tracking"].get("device", "cpu")),
         )
-        
-        # Live-Processor erstellen
+
         processor = LiveProcessor(
             detector=detector,
+            video_source=str(config["video"]["source"]),
+            zone_config=zone_config,
+            tracker_config=str(config["tracking"]["tracker"]),
+            confidence_threshold=float(config["tracking"]["confidence_threshold"]),
+            iou_threshold=float(config["tracking"]["iou_threshold"]),
+            image_size=int(config["tracking"]["imgsz"]),
+            process_every_n_frames=int(config["tracking"].get("process_every_n_frames", 1)),
+            preprocess_enabled=bool(config.get("preprocess", {}).get("enabled", False)),
+            preprocess_upscale=float(config.get("preprocess", {}).get("upscale", 1.0)),
+            preprocess_clahe_clip=float(config.get("preprocess", {}).get("clahe_clip", 2.0)),
+            preprocess_denoise=bool(config.get("preprocess", {}).get("denoise", False)),
+            reconnect_delay=float(config["video"]["reconnect_delay"]),
+            max_retries=int(config["video"]["max_retries"]),
+            show_window=bool(config["ui"]["show_window"]),
+            window_name=str(config["ui"].get("window_name", "Library Entry Tracking")),
+            enable_zone_editor=bool(config["ui"].get("enable_zone_editor", True)),
+            on_zone_changed=_persist_zone_update,
             db_config=db_config,
-            input_x=args.input_x,
-            input_y=args.input_y,
-            poll_interval=args.poll_interval
         )
-        
-        # Verarbeitung starten
         processor.start()
-        
+
     except KeyboardInterrupt:
-        print("\n[INFO] Programm durch Benutzer abgebrochen")
         sys.exit(130)
-    except Exception as e:
-        logger.error(f"[ERROR] Kritischer Fehler: {e}")
+    except Exception as exc:
+        logger.error(f"Kritischer Fehler: {exc}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 

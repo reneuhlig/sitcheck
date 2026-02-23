@@ -1,8 +1,4 @@
-# === Kamera-Upload-Verzeichnisse ===
-/sitcheck/input_x/
-/sitcheck/input_y/
-
-# optional: temporäre Verzeichnisse
+# Laufzeit-/temporäre Artefakte
 *.jpg
 *.jpeg
 *.png
@@ -12,3 +8,6 @@
 /tmp/
 /temp/
 /camera_snapshots/
+logs/
+__pycache__/
+temp_test_images/

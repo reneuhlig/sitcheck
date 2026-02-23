@@ -1,0 +1,93 @@
+video:
+  source: https://www.youtube.com/watch?v=8JCk5M_xrBs
+  reconnect_delay: 1.0
+  max_retries: 0
+tracking:
+  model_path: yolo26n.pt
+  device: cpu
+  tracker: bytetrack.yaml
+  confidence_threshold: 0.25
+  iou_threshold: 0.45
+  imgsz: 512
+  process_every_n_frames: 2
+preprocess:
+  enabled: false
+  upscale: 1.0
+  clahe_clip: 2.0
+  denoise: false
+dashboard:
+  stream_fps: 25
+  capture_buffer_size: 24
+  model_buffer_size: 6
+  model_latency_frames: 2
+  render_buffer_size: 12
+zone:
+  mode: dual_polygon
+  line:
+    p1:
+    - 0.35
+    - 0.65
+    p2:
+    - 0.65
+    - 0.65
+    entry_direction: positive_to_negative
+  polygon:
+    points:
+    - - 0.8597701149425288
+      - 0.2701303680981595
+    - - 0.8724137931034482
+      - 0.6361835378323109
+    - - 0.9747126436781609
+      - 0.8549974437627812
+    - - 0.9942528735632183
+      - 0.6116436605316974
+    - - 0.993103448275862
+      - 0.38055981595092025
+    - - 0.896551724137931
+      - 0.212870654396728
+    - - 0.8666666666666667
+      - 0.1699258691206544
+  entry_polygon:
+    points:
+    - - 0.8597701149425288
+      - 0.2701303680981595
+    - - 0.8724137931034482
+      - 0.6361835378323109
+    - - 0.9747126436781609
+      - 0.8549974437627812
+    - - 0.9942528735632183
+      - 0.6116436605316974
+    - - 0.993103448275862
+      - 0.38055981595092025
+    - - 0.896551724137931
+      - 0.212870654396728
+    - - 0.8666666666666667
+      - 0.1699258691206544
+  exit_polygon:
+    points:
+    - - 0.8551724137931035
+      - 0.20060071574642127
+    - - 0.774712643678161
+      - 0.20878067484662577
+    - - 0.005747126436781609
+      - 0.8836273006134969
+    - - 0.9919540229885058
+      - 0.9899667689161554
+    - - 0.9781609195402299
+      - 0.8652223926380368
+    - - 0.8666666666666667
+      - 0.6525434560327198
+  min_crossing_displacement_px: 20.0
+  min_track_points: 4
+  min_event_cooldown_frames: 8
+ui:
+  show_window: true
+  enable_zone_editor: true
+  window_name: Library Entry Tracking
+database:
+  enabled: false
+  host: localhost
+  user: aiuser
+  password: DHBW1234!?
+  database: ai_detection
+  port: 5432
