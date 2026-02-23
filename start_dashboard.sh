@@ -48,6 +48,7 @@ for mod, pkg in [
     ("yaml", "pyyaml"),
     ("yt_dlp", "yt-dlp"),
     ("flask", "flask"),
+    ("imageio_ffmpeg", "imageio-ffmpeg"),
 ]:
     try:
         __import__(mod)

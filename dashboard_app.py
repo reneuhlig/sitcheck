@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 import argparse
 from collections import deque
+import os
+import shutil
+import subprocess
 import threading
 import time
 from typing import Any, Dict, Optional
 
 import cv2
-from flask import Flask, Response, jsonify, render_template_string, request
+from flask import Flask, jsonify, render_template_string, request, send_from_directory
 
 from ConfigManager import ConfigManager
 from OccupancyStateModule import OccupancyStateModule
@@ -31,7 +34,8 @@ HTML_PAGE = """
     .panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 12px; }
     .title { margin: 0 0 10px; font-size: 16px; }
     .feed-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; border-radius: 8px; }
-    #feed { width: 100%; height: 100%; object-fit: contain; display: block; }
+    #hlsFeed { width: 100%; height: 100%; object-fit: contain; display: block; }
+    #hlsFeed { background: #000; }
     #overlay { position: absolute; inset: 0; pointer-events: auto; }
     .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
     .stat { background: #0b1220; border: 1px solid #1f2937; border-radius: 8px; padding: 8px; flex: 1 1 120px; }
@@ -49,9 +53,10 @@ HTML_PAGE = """
       <div class="panel">
         <h3 class="title">Live Feed + Tracking</h3>
         <div class="feed-wrap">
-          <img id="feed" src="/video_feed" alt="live feed" />
+          <video id="hlsFeed" muted autoplay playsinline></video>
           <canvas id="overlay"></canvas>
         </div>
+        <div id="stream_status" class="muted" style="margin-top:8px;">Stream verbindet...</div>
         <div class="muted" style="margin-top:8px;">Klicke im Feed, um Zonenpunkte zu setzen. In `dual_polygon` bearbeitest du Entry/Exit getrennt.</div>
       </div>
 
@@ -105,8 +110,9 @@ HTML_PAGE = """
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script>
-    const feed = document.getElementById('feed');
+    const hlsFeed = document.getElementById('hlsFeed');
     const canvas = document.getElementById('overlay');
     const ctx = canvas.getContext('2d');
 
@@ -122,7 +128,9 @@ HTML_PAGE = """
     const inferFpsEl = document.getElementById('infer_fps');
     const eventsEl = document.getElementById('events');
     const statusEl = document.getElementById('status');
+    const streamStatusEl = document.getElementById('stream_status');
     const activePolySel = document.getElementById('activePoly');
+    const HLS_ENABLED = {{ hls_enabled|tojson }};
 
     let zone = {
       mode: 'line',
@@ -135,9 +143,48 @@ HTML_PAGE = """
       min_event_cooldown_frames: 8
     };
     let lineStage = 0;
+    let hlsController = null;
+
+    function initHlsPlayer() {
+      if (!HLS_ENABLED) {
+        streamStatusEl.textContent = 'HLS ist deaktiviert';
+        return;
+      }
+
+      streamStatusEl.textContent = 'HLS wird initialisiert...';
+
+      const hlsUrl = `/hls/stream.m3u8?_t=${Date.now()}`;
+      if (window.Hls && window.Hls.isSupported()) {
+        hlsController = new window.Hls({
+          lowLatencyMode: true,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 10,
+          backBufferLength: 30,
+        });
+        hlsController.loadSource(hlsUrl);
+        hlsController.attachMedia(hlsFeed);
+        hlsController.on(window.Hls.Events.MANIFEST_PARSED, () => {
+          streamStatusEl.textContent = 'HLS aktiv';
+          hlsFeed.play().catch(() => {});
+        });
+        hlsController.on(window.Hls.Events.ERROR, (_ev, data) => {
+          if (data && data.fatal) {
+            streamStatusEl.textContent = 'HLS Fehler: Stream neu laden';
+          }
+        });
+      } else if (hlsFeed.canPlayType('application/vnd.apple.mpegurl')) {
+        hlsFeed.src = hlsUrl;
+        hlsFeed.addEventListener('loadedmetadata', () => {
+          streamStatusEl.textContent = 'HLS aktiv';
+          hlsFeed.play().catch(() => {});
+        }, { once: true });
+      } else {
+        streamStatusEl.textContent = 'Browser unterstützt HLS nicht';
+      }
+    }
 
     function syncCanvasSize() {
-      const rect = feed.getBoundingClientRect();
+      const rect = hlsFeed.getBoundingClientRect();
       canvas.width = Math.max(1, Math.floor(rect.width));
       canvas.height = Math.max(1, Math.floor(rect.height));
     }
@@ -289,15 +336,148 @@ HTML_PAGE = """
     activePolySel.addEventListener('change', drawZone);
 
     window.addEventListener('resize', drawZone);
-    feed.addEventListener('load', drawZone);
 
     reloadZone();
+    initHlsPlayer();
     setInterval(pollState, 1000);
     setInterval(drawZone, 1000);
   </script>
 </body>
 </html>
 """
+
+
+class HLSStreamer:
+  def __init__(self, output_dir: str, fps: float, segment_time: float = 1.0, list_size: int = 12):
+    self.output_dir = output_dir
+    self.fps = max(1.0, float(fps))
+    self.segment_time = max(0.5, float(segment_time))
+    self.list_size = max(3, int(list_size))
+    self._process: Optional[subprocess.Popen] = None
+    self._ffmpeg_executable = self._resolve_ffmpeg_executable()
+    self._enabled = self._ffmpeg_executable is not None
+    self._lock = threading.Lock()
+    self._preview_path = os.path.join(self.output_dir, "preview.jpg")
+
+  @staticmethod
+  def _resolve_ffmpeg_executable() -> Optional[str]:
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+      return system_ffmpeg
+    try:
+      import imageio_ffmpeg
+
+      return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+      return None
+
+  @property
+  def enabled(self) -> bool:
+    return self._enabled
+
+  @property
+  def preview_path(self) -> str:
+    return self._preview_path
+
+  def start(self):
+    if not self._enabled:
+      return
+    os.makedirs(self.output_dir, exist_ok=True)
+    for name in os.listdir(self.output_dir):
+      if name.endswith(".ts") or name.endswith(".m3u8"):
+        try:
+          os.remove(os.path.join(self.output_dir, name))
+        except OSError:
+          pass
+
+    segment_pattern = os.path.join(self.output_dir, "seg_%06d.ts")
+    playlist_path = os.path.join(self.output_dir, "stream.m3u8")
+    gop = max(10, int(round(self.fps * 2.0)))
+
+    command = [
+      self._ffmpeg_executable,
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-f",
+      "mjpeg",
+      "-r",
+      str(self.fps),
+      "-i",
+      "pipe:0",
+      "-an",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-tune",
+      "zerolatency",
+      "-pix_fmt",
+      "yuv420p",
+      "-g",
+      str(gop),
+      "-keyint_min",
+      str(gop),
+      "-sc_threshold",
+      "0",
+      "-f",
+      "hls",
+      "-hls_time",
+      str(self.segment_time),
+      "-hls_list_size",
+      str(self.list_size),
+      "-hls_flags",
+      "delete_segments+append_list+independent_segments+omit_endlist",
+      "-hls_segment_filename",
+      segment_pattern,
+      playlist_path,
+    ]
+
+    self._process = subprocess.Popen(
+      command,
+      stdin=subprocess.PIPE,
+      stdout=subprocess.DEVNULL,
+      stderr=subprocess.DEVNULL,
+    )
+
+  def write_jpeg(self, jpeg: bytes):
+    if not self._enabled or self._process is None or self._process.stdin is None:
+      return
+    with self._lock:
+      if self._process.poll() is not None:
+        return
+      try:
+        self._process.stdin.write(jpeg)
+        self._process.stdin.flush()
+      except Exception:
+        pass
+
+  def write_preview(self, jpeg: bytes):
+    try:
+      os.makedirs(self.output_dir, exist_ok=True)
+      with open(self._preview_path, "wb") as handle:
+        handle.write(jpeg)
+    except Exception:
+      pass
+
+  def stop(self):
+    if self._process is None:
+      return
+    try:
+      if self._process.stdin:
+        self._process.stdin.close()
+    except Exception:
+      pass
+    try:
+      self._process.terminate()
+      self._process.wait(timeout=1)
+    except Exception:
+      try:
+        self._process.kill()
+      except Exception:
+        pass
+    self._process = None
 
 
 class TrackingEngine:
@@ -340,10 +520,23 @@ class TrackingEngine:
 
         dashboard_cfg = self.config.get("dashboard", {})
         self.stream_fps = float(dashboard_cfg.get("stream_fps", 25.0))
-        self.capture_buffer_size = max(2, int(dashboard_cfg.get("capture_buffer_size", 24)))
-        self.model_buffer_size = max(2, int(dashboard_cfg.get("model_buffer_size", 6)))
-        self.model_latency_frames = max(0, int(dashboard_cfg.get("model_latency_frames", 2)))
-        self.render_buffer_size = max(2, int(dashboard_cfg.get("render_buffer_size", 12)))
+        self.jpeg_quality = max(40, min(95, int(dashboard_cfg.get("jpeg_quality", 80))))
+        self.stream_max_width = max(320, int(dashboard_cfg.get("stream_max_width", 960)))
+        hls_cfg = dashboard_cfg.get("hls", {})
+        self.hls_enabled = bool(hls_cfg.get("enabled", True))
+        self.hls_output_dir = str(hls_cfg.get("output_dir", "hls"))
+        self.hls_segment_time = float(hls_cfg.get("segment_time", 1.0))
+        self.hls_list_size = int(hls_cfg.get("list_size", 12))
+        self.analysis_queue_frames = max(8, int(dashboard_cfg.get("analysis_queue_frames", 64)))
+        self.analysis_skip_threshold_frames = max(0, int(dashboard_cfg.get("analysis_skip_threshold_frames", 0)))
+        self.hls_streamer = HLSStreamer(
+          output_dir=self.hls_output_dir,
+          fps=self.stream_fps,
+          segment_time=self.hls_segment_time,
+          list_size=self.hls_list_size,
+        )
+        if not self.hls_enabled:
+          self.hls_streamer._enabled = False
 
         self.entries_total = 0
         self.exits_total = 0
@@ -352,135 +545,174 @@ class TrackingEngine:
         self.last_exits = 0
         self.last_fps = 0.0
         self.last_inference_fps = 0.0
+        self.analysis_skipped_frames = 0
 
-        self._last_jpeg: Optional[bytes] = None
         self._lock = threading.Lock()
+        self._packet_cv = threading.Condition(self._lock)
         self._running = False
-        self._thread: Optional[threading.Thread] = None
         self._capture_thread: Optional[threading.Thread] = None
         self._inference_thread: Optional[threading.Thread] = None
-        self._frame_idx = 0
+        self._packetizer_thread: Optional[threading.Thread] = None
+        self._capture_frame_idx = 0
         self._last_tracks_cache = []
-        self._capture_queue = deque(maxlen=self.capture_buffer_size)
-        self._model_queue = deque(maxlen=self.model_buffer_size)
-        self._render_queue = deque(maxlen=self.render_buffer_size)
-        self._last_raw_jpeg: Optional[bytes] = None
+        self._analysis_queue = deque()
+        self._latest_visual_jpeg: Optional[bytes] = None
+        self._latest_raw_jpeg: Optional[bytes] = None
+        self._hls_frame_counter = 0
 
     def start(self):
-        if self._running:
-            return
-        if not self.video_input.open():
-            return
-        self._running = True
-        self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
-        self._inference_thread = threading.Thread(target=self._inference_loop, daemon=True)
-        self._capture_thread.start()
-        self._inference_thread.start()
+      if self._running:
+        return
+      self.video_input.open()
+      self.hls_streamer.start()
+      self._running = True
+      self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
+      self._inference_thread = threading.Thread(target=self._inference_loop, daemon=True)
+      self._packetizer_thread = threading.Thread(target=self._packetizer_loop, daemon=True)
+      self._capture_thread.start()
+      self._inference_thread.start()
+      self._packetizer_thread.start()
 
     def stop(self):
-        self._running = False
-        if self._capture_thread:
-            self._capture_thread.join(timeout=2)
-        if self._inference_thread:
-            self._inference_thread.join(timeout=2)
-        self.video_input.release()
+      self._running = False
+      if self._capture_thread:
+        self._capture_thread.join(timeout=2)
+      if self._inference_thread:
+        self._inference_thread.join(timeout=2)
+      if self._packetizer_thread:
+        self._packetizer_thread.join(timeout=2)
+      self.hls_streamer.stop()
+      self.video_input.release()
+
+    def _encode_stream_jpeg(self, frame):
+      encode_frame = frame
+      frame_h, frame_w = frame.shape[:2]
+      if frame_w > self.stream_max_width:
+        scale = self.stream_max_width / float(frame_w)
+        target_h = max(1, int(frame_h * scale))
+        encode_frame = cv2.resize(frame, (self.stream_max_width, target_h), interpolation=cv2.INTER_AREA)
+
+      return cv2.imencode(
+        ".jpg",
+        encode_frame,
+        [
+          int(cv2.IMWRITE_JPEG_QUALITY),
+          self.jpeg_quality,
+          int(cv2.IMWRITE_JPEG_OPTIMIZE),
+          1,
+        ],
+      )
 
     def _capture_loop(self):
-        while self._running:
-            ok, frame = self.video_input.read()
-            if not ok or frame is None:
-                time.sleep(0.02)
-                continue
+      while self._running:
+        frame = None
+        ok, frame = self.video_input.read()
+        if not ok or frame is None:
+          time.sleep(0.02)
+          continue
 
-            with self._lock:
-                self._capture_queue.append(frame)
-                self._model_queue.append(frame)
+        enqueued = False
+        while self._running and not enqueued:
+          with self._lock:
+            if len(self._analysis_queue) < self.analysis_queue_frames:
+              self._capture_frame_idx += 1
+              frame_id = self._capture_frame_idx
+              self._analysis_queue.append((frame_id, frame))
+              enqueued = True
+          if not enqueued:
+            time.sleep(0.002)
 
-            ok_jpeg, encoded = cv2.imencode(".jpg", frame)
-            if ok_jpeg:
-                with self._lock:
-                    self._last_raw_jpeg = encoded.tobytes()
+        ok_jpeg, encoded = self._encode_stream_jpeg(frame)
+        if ok_jpeg:
+          with self._packet_cv:
+            self._latest_raw_jpeg = encoded.tobytes()
+            self._packet_cv.notify_all()
 
     def _inference_loop(self):
-        target_frame_interval = 1.0 / max(1.0, self.stream_fps)
+      while self._running:
+        t0 = time.time()
 
-        while self._running:
-            t0 = time.time()
-            self._frame_idx += 1
-
-            with self._lock:
-                if not self._capture_queue:
-                    frame = None
-                else:
-                    frame = self._capture_queue.popleft()
-
-                if not self._model_queue:
-                    model_frame = frame
-                else:
-                    delay_idx = max(0, len(self._model_queue) - 1 - self.model_latency_frames)
-                    model_frame = self._model_queue[delay_idx]
-
-            if frame is None or model_frame is None:
-                time.sleep(0.01)
-                continue
-
-            run_tracking_now = (self._frame_idx % self.process_every_n_frames) == 0
-            if run_tracking_now:
-                infer_t0 = time.time()
-                tracks = self.tracking_module.track(model_frame)
-                self._last_tracks_cache = tracks
-                infer_elapsed = max(1e-6, time.time() - infer_t0)
-                self.last_inference_fps = round(1.0 / infer_elapsed, 2)
-            else:
-                tracks = self._last_tracks_cache
-
-            events = self.entry_analysis.update(tracks=tracks, frame_shape=frame.shape) if run_tracking_now else []
-            frame_entries = 0
-            frame_exits = 0
-            for event in events:
-                if self.occupancy_state.handle_event(event):
-                    if str(event.get("type", "entry")).lower() == "entry":
-                        self.entries_total += 1
-                        frame_entries += 1
-                    elif str(event.get("type", "entry")).lower() == "exit":
-                        self.exits_total += 1
-                        frame_exits += 1
-
-            output = self.visualizer.draw(
-                frame=frame,
-                tracks=tracks,
-                zone_config=self.zone_config,
-                occupancy=self.occupancy_state.occupancy,
-                entries_total=self.entries_total,
-                exits_total=self.exits_total,
-                events_in_frame={"entry": frame_entries, "exit": frame_exits},
-            )
-
-            ok_jpeg, encoded = cv2.imencode(".jpg", output)
-            if ok_jpeg:
-                with self._lock:
-                    jpeg = encoded.tobytes()
-                    self._last_jpeg = jpeg
-                    self._render_queue.append(jpeg)
-                    self.last_tracks = len(tracks)
-                    self.last_entries = frame_entries
-                    self.last_exits = frame_exits
-                    elapsed = max(1e-6, time.time() - t0)
-                    self.last_fps = round(1.0 / elapsed, 2)
-
-            elapsed = time.time() - t0
-            if elapsed < target_frame_interval:
-                time.sleep(target_frame_interval - elapsed)
-
-    def get_frame(self) -> Optional[bytes]:
         with self._lock:
-            if self._render_queue:
-                frame = self._render_queue.popleft()
-                self._last_jpeg = frame
-                return frame
-            if self._last_jpeg is not None:
-                return self._last_jpeg
-            return self._last_raw_jpeg
+          if not self._analysis_queue:
+            frame_tuple = None
+          else:
+            if self.analysis_skip_threshold_frames > 0:
+              while len(self._analysis_queue) > self.analysis_skip_threshold_frames:
+                self._analysis_queue.popleft()
+                self.analysis_skipped_frames += 1
+            frame_tuple = self._analysis_queue.popleft() if self._analysis_queue else None
+
+        if frame_tuple is None:
+          time.sleep(0.005)
+          continue
+
+        frame_id, frame = frame_tuple
+        run_tracking_now = (frame_id % self.process_every_n_frames) == 0
+
+        if run_tracking_now:
+          infer_t0 = time.time()
+          tracks = self.tracking_module.track(frame)
+          self._last_tracks_cache = tracks
+          infer_elapsed = max(1e-6, time.time() - infer_t0)
+          self.last_inference_fps = round(1.0 / infer_elapsed, 2)
+        else:
+          tracks = self._last_tracks_cache
+
+        events = self.entry_analysis.update(tracks=tracks, frame_shape=frame.shape) if run_tracking_now else []
+        frame_entries = 0
+        frame_exits = 0
+        for event in events:
+          if self.occupancy_state.handle_event(event):
+            if str(event.get("type", "entry")).lower() == "entry":
+              self.entries_total += 1
+              frame_entries += 1
+            elif str(event.get("type", "entry")).lower() == "exit":
+              self.exits_total += 1
+              frame_exits += 1
+
+        output = self.visualizer.draw(
+          frame=frame,
+          tracks=tracks,
+          zone_config=self.zone_config,
+          occupancy=self.occupancy_state.occupancy,
+          entries_total=self.entries_total,
+          exits_total=self.exits_total,
+          events_in_frame={"entry": frame_entries, "exit": frame_exits},
+        )
+
+        ok_jpeg, encoded = self._encode_stream_jpeg(output)
+        if ok_jpeg:
+          with self._packet_cv:
+            self._latest_visual_jpeg = encoded.tobytes()
+            self.last_tracks = len(tracks)
+            self.last_entries = frame_entries
+            self.last_exits = frame_exits
+            elapsed = max(1e-6, time.time() - t0)
+            self.last_fps = round(1.0 / elapsed, 2)
+            self._packet_cv.notify_all()
+
+    def _packetizer_loop(self):
+      packet_interval = 1.0 / max(1.0, self.stream_fps)
+      next_deadline = time.monotonic()
+
+      while self._running:
+        sleep_for = next_deadline - time.monotonic()
+        if sleep_for > 0:
+          time.sleep(sleep_for)
+
+        with self._packet_cv:
+          frame = self._latest_visual_jpeg or self._latest_raw_jpeg
+          if frame is not None:
+            self._hls_frame_counter += 1
+            self.hls_streamer.write_jpeg(frame)
+            if self._hls_frame_counter % max(1, int(self.stream_fps)) == 0:
+              self.hls_streamer.write_preview(frame)
+            self._packet_cv.notify_all()
+
+        next_deadline += packet_interval
+        now = time.monotonic()
+        if next_deadline < (now - packet_interval):
+          next_deadline = now
 
     def get_state(self) -> Dict[str, Any]:
         with self._lock:
@@ -493,8 +725,10 @@ class TrackingEngine:
                 "tracks": self.last_tracks,
                 "fps": self.last_fps,
                 "inference_fps": self.last_inference_fps,
-                "capture_queue": len(self._capture_queue),
-                "render_queue": len(self._render_queue),
+                "analysis_queue": len(self._analysis_queue),
+                "analysis_skipped_frames": self.analysis_skipped_frames,
+                "hls_enabled": self.hls_streamer.enabled,
+                "hls_output_dir": self.hls_output_dir,
                 "zone": self.zone_config.to_dict(),
             }
 
@@ -515,25 +749,18 @@ def create_app(config_path: str) -> Flask:
 
     @app.route("/")
     def index():
-        return render_template_string(HTML_PAGE)
+        return render_template_string(
+            HTML_PAGE,
+        hls_enabled=engine.hls_streamer.enabled,
+        )
 
-    def generate_mjpeg():
-      frame_interval = 1.0 / max(1.0, engine.stream_fps)
-      while True:
-        t0 = time.time()
-        frame = engine.get_frame()
-        if frame is None:
-          time.sleep(0.05)
-          continue
-        yield (b"--frame\r\n"
-             b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
-        elapsed = time.time() - t0
-        if elapsed < frame_interval:
-          time.sleep(frame_interval - elapsed)
+    @app.route("/hls/<path:filename>")
+    def hls_files(filename: str):
+      return send_from_directory(engine.hls_streamer.output_dir, filename, conditional=False)
 
-    @app.route("/video_feed")
-    def video_feed():
-        return Response(generate_mjpeg(), mimetype="multipart/x-mixed-replace; boundary=frame")
+    @app.route("/hls")
+    def hls_root():
+      return send_from_directory(engine.hls_streamer.output_dir, "stream.m3u8", conditional=False)
 
     @app.route("/api/state")
     def api_state():

@@ -11,3 +11,6 @@
 logs/
 __pycache__/
 temp_test_images/
+/hls/
+*.ts
+*.m3u8

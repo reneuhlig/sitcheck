@@ -49,6 +49,27 @@ Use browser dashboard for live stream + zone editing on servers without GUI:
 
 Default URL: `http://<server-ip>:8080`
 
+Das Dashboard nutzt jetzt primär HLS (HTML5-Video + `hls.js`) mit Server-seitigen Segmenten.
+Voraussetzung: `ffmpeg` (System) oder das Python-Paket `imageio-ffmpeg` (wird über `start_dashboard.sh` automatisch installiert).
+
+Für flüssiges HLS-Web-Streaming kannst du in `config.yaml` unter `dashboard` anpassen:
+- `stream_fps` (Ziel-Ausgabe-FPS im Browser)
+- `jpeg_quality` (40-95, niedriger = schneller/kleinere Frames)
+- `stream_max_width` (maximale Stream-Breite in Pixeln; kleiner = deutlich weniger Bandbreite)
+- `analysis_queue_frames` (Frame-Puffer für Ultralytics-Analyse)
+- `analysis_skip_threshold_frames` (0 = keine Analyse-Skips, >0 = bei Überlast ältere Analyse-Frames verwerfen)
+- `hls.enabled` (HLS-Generierung an/aus)
+- `hls.output_dir` (Segment-/Playlist-Ordner)
+- `hls.segment_time` (Segmentlänge in Sekunden)
+- `hls.list_size` (Anzahl Segmente in Live-Playlist)
+
+Hinweis: Das Dashboard verwendet jetzt ausschließlich den HLS-Pfad (kein MJPEG-/Packet-Fallback mehr).
+
+Effizienter Internet-Preset (ähnlich „adaptive light“):
+- `stream_fps: 20`
+- `jpeg_quality: 65`
+- `stream_max_width: 960`
+
 - `dual_polygon` mode supports separate `entry_polygon` and `exit_polygon`
 - Occupancy increases on outside→inside crossing of `entry_polygon`
 - Occupancy decreases on outside→inside crossing of `exit_polygon`

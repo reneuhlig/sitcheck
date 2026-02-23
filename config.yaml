@@ -6,21 +6,26 @@ tracking:
   model_path: yolo26n.pt
   device: cpu
   tracker: bytetrack.yaml
-  confidence_threshold: 0.25
+  confidence_threshold: 0.15
   iou_threshold: 0.45
   imgsz: 512
-  process_every_n_frames: 2
+  process_every_n_frames: 1
 preprocess:
   enabled: false
   upscale: 1.0
   clahe_clip: 2.0
   denoise: false
 dashboard:
-  stream_fps: 25
-  capture_buffer_size: 24
-  model_buffer_size: 6
-  model_latency_frames: 2
-  render_buffer_size: 12
+  stream_fps: 20
+  jpeg_quality: 65
+  stream_max_width: 960
+  analysis_queue_frames: 64
+  analysis_skip_threshold_frames: 0
+  hls:
+    enabled: true
+    output_dir: hls
+    segment_time: 1.0
+    list_size: 12
 zone:
   mode: dual_polygon
   line:
