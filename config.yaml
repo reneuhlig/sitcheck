@@ -58,6 +58,11 @@ dashboard:
     crf: 36
     hwaccel: auto
     vaapi_device: /dev/dri/renderD128
+    abr:
+      enabled: true
+      high_bitrate_kbps: 1400
+      low_bitrate_kbps: 650
+      low_scale: 0.6
   capture_buffer_size: 24
   model_buffer_size: 6
   model_latency_frames: 2

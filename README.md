@@ -67,21 +67,25 @@ Use browser dashboard for live stream + zone editing on servers without GUI:
 
 Default URL: `http://<server-ip>:8080`
 
-Das Dashboard nutzt jetzt primär HLS (HTML5-Video + `hls.js`) mit Server-seitigen Segmenten.
+Das Dashboard nutzt DASH (YouTube-ähnlich mit `.mpd` + Segmenten) mit Server-seitigem Packaging.
 Voraussetzung: `ffmpeg` (System) oder das Python-Paket `imageio-ffmpeg` (wird über `start_dashboard.sh` automatisch installiert).
 
-Für flüssiges HLS-Web-Streaming kannst du in `config.yaml` unter `dashboard` anpassen:
+Für flüssiges DASH-Web-Streaming kannst du in `config.yaml` unter `dashboard` anpassen:
 - `stream_fps` (Ziel-Ausgabe-FPS im Browser)
 - `jpeg_quality` (40-95, niedriger = schneller/kleinere Frames)
 - `stream_max_width` (maximale Stream-Breite in Pixeln; kleiner = deutlich weniger Bandbreite)
 - `analysis_queue_frames` (Frame-Puffer für Ultralytics-Analyse)
 - `analysis_skip_threshold_frames` (0 = keine Analyse-Skips, >0 = bei Überlast ältere Analyse-Frames verwerfen)
-- `hls.enabled` (HLS-Generierung an/aus)
-- `hls.output_dir` (Segment-/Playlist-Ordner)
-- `hls.segment_time` (Segmentlänge in Sekunden)
-- `hls.list_size` (Anzahl Segmente in Live-Playlist)
+- `dash.enabled` (DASH-Generierung an/aus)
+- `dash.output_dir` (Segment-/Manifest-Ordner)
+- `dash.segment_time` (Segmentlänge in Sekunden)
+- `dash.list_size` (Anzahl Segmente im Live-Fenster)
+- `dash.abr.enabled` (adaptive Bitrate mit mehreren Qualitätsstufen)
+- `dash.abr.high_bitrate_kbps` / `dash.abr.low_bitrate_kbps` (Bitraten der ABR-Stufen)
+- `dash.abr.low_scale` (Skalierung der kleineren ABR-Stufe, z. B. `0.6`)
 
-Hinweis: Das Dashboard verwendet jetzt ausschließlich den HLS-Pfad (kein MJPEG-/Packet-Fallback mehr).
+Hinweis: Das Dashboard streamt über den DASH-Pfad `/dash/stream.mpd`.
+Die Track-Visualisierung (Boxen/ID/Richtung) bleibt im DASH-Stream erhalten.
 
 Effizienter Internet-Preset (ähnlich „adaptive light“):
 - `stream_fps: 20`

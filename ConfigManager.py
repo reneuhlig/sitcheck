@@ -57,9 +57,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "dynamic_skip_enabled": True,
         "dynamic_skip_queue_threshold": 6,
         "dynamic_skip_max_n": 4,
-        "hls": {
-            "enabled": True,
-            "output_dir": "hls",
+        "dash": {
+            "enabled": False,
+            "output_dir": "dash",
             "segment_time": 1.0,
             "list_size": 12,
             "preset": "ultrafast",
@@ -67,6 +67,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "crf": 36,
             "hwaccel": "auto",
             "vaapi_device": "/dev/dri/renderD128",
+            "abr": {
+                "enabled": True,
+                "high_bitrate_kbps": 1400,
+                "low_bitrate_kbps": 650,
+                "low_scale": 0.6,
+            },
         },
         "capture_buffer_size": 24,
         "model_buffer_size": 6,

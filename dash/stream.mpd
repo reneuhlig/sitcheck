@@ -5,22 +5,31 @@
 	xsi:schemaLocation="urn:mpeg:DASH:schema:MPD:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd"
 	profiles="urn:mpeg:dash:profile:isoff-live:2011"
 	type="dynamic"
-	minimumUpdatePeriod="PT500S"
-	availabilityStartTime="2026-02-24T09:30:13.328Z"
-	publishTime="2026-02-24T09:40:31.363Z"
+	minimumUpdatePeriod="PT2S"
+	suggestedPresentationDelay="PT2S"
+	availabilityStartTime="2026-02-24T11:05:38.368Z"
+	publishTime="2026-02-24T11:11:41.921Z"
 	timeShiftBufferDepth="PT12.0S"
 	maxSegmentDuration="PT0.5S"
-	minBufferTime="PT0.5S">
+	minBufferTime="PT4.0S">
 	<ProgramInformation>
 	</ProgramInformation>
 	<ServiceDescription id="0">
 	</ServiceDescription>
 	<Period id="0" start="PT0.0S">
 		<AdaptationSet id="0" contentType="video" startWithSAP="1" segmentAlignment="true" bitstreamSwitching="true" frameRate="20/1" maxWidth="640" maxHeight="360" par="16:9">
-			<Resync dT="50000" type="0"/>
-			<Representation id="0" mimeType="video/mp4" codecs="avc1.42c016" bandwidth="664432" width="640" height="360" sar="1:1">
-				<Resync dT="500000" type="1"/>
-				<SegmentTemplate timescale="1000000" duration="500000" availabilityTimeOffset="0.450" availabilityTimeComplete="false" initialization="init-stream.m4s" media="chunk-stream-$Number%05d$.m4s" startNumber="1">
+			<Representation id="0" mimeType="video/mp4" codecs="avc1.42c016" bandwidth="1400000" width="640" height="360" sar="1:1">
+				<SegmentTemplate timescale="10240" initialization="init-stream$RepresentationID$.m4s" media="chunk-stream$RepresentationID$-$Number%05d$.m4s" startNumber="178">
+					<SegmentTimeline>
+						<S t="3624960" d="20480" r="5" />
+					</SegmentTimeline>
+				</SegmentTemplate>
+			</Representation>
+			<Representation id="1" mimeType="video/mp4" codecs="avc1.42c014" bandwidth="650000" width="384" height="216" sar="1:1">
+				<SegmentTemplate timescale="10240" initialization="init-stream$RepresentationID$.m4s" media="chunk-stream$RepresentationID$-$Number%05d$.m4s" startNumber="178">
+					<SegmentTimeline>
+						<S t="3624960" d="20480" r="5" />
+					</SegmentTimeline>
 				</SegmentTemplate>
 			</Representation>
 		</AdaptationSet>

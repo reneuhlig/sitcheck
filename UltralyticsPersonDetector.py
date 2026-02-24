@@ -1,4 +1,8 @@
+import logging
+import time
+
 from ultralytics import YOLO
+from ultralytics.utils import LOGGER as ULTRALYTICS_LOGGER
 import numpy as np
 from typing import Dict, Any, List
 from BaseDetector import BaseDetector
@@ -26,10 +30,23 @@ class UltralyticsPersonDetector(BaseDetector):
         """
         super().__init__("Ultralytics YOLO", "v26-track")
         self.confidence_threshold = confidence_threshold
-        self.device = device
-        self.model_path = model_path
-        self.model = YOLO(model_path)
+        normalized_device = str(device).strip().lower()
+        self.device = "cpu" if normalized_device in {"", "auto"} else normalized_device
+        normalized_model = str(model_path).strip()
+        if normalized_model != "yolo26n.pt":
+            raise ValueError(
+                f"Dieses System ist auf YOLO26n fixiert. Erwartet 'yolo26n.pt', erhalten: '{normalized_model}'"
+            )
+        self.model_path = normalized_model
+        print(f"[INFO] Lade Ultralytics Modell: {self.model_path}", flush=True)
+        self.model = YOLO(self.model_path)
+        ULTRALYTICS_LOGGER.setLevel(logging.ERROR)
+        self.model.overrides["verbose"] = False
+        self.model.overrides["device"] = self.device
         self.person_class_id = 0  # Person class ID in COCO dataset
+        self.last_track_ok = True
+        self.last_track_error = ""
+        self._last_track_error_log_ts = 0.0
         
     def detect(self, image) -> Dict[str, Any]:
         """
@@ -99,11 +116,19 @@ class UltralyticsPersonDetector(BaseDetector):
         Verwendet explizit die dokumentierte API `model.track(...)`.
         """
         try:
+            self.model.overrides["device"] = self.device
+            if getattr(self.model, "predictor", None) is not None:
+                try:
+                    self.model.predictor.args.device = self.device
+                except Exception:
+                    pass
+
             results = self.model.track(
                 source=frame,
                 persist=True,
                 classes=[self.person_class_id],
                 tracker=tracker,
+                end2end=False,
                 conf=max(conf, self.confidence_threshold),
                 iou=iou,
                 imgsz=imgsz,
@@ -146,9 +171,17 @@ class UltralyticsPersonDetector(BaseDetector):
                         }
                     )
 
+            self.last_track_ok = True
+            self.last_track_error = ""
             return tracks
 
-        except Exception:
+        except Exception as exc:
+            self.last_track_ok = False
+            self.last_track_error = str(exc)
+            now_ts = time.time()
+            if now_ts - self._last_track_error_log_ts >= 5.0:
+                print(f"[TRACK-ERROR] {exc}", flush=True)
+                self._last_track_error_log_ts = now_ts
             return []
     
     def get_model_info(self) -> Dict[str, Any]:

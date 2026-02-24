@@ -7,6 +7,7 @@ TRACKING_PID_FILE="${LOG_DIR}/tracking.pid"
 CONFIG_PATH="config.yaml"
 RUNTIME_VENV="${SITCHECK_RUNTIME_VENV:-/tmp/sitcheck_runtime_venv}"
 PYTHON_BIN=""
+HEADLESS_MODE="${SITCHECK_HEADLESS:-1}"
 
 log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
@@ -84,7 +85,12 @@ start_tracking() {
     fi
 
     log_message "[INFO] Starte YOLO Live-Tracking..."
-    "$PYTHON_BIN" run_live_detection.py --config "$CONFIG_PATH" > "$TRACKING_LOG" 2>&1 &
+    HEADLESS_ARGS=()
+    if [ "$HEADLESS_MODE" != "0" ]; then
+        HEADLESS_ARGS+=("--headless")
+    fi
+
+    "$PYTHON_BIN" run_live_detection.py --config "$CONFIG_PATH" "${HEADLESS_ARGS[@]}" > "$TRACKING_LOG" 2>&1 &
 
     PID=$!
     echo "$PID" > "$TRACKING_PID_FILE"

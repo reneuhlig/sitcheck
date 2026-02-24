@@ -35,8 +35,8 @@ HTML_PAGE = """
     .panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 12px; }
     .title { margin: 0 0 10px; font-size: 16px; }
     .feed-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; border-radius: 8px; }
-    #hlsFeed { width: 100%; height: 100%; object-fit: contain; display: block; }
-    #hlsFeed { background: #000; }
+    #dashFeed { width: 100%; height: 100%; object-fit: contain; display: block; }
+    #dashFeed { background: #000; }
     #overlay { position: absolute; inset: 0; pointer-events: auto; }
     .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
     .stat { background: #0b1220; border: 1px solid #1f2937; border-radius: 8px; padding: 8px; flex: 1 1 120px; }
@@ -54,7 +54,7 @@ HTML_PAGE = """
       <div class="panel">
         <h3 class="title">Live Feed + Tracking</h3>
         <div class="feed-wrap">
-          <video id="hlsFeed" muted autoplay playsinline></video>
+          <video id="dashFeed" muted autoplay playsinline></video>
           <canvas id="overlay"></canvas>
         </div>
         <div id="stream_status" class="muted" style="margin-top:8px;">Stream verbindet...</div>
@@ -138,9 +138,9 @@ HTML_PAGE = """
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
   <script>
-    const hlsFeed = document.getElementById('hlsFeed');
+    const dashFeed = document.getElementById('dashFeed');
     const canvas = document.getElementById('overlay');
     const ctx = canvas.getContext('2d');
 
@@ -165,7 +165,7 @@ HTML_PAGE = """
     const roiYMinEl = document.getElementById('roi_ymin');
     const roiXMaxEl = document.getElementById('roi_xmax');
     const roiYMaxEl = document.getElementById('roi_ymax');
-    const HLS_ENABLED = {{ hls_enabled|tojson }};
+    const DASH_ENABLED = {{ dash_enabled|tojson }};
 
     let zone = {
       mode: 'line',
@@ -179,72 +179,40 @@ HTML_PAGE = """
     };
     let lineStage = 0;
     let analysisRoi = { enabled: false, mode: 'rect', x_min: 0.0, y_min: 0.0, x_max: 1.0, y_max: 1.0, polygon_points: [] };
-    let hlsController = null;
+    let dashController = null;
 
-    function keepNearLiveEdge() {
-      if (!hlsController || !hlsFeed || !Number.isFinite(hlsFeed.currentTime)) return;
-      const liveSync = hlsController.liveSyncPosition;
-      if (!Number.isFinite(liveSync)) return;
-      const lag = liveSync - hlsFeed.currentTime;
-      if (lag > 1.4) {
-        hlsFeed.currentTime = Math.max(0, liveSync - 0.2);
+    function initDashPlayer() {
+      if (!DASH_ENABLED) {
+        streamStatusEl.textContent = 'DASH ist deaktiviert';
+        return;
       }
-      if (hlsFeed.playbackRate !== 1.0) {
-        hlsFeed.playbackRate = 1.0;
-      }
-    }
-
-    function initHlsPlayer() {
-      if (!HLS_ENABLED) {
-        streamStatusEl.textContent = 'HLS ist deaktiviert';
+      if (!window.dashjs) {
+        streamStatusEl.textContent = 'dash.js konnte nicht geladen werden';
         return;
       }
 
-      streamStatusEl.textContent = 'HLS wird initialisiert...';
-
-      const hlsUrl = `/hls/stream.m3u8?_t=${Date.now()}`;
-      if (window.Hls && window.Hls.isSupported()) {
-        hlsController = new window.Hls({
-          lowLatencyMode: false,
-          liveSyncDurationCount: 2,
-          liveMaxLatencyDurationCount: 4,
-          maxLiveSyncPlaybackRate: 1.0,
-          maxBufferLength: 2,
-          maxMaxBufferLength: 4,
-          backBufferLength: 2,
-          highBufferWatchdogPeriod: 1,
-        });
-        hlsController.loadSource(hlsUrl);
-        hlsController.attachMedia(hlsFeed);
-        hlsController.on(window.Hls.Events.MANIFEST_PARSED, () => {
-          streamStatusEl.textContent = 'HLS aktiv';
-          hlsFeed.playbackRate = 1.0;
-          hlsFeed.play().catch(() => {});
-        });
-        hlsController.on(window.Hls.Events.FRAG_BUFFERED, () => {
-          keepNearLiveEdge();
-        });
-        hlsController.on(window.Hls.Events.LEVEL_LOADED, () => {
-          keepNearLiveEdge();
-        });
-        hlsController.on(window.Hls.Events.ERROR, (_ev, data) => {
-          if (data && data.fatal) {
-            streamStatusEl.textContent = 'HLS Fehler: Stream neu laden';
-          }
-        });
-      } else if (hlsFeed.canPlayType('application/vnd.apple.mpegurl')) {
-        hlsFeed.src = hlsUrl;
-        hlsFeed.addEventListener('loadedmetadata', () => {
-          streamStatusEl.textContent = 'HLS aktiv';
-          hlsFeed.play().catch(() => {});
-        }, { once: true });
-      } else {
-        streamStatusEl.textContent = 'Browser unterstützt HLS nicht';
-      }
+      streamStatusEl.textContent = 'DASH wird initialisiert...';
+      const dashUrl = `/dash/stream.mpd?_t=${Date.now()}`;
+      dashController = window.dashjs.MediaPlayer().create();
+      dashController.updateSettings({
+        streaming: {
+          lowLatencyEnabled: true,
+          liveDelay: 2,
+        },
+      });
+      dashController.initialize(dashFeed, dashUrl, true);
+      dashController.on(window.dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+        streamStatusEl.textContent = 'DASH aktiv';
+        dashFeed.playbackRate = 1.0;
+        dashFeed.play().catch(() => {});
+      });
+      dashController.on(window.dashjs.MediaPlayer.events.ERROR, () => {
+        streamStatusEl.textContent = 'DASH Fehler: Stream neu laden';
+      });
     }
 
     function syncCanvasSize() {
-      const rect = hlsFeed.getBoundingClientRect();
+      const rect = dashFeed.getBoundingClientRect();
       canvas.width = Math.max(1, Math.floor(rect.width));
       canvas.height = Math.max(1, Math.floor(rect.height));
     }
@@ -521,13 +489,13 @@ HTML_PAGE = """
     });
 
     window.addEventListener('resize', drawZone);
-    hlsFeed.addEventListener('ratechange', () => {
-      if (hlsFeed.playbackRate !== 1.0) hlsFeed.playbackRate = 1.0;
+    dashFeed.addEventListener('ratechange', () => {
+      if (dashFeed.playbackRate !== 1.0) dashFeed.playbackRate = 1.0;
     });
 
     reloadZone();
     loadRoi();
-    initHlsPlayer();
+    initDashPlayer();
     setInterval(pollState, 1000);
     setInterval(drawZone, 1000);
   </script>
@@ -536,7 +504,7 @@ HTML_PAGE = """
 """
 
 
-class HLSStreamer:
+class DashStreamer:
   def __init__(
     self,
     output_dir: str,
@@ -548,6 +516,10 @@ class HLSStreamer:
     x264_crf: int = 28,
     hwaccel: str = "auto",
     vaapi_device: str = "/dev/dri/renderD128",
+    abr_enabled: bool = True,
+    abr_high_bitrate_kbps: int = 1400,
+    abr_low_bitrate_kbps: int = 650,
+    abr_low_scale: float = 0.6,
   ):
     self.output_dir = output_dir
     self.fps = max(1.0, float(fps))
@@ -558,6 +530,10 @@ class HLSStreamer:
     self.x264_crf = max(18, min(45, int(x264_crf)))
     self.hwaccel = str(hwaccel or "auto").lower()
     self.vaapi_device = str(vaapi_device or "/dev/dri/renderD128")
+    self.abr_enabled = bool(abr_enabled)
+    self.abr_high_bitrate_kbps = max(300, int(abr_high_bitrate_kbps))
+    self.abr_low_bitrate_kbps = max(150, min(self.abr_high_bitrate_kbps - 50, int(abr_low_bitrate_kbps)))
+    self.abr_low_scale = max(0.3, min(0.9, float(abr_low_scale)))
     self.encoder_name = "libx264"
     self._process: Optional[subprocess.Popen] = None
     self._ffmpeg_executable = self._resolve_ffmpeg_executable()
@@ -590,14 +566,13 @@ class HLSStreamer:
       return
     os.makedirs(self.output_dir, exist_ok=True)
     for name in os.listdir(self.output_dir):
-      if name.endswith(".ts") or name.endswith(".m3u8"):
+      if name.endswith(".m4s") or name.endswith(".mpd") or name.endswith(".tmp"):
         try:
           os.remove(os.path.join(self.output_dir, name))
         except OSError:
           pass
 
-    segment_pattern = os.path.join(self.output_dir, "seg_%06d.ts")
-    playlist_path = os.path.join(self.output_dir, "stream.m3u8")
+    manifest_path = os.path.join(self.output_dir, "stream.mpd")
     gop = max(10, int(round(self.fps * 2.0)))
 
     base_input = [
@@ -614,24 +589,26 @@ class HLSStreamer:
       "pipe:0",
       "-an",
     ]
-    hls_output = [
+    dash_output = [
       "-g",
       str(gop),
       "-keyint_min",
       str(gop),
       "-sc_threshold",
       "0",
-      "-f",
-      "hls",
-      "-hls_time",
-      str(self.segment_time),
-      "-hls_list_size",
+      "-use_timeline",
+      "1",
+      "-use_template",
+      "1",
+      "-window_size",
       str(self.list_size),
-      "-hls_flags",
-      "delete_segments+append_list+independent_segments+omit_endlist",
-      "-hls_segment_filename",
-      segment_pattern,
-      playlist_path,
+      "-extra_window_size",
+      "1",
+      "-seg_duration",
+      str(self.segment_time),
+      "-f",
+      "dash",
+      manifest_path,
     ]
 
     candidates = []
@@ -661,7 +638,67 @@ class HLSStreamer:
             "h264_vaapi",
             "-qp",
             "26",
-            *hls_output,
+            *dash_output,
+          ],
+        )
+      )
+
+    if self.abr_enabled:
+      low_scale_expr = f"trunc(iw*{self.abr_low_scale:.3f}/2)*2:trunc(ih*{self.abr_low_scale:.3f}/2)*2"
+      candidates.append(
+        (
+          "libx264_abr",
+          [
+            *base_input,
+            "-filter_complex",
+            f"[0:v]split=2[v0][v1];[v1]scale={low_scale_expr}[v1s]",
+            "-map",
+            "[v0]",
+            "-map",
+            "[v1s]",
+            "-c:v:0",
+            "libx264",
+            "-preset:v:0",
+            self.x264_preset,
+            "-tune:v:0",
+            self.x264_tune,
+            "-b:v:0",
+            f"{self.abr_high_bitrate_kbps}k",
+            "-maxrate:v:0",
+            f"{int(self.abr_high_bitrate_kbps * 1.25)}k",
+            "-bufsize:v:0",
+            f"{int(self.abr_high_bitrate_kbps * 2)}k",
+            "-g:v:0",
+            str(gop),
+            "-keyint_min:v:0",
+            str(gop),
+            "-sc_threshold:v:0",
+            "0",
+            "-pix_fmt:v:0",
+            "yuv420p",
+            "-c:v:1",
+            "libx264",
+            "-preset:v:1",
+            self.x264_preset,
+            "-tune:v:1",
+            self.x264_tune,
+            "-b:v:1",
+            f"{self.abr_low_bitrate_kbps}k",
+            "-maxrate:v:1",
+            f"{int(self.abr_low_bitrate_kbps * 1.25)}k",
+            "-bufsize:v:1",
+            f"{int(self.abr_low_bitrate_kbps * 2)}k",
+            "-g:v:1",
+            str(gop),
+            "-keyint_min:v:1",
+            str(gop),
+            "-sc_threshold:v:1",
+            "0",
+            "-pix_fmt:v:1",
+            "yuv420p",
+            "-adaptation_sets",
+            "id=0,streams=v",
+            *dash_output,
           ],
         )
       )
@@ -681,7 +718,7 @@ class HLSStreamer:
           str(self.x264_crf),
           "-pix_fmt",
           "yuv420p",
-          *hls_output,
+          *dash_output,
         ],
       )
     )
@@ -806,16 +843,21 @@ class TrackingEngine:
         self.jpeg_quality = max(20, min(95, int(dashboard_cfg.get("jpeg_quality", 80))))
         self.jpeg_optimize = bool(dashboard_cfg.get("jpeg_optimize", False))
         self.stream_max_width = max(320, int(dashboard_cfg.get("stream_max_width", 960)))
-        hls_cfg = dashboard_cfg.get("hls", {})
-        self.hls_enabled = bool(hls_cfg.get("enabled", True))
-        self.hls_output_dir = str(hls_cfg.get("output_dir", "hls"))
-        self.hls_segment_time = float(hls_cfg.get("segment_time", 1.0))
-        self.hls_list_size = int(hls_cfg.get("list_size", 12))
-        self.hls_x264_preset = str(hls_cfg.get("preset", "veryfast"))
-        self.hls_x264_tune = str(hls_cfg.get("tune", "zerolatency"))
-        self.hls_x264_crf = int(hls_cfg.get("crf", 28))
-        self.hls_hwaccel = str(hls_cfg.get("hwaccel", "auto"))
-        self.hls_vaapi_device = str(hls_cfg.get("vaapi_device", "/dev/dri/renderD128"))
+        dash_cfg = dashboard_cfg.get("dash", dashboard_cfg.get("hls", {}))
+        self.dash_enabled = bool(dash_cfg.get("enabled", True))
+        self.dash_output_dir = str(dash_cfg.get("output_dir", "dash"))
+        self.dash_segment_time = float(dash_cfg.get("segment_time", 1.0))
+        self.dash_list_size = int(dash_cfg.get("list_size", 12))
+        self.dash_x264_preset = str(dash_cfg.get("preset", "veryfast"))
+        self.dash_x264_tune = str(dash_cfg.get("tune", "zerolatency"))
+        self.dash_x264_crf = int(dash_cfg.get("crf", 28))
+        self.dash_hwaccel = str(dash_cfg.get("hwaccel", "auto"))
+        self.dash_vaapi_device = str(dash_cfg.get("vaapi_device", "/dev/dri/renderD128"))
+        dash_abr_cfg = dash_cfg.get("abr", {})
+        self.dash_abr_enabled = bool(dash_abr_cfg.get("enabled", True))
+        self.dash_abr_high_bitrate_kbps = int(dash_abr_cfg.get("high_bitrate_kbps", 1400))
+        self.dash_abr_low_bitrate_kbps = int(dash_abr_cfg.get("low_bitrate_kbps", 650))
+        self.dash_abr_low_scale = float(dash_abr_cfg.get("low_scale", 0.6))
         self.analysis_queue_frames = max(8, int(dashboard_cfg.get("analysis_queue_frames", 64)))
         self.analysis_skip_threshold_frames = max(0, int(dashboard_cfg.get("analysis_skip_threshold_frames", 0)))
         self.visual_stale_fallback_sec = max(0.0, float(dashboard_cfg.get("visual_stale_fallback_sec", 0.5)))
@@ -825,19 +867,23 @@ class TrackingEngine:
           self.process_every_n_frames,
           int(dashboard_cfg.get("dynamic_skip_max_n", max(4, self.process_every_n_frames))),
         )
-        self.hls_streamer = HLSStreamer(
-          output_dir=self.hls_output_dir,
+        self.dash_streamer = DashStreamer(
+          output_dir=self.dash_output_dir,
           fps=self.stream_fps,
-          segment_time=self.hls_segment_time,
-          list_size=self.hls_list_size,
-          x264_preset=self.hls_x264_preset,
-          x264_tune=self.hls_x264_tune,
-          x264_crf=self.hls_x264_crf,
-          hwaccel=self.hls_hwaccel,
-          vaapi_device=self.hls_vaapi_device,
+          segment_time=self.dash_segment_time,
+          list_size=self.dash_list_size,
+          x264_preset=self.dash_x264_preset,
+          x264_tune=self.dash_x264_tune,
+          x264_crf=self.dash_x264_crf,
+          hwaccel=self.dash_hwaccel,
+          vaapi_device=self.dash_vaapi_device,
+          abr_enabled=self.dash_abr_enabled,
+          abr_high_bitrate_kbps=self.dash_abr_high_bitrate_kbps,
+          abr_low_bitrate_kbps=self.dash_abr_low_bitrate_kbps,
+          abr_low_scale=self.dash_abr_low_scale,
         )
-        if not self.hls_enabled:
-          self.hls_streamer._enabled = False
+        if not self.dash_enabled:
+          self.dash_streamer._enabled = False
 
         self.entries_total = 0
         self.exits_total = 0
@@ -846,6 +892,8 @@ class TrackingEngine:
         self.last_exits = 0
         self.last_fps = 0.0
         self.last_inference_fps = 0.0
+        self.last_track_ok = True
+        self.last_track_error = ""
         self._fps_ema = 0.0
         self.analysis_skipped_frames = 0
 
@@ -862,7 +910,7 @@ class TrackingEngine:
         self._latest_raw_jpeg: Optional[bytes] = None
         self._latest_visual_ts = 0.0
         self._latest_raw_ts = 0.0
-        self._hls_frame_counter = 0
+        self._dash_frame_counter = 0
         self._next_capture_deadline_ts = 0.0
         self._last_visual_update_ts = 0.0
         self._current_effective_process_n = self.process_every_n_frames
@@ -871,7 +919,7 @@ class TrackingEngine:
       if self._running:
         return
       self.video_input.open()
-      self.hls_streamer.start()
+      self.dash_streamer.start()
       self._running = True
       self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
       self._inference_thread = threading.Thread(target=self._inference_loop, daemon=True)
@@ -888,7 +936,7 @@ class TrackingEngine:
         self._inference_thread.join(timeout=2)
       if self._packetizer_thread:
         self._packetizer_thread.join(timeout=2)
-      self.hls_streamer.stop()
+      self.dash_streamer.stop()
       self.video_input.release()
 
     def _encode_stream_jpeg(self, frame):
@@ -1001,11 +1049,18 @@ class TrackingEngine:
           infer_t0 = time.time()
           analysis_frame, roi_offset = self._crop_to_analysis_roi(frame)
           tracks = self.tracking_module.track(analysis_frame)
+          self.last_track_ok = bool(getattr(self.detector, "last_track_ok", True))
+          self.last_track_error = str(getattr(self.detector, "last_track_error", "") or "")
           if roi_offset != (0, 0):
             tracks = self._remap_tracks_to_full_frame(tracks, roi_offset)
           self._last_tracks_cache = tracks
           infer_elapsed = max(1e-6, time.time() - infer_t0)
-          self.last_inference_fps = round(1.0 / infer_elapsed, 2)
+          if self.last_track_ok:
+            raw_infer_fps = 1.0 / infer_elapsed
+            cap_fps = max(1.0, self.capture_max_fps if self.capture_max_fps > 0 else self.stream_fps)
+            self.last_inference_fps = round(min(raw_infer_fps, cap_fps), 2)
+          else:
+            self.last_inference_fps = 0.0
         else:
           tracks = self._last_tracks_cache
 
@@ -1050,7 +1105,8 @@ class TrackingEngine:
         self.last_entries = frame_entries
         self.last_exits = frame_exits
         elapsed = max(1e-4, time.time() - t0)
-        current_fps = min(120.0, 1.0 / elapsed)
+        cap_fps = max(1.0, self.capture_max_fps if self.capture_max_fps > 0 else self.stream_fps)
+        current_fps = min(cap_fps, 1.0 / elapsed)
         if self._fps_ema <= 0:
           self._fps_ema = current_fps
         else:
@@ -1076,21 +1132,21 @@ class TrackingEngine:
           raw_valid = self._latest_raw_jpeg is not None and raw_age <= max(0.1, self.visual_stale_fallback_sec * 3.0)
 
           if visual_valid and raw_valid:
-            encoded_frame = self._latest_visual_jpeg if self._latest_visual_ts >= self._latest_raw_ts else self._latest_raw_jpeg
+            encoded_frame = self._latest_visual_jpeg
           elif visual_valid:
+            encoded_frame = self._latest_visual_jpeg
+          elif self._latest_visual_jpeg is not None:
             encoded_frame = self._latest_visual_jpeg
           elif raw_valid:
             encoded_frame = self._latest_raw_jpeg
-          elif self._latest_visual_jpeg is not None:
-            encoded_frame = self._latest_visual_jpeg
           elif self._latest_raw_jpeg is not None:
             encoded_frame = self._latest_raw_jpeg
 
         if encoded_frame is not None:
-          self._hls_frame_counter += 1
-          self.hls_streamer.write_jpeg(encoded_frame)
-          if self._hls_frame_counter % max(1, int(self.stream_fps)) == 0:
-            self.hls_streamer.write_preview(encoded_frame)
+          self._dash_frame_counter += 1
+          self.dash_streamer.write_jpeg(encoded_frame)
+          if self._dash_frame_counter % max(1, int(self.stream_fps)) == 0:
+            self.dash_streamer.write_preview(encoded_frame)
 
         next_deadline += packet_interval
         now = time.monotonic()
@@ -1112,9 +1168,11 @@ class TrackingEngine:
                 "analysis_skipped_frames": self.analysis_skipped_frames,
                 "capture_max_fps": self.capture_max_fps,
                 "effective_process_every_n_frames": self._current_effective_process_n,
-                "hls_enabled": self.hls_streamer.enabled,
-                "hls_encoder": self.hls_streamer.encoder_name,
-                "hls_output_dir": self.hls_output_dir,
+                "dash_enabled": self.dash_streamer.enabled,
+                "dash_encoder": self.dash_streamer.encoder_name,
+                "dash_output_dir": self.dash_output_dir,
+                "track_ok": self.last_track_ok,
+                "track_error": self.last_track_error,
                 "zone": self.zone_config.to_dict(),
                 "analysis_roi": self.analysis_roi,
             }
@@ -1263,16 +1321,16 @@ def create_app(config_path: str) -> Flask:
     def index():
         return render_template_string(
             HTML_PAGE,
-        hls_enabled=engine.hls_streamer.enabled,
+        dash_enabled=engine.dash_streamer.enabled,
         )
 
-    @app.route("/hls/<path:filename>")
-    def hls_files(filename: str):
-      return send_from_directory(engine.hls_streamer.output_dir, filename, conditional=False)
+    @app.route("/dash/<path:filename>")
+    def dash_files(filename: str):
+      return send_from_directory(engine.dash_streamer.output_dir, filename, conditional=False)
 
-    @app.route("/hls")
-    def hls_root():
-      return send_from_directory(engine.hls_streamer.output_dir, "stream.m3u8", conditional=False)
+    @app.route("/dash")
+    def dash_root():
+      return send_from_directory(engine.dash_streamer.output_dir, "stream.mpd", conditional=False)
 
     @app.route("/api/state")
     def api_state():
