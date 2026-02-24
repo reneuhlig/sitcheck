@@ -15,3 +15,5 @@ temp_test_images/
 *.ts
 *.m3u8
 *.m4s
+*.tmp
+*.mpd

@@ -34,6 +34,12 @@ Counting is event-based and must avoid false positives from pedestrians passing 
 7. **Configuration layer** → `ConfigManager.py`, `config.yaml`
 8. **Persistence/analytics** → `DatabaseHandler.py` (optional)
 
+### Current execution model (important)
+- `dashboard_app.py` contains the full live pipeline for web usage:
+  video ingest + YOLO tracking + trajectory analysis + overlay rendering + DASH output.
+- `run_live_detection.py` / `start_system.sh` is a standalone local/CLI runtime.
+- To avoid duplicate inference load and lag, do **not** run `start_dashboard.sh` and `start_system.sh` at the same time on the same source.
+
 ### Separation Principles
 - Video source is abstracted and replaceable via configuration.
 - Tracking and trajectory logic are isolated from UI.
@@ -149,7 +155,7 @@ Minimal query surface for webpage/business analytics in `DatabaseHandler.py`:
 
 ## 10) Runtime Usage
 
-## Run via config
+## Standalone tracker (without web dashboard)
 ```bash
 python3 run_live_detection.py --config config.yaml
 ```
@@ -161,7 +167,7 @@ python3 run_live_detection.py --config config.yaml --video-source "rtsp://..."
 python3 run_live_detection.py --config config.yaml --video-source "video.mp4"
 ```
 
-## Service helper
+## Service helper (standalone mode)
 ```bash
 ./start_system.sh start
 ./start_system.sh status
@@ -169,6 +175,17 @@ python3 run_live_detection.py --config config.yaml --video-source "video.mp4"
 ./start_system.sh logs
 ./start_system.sh stop
 ```
+
+## Recommended production pipeline (web + tracking + DASH in one process)
+```bash
+./start_dashboard.sh start
+./start_dashboard.sh status
+./start_dashboard.sh logs
+./start_dashboard.sh stop
+```
+
+Default web URL:
+- `http://<server-ip>:8080`
 
 ---
 

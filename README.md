@@ -14,6 +14,11 @@ Config-driven real-time people tracking and occupancy counting for a library ent
 python3 run_live_detection.py --config config.yaml
 ```
 
+Wichtig:
+- `run_live_detection.py` ist der Standalone-Tracker (ohne Web-Dashboard-Pipeline).
+- Für Webbetrieb mit Overlay + DASH ist `start_dashboard.sh` der empfohlene Einstieg.
+- `start_system.sh` und `start_dashboard.sh` nicht parallel auf derselben Quelle laufen lassen (sonst doppelte Inferenzlast und mehr Lag).
+
 Default tracking runtime is configured for CPU with YOLO26:
 - `tracking.model_path: yolo26n.pt`
 - `tracking.device: cpu`
@@ -36,7 +41,7 @@ Tracker-Auswahl nach Ultralytics `track`-Doku:
 - `tracking.tracker: botsort.yaml` kann bei stärkeren Okklusionen helfen (optional mit ReID im Tracker-YAML)
 - Für eigene Profile: YAML aus Ultralytics-Trackern kopieren und nur Parameter (nicht `tracker_type`) anpassen
 
-Production start wrapper uses its own runtime venv automatically:
+Production start wrapper (standalone tracker) uses its own runtime venv automatically:
 ```bash
 ./start_system.sh start
 ```
@@ -63,9 +68,26 @@ Use browser dashboard for live stream + zone editing on servers without GUI:
 ```bash
 ./start_dashboard.sh start
 ./start_dashboard.sh status
+./start_dashboard.sh logs
 ```
 
 Default URL: `http://<server-ip>:8080`
+
+Empfohlener Pipeline-Start (Tracking + Overlay + DASH):
+```bash
+./start_dashboard.sh restart
+```
+
+Für sauberen Wechsel vom Standalone-Tracker auf Dashboard:
+```bash
+./start_system.sh stop
+./start_dashboard.sh restart
+```
+
+Alles stoppen + clean neu starten (inkl. Altprozesse):
+```bash
+cd /sitcheck && ./start_dashboard.sh stop; ./start_system.sh stop; pkill -f 'dashboard_app.py|run_live_detection.py|ffmpeg.*dash/stream.mpd' || true; ./start_dashboard.sh restart
+```
 
 Das Dashboard nutzt DASH (YouTube-ähnlich mit `.mpd` + Segmenten) mit Server-seitigem Packaging.
 Voraussetzung: `ffmpeg` (System) oder das Python-Paket `imageio-ffmpeg` (wird über `start_dashboard.sh` automatisch installiert).
