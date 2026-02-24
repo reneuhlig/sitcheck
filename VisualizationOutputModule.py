@@ -33,6 +33,7 @@ class VisualizationOutputModule:
         entries_total: int,
         exits_total: int,
         events_in_frame,
+        track_event_overlay: Optional[Dict[int, Dict]] = None,
         analysis_roi: Optional[Dict] = None,
     ):
         output = frame.copy()
@@ -48,6 +49,16 @@ class VisualizationOutputModule:
             confidence = track.get("confidence", 0.0)
             is_stale = bool(track.get("is_stale", False))
             color = (50, 170, 255) if is_stale else (0, 200, 0)
+
+            event_tag = None
+            if track_event_overlay and track_id is not None:
+                event_payload = track_event_overlay.get(int(track_id))
+                if event_payload:
+                    event_tag = str(event_payload.get("type", "")).upper()
+                    if event_tag == "ENTRY":
+                        color = (0, 255, 0)
+                    elif event_tag == "EXIT":
+                        color = (0, 0, 255)
 
             cv2.rectangle(output, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
 
@@ -79,6 +90,14 @@ class VisualizationOutputModule:
                 color,
                 1,
             )
+
+            if event_tag in {"ENTRY", "EXIT"}:
+                badge_bg = (0, 90, 0) if event_tag == "ENTRY" else (0, 0, 120)
+                badge_text = f"{event_tag}"
+                text_x = int(x1)
+                text_y = min(output.shape[0] - 8, int(y2) + 18)
+                cv2.rectangle(output, (text_x, text_y - 14), (text_x + 62, text_y + 4), badge_bg, -1)
+                cv2.putText(output, badge_text, (text_x + 4, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         cv2.putText(output, f"Occupancy: {occupancy}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
         cv2.putText(output, f"Entries total: {entries_total}", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)

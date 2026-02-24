@@ -7,8 +7,8 @@
 	type="dynamic"
 	minimumUpdatePeriod="PT2S"
 	suggestedPresentationDelay="PT2S"
-	availabilityStartTime="2026-02-24T11:26:33.971Z"
-	publishTime="2026-02-24T11:29:17.540Z"
+	availabilityStartTime="2026-02-24T13:39:12.149Z"
+	publishTime="2026-02-24T13:41:33.701Z"
 	timeShiftBufferDepth="PT12.0S"
 	maxSegmentDuration="PT0.5S"
 	minBufferTime="PT4.0S">
@@ -19,16 +19,16 @@
 	<Period id="0" start="PT0.0S">
 		<AdaptationSet id="0" contentType="video" startWithSAP="1" segmentAlignment="true" bitstreamSwitching="true" frameRate="20/1" maxWidth="640" maxHeight="360" par="16:9">
 			<Representation id="0" mimeType="video/mp4" codecs="avc1.42c016" bandwidth="1400000" width="640" height="360" sar="1:1">
-				<SegmentTemplate timescale="10240" initialization="init-stream$RepresentationID$.m4s" media="chunk-stream$RepresentationID$-$Number%05d$.m4s" startNumber="78">
+				<SegmentTemplate timescale="10240" initialization="init-stream$RepresentationID$.m4s" media="chunk-stream$RepresentationID$-$Number%05d$.m4s" startNumber="67">
 					<SegmentTimeline>
-						<S t="1576960" d="20480" r="5" />
+						<S t="1351680" d="20480" r="5" />
 					</SegmentTimeline>
 				</SegmentTemplate>
 			</Representation>
 			<Representation id="1" mimeType="video/mp4" codecs="avc1.42c014" bandwidth="650000" width="384" height="216" sar="1:1">
-				<SegmentTemplate timescale="10240" initialization="init-stream$RepresentationID$.m4s" media="chunk-stream$RepresentationID$-$Number%05d$.m4s" startNumber="78">
+				<SegmentTemplate timescale="10240" initialization="init-stream$RepresentationID$.m4s" media="chunk-stream$RepresentationID$-$Number%05d$.m4s" startNumber="67">
 					<SegmentTimeline>
-						<S t="1576960" d="20480" r="5" />
+						<S t="1351680" d="20480" r="5" />
 					</SegmentTimeline>
 				</SegmentTemplate>
 			</Representation>

@@ -74,6 +74,8 @@ class TrajectoryEntryAnalysisModule:
         self._last_event_frame_by_track: Dict[int, int] = {}
         self._last_inside_entry_by_track: Dict[int, bool] = {}
         self._last_inside_exit_by_track: Dict[int, bool] = {}
+        self._last_seen_primary_zone_by_track: Dict[int, str] = {}
+        self._zone_label_history_by_track: Dict[int, Deque[str]] = {}
 
     def set_zone_config(self, zone_config: EntranceZoneConfig):
         self.zone_config = zone_config
@@ -91,9 +93,18 @@ class TrajectoryEntryAnalysisModule:
 
             history = self.track_history.setdefault(track_id, deque(maxlen=self.max_history))
             history.append(center)
+            motion_direction = str(track.get("motion_direction", "still"))
+            motion_magnitude = float(track.get("motion_magnitude", 0.0))
 
             if self.zone_config.mode == "dual_polygon":
-                event = self._check_entry_exit_dual_polygon(track_id, history, frame_w, frame_h)
+                event = self._check_entry_exit_dual_polygon(
+                    track_id,
+                    history,
+                    frame_w,
+                    frame_h,
+                    motion_direction,
+                    motion_magnitude,
+                )
             elif self.zone_config.mode == "polygon":
                 event = self._check_entry_polygon(track_id, history, frame_w, frame_h)
             else:
@@ -111,41 +122,63 @@ class TrajectoryEntryAnalysisModule:
         frame_w: int,
         frame_h: int,
     ) -> Optional[Dict[str, Any]]:
-        if len(history) < self.zone_config.min_track_points:
+        if len(history) < max(3, self.zone_config.min_track_points // 2):
+            return None
+
+        cooldown = self.zone_config.min_event_cooldown_frames
+        last_event_frame = self._last_event_frame_by_track.get(track_id, -10_000)
+        if self._frame_idx - last_event_frame < cooldown:
             return None
 
         p1, p2 = self._line_points(frame_w, frame_h)
-        first = history[0]
-        last = history[-1]
+        prev = history[-2]
+        curr = history[-1]
+        prev_sign = self._signed_side(prev, p1, p2)
+        curr_sign = self._signed_side(curr, p1, p2)
 
-        first_sign = self._signed_side(first, p1, p2)
-        last_sign = self._signed_side(last, p1, p2)
-
-        if first_sign == 0 or last_sign == 0:
+        if prev_sign == 0 or curr_sign == 0:
             return None
 
-        crossed = (first_sign > 0 and last_sign < 0) or (first_sign < 0 and last_sign > 0)
+        crossed = (prev_sign > 0 and curr_sign < 0) or (prev_sign < 0 and curr_sign > 0)
         if not crossed:
             return None
 
-        displacement = abs(self._signed_distance(last, p1, p2) - self._signed_distance(first, p1, p2))
-        if displacement < self.zone_config.min_crossing_displacement_px:
+        lookback = min(5, len(history) - 1)
+        anchor = history[-(lookback + 1)]
+        displacement = abs(self._signed_distance(curr, p1, p2) - self._signed_distance(anchor, p1, p2))
+        if displacement < self.zone_config.min_crossing_displacement_px * 0.50:
+            return None
+
+        move_vec = (curr[0] - anchor[0], curr[1] - anchor[1])
+        line_vec = (p2[0] - p1[0], p2[1] - p1[1])
+        line_normal = (-line_vec[1], line_vec[0])
+        normal_projection = (move_vec[0] * line_normal[0]) + (move_vec[1] * line_normal[1])
+        if abs(normal_projection) < 1e-3:
             return None
 
         if self.zone_config.line_entry_direction == "negative_to_positive":
-            is_entry = first_sign < 0 and last_sign > 0
+            if prev_sign < 0 and curr_sign > 0:
+                event_type = "entry"
+                reason = "line_crossing_negative_to_positive"
+            else:
+                event_type = "exit"
+                reason = "line_crossing_positive_to_negative"
         else:
-            is_entry = first_sign > 0 and last_sign < 0
+            if prev_sign > 0 and curr_sign < 0:
+                event_type = "entry"
+                reason = "line_crossing_positive_to_negative"
+            else:
+                event_type = "exit"
+                reason = "line_crossing_negative_to_positive"
 
-        if not is_entry:
-            return None
+        self._last_event_frame_by_track[track_id] = self._frame_idx
 
         return {
-            "type": "entry",
+            "type": event_type,
             "track_id": track_id,
             "trajectory": list(history),
             "confidence": 1.0,
-            "reason": "line_crossing_in_entry_direction",
+            "reason": reason,
         }
 
     def _check_entry_exit_dual_polygon(
@@ -154,8 +187,10 @@ class TrajectoryEntryAnalysisModule:
         history: Deque[Tuple[float, float]],
         frame_w: int,
         frame_h: int,
+        motion_direction: str,
+        motion_magnitude: float,
     ) -> Optional[Dict[str, Any]]:
-        if len(history) < max(2, self.zone_config.min_track_points):
+        if len(history) < max(3, self.zone_config.min_track_points // 2):
             return None
 
         entry_points = self.zone_config.entry_polygon_points
@@ -171,47 +206,71 @@ class TrajectoryEntryAnalysisModule:
         polygon_entry = [(x * frame_w, y * frame_h) for x, y in entry_points]
         polygon_exit = [(x * frame_w, y * frame_h) for x, y in exit_points]
 
-        prev = history[-2]
         curr = history[-1]
-        displacement = ((curr[0] - prev[0]) ** 2 + (curr[1] - prev[1]) ** 2) ** 0.5
-        if displacement < self.zone_config.min_crossing_displacement_px * 0.25:
+        tolerance_px = max(8.0, self.zone_config.min_crossing_displacement_px * 0.35)
+        current_zone = self._classify_dual_zone(curr, polygon_entry, polygon_exit, tolerance_px)
+
+        if current_zone == "none":
             return None
 
-        prev_entry = self._last_inside_entry_by_track.get(track_id, self._point_in_polygon(prev, polygon_entry))
-        prev_exit = self._last_inside_exit_by_track.get(track_id, self._point_in_polygon(prev, polygon_exit))
-        curr_entry = self._point_in_polygon(curr, polygon_entry)
-        curr_exit = self._point_in_polygon(curr, polygon_exit)
-
-        self._last_inside_entry_by_track[track_id] = curr_entry
-        self._last_inside_exit_by_track[track_id] = curr_exit
-
-        crossed_entry = (not prev_entry) and curr_entry
-        crossed_exit = (not prev_exit) and curr_exit
-
-        if crossed_entry and crossed_exit:
+        zone_history = self._zone_label_history_by_track.setdefault(track_id, deque(maxlen=6))
+        zone_history.append(current_zone)
+        stable_zone = self._dominant_zone(zone_history)
+        if stable_zone == "none":
             return None
 
-        if crossed_entry:
-            self._last_event_frame_by_track[track_id] = self._frame_idx
-            return {
-                "type": "entry",
-                "track_id": track_id,
-                "trajectory": list(history),
-                "confidence": 1.0,
-                "reason": "entry_polygon_outside_to_inside",
-            }
+        last_seen_zone = self._last_seen_primary_zone_by_track.get(track_id)
+        self._last_seen_primary_zone_by_track[track_id] = stable_zone
 
-        if crossed_exit:
-            self._last_event_frame_by_track[track_id] = self._frame_idx
-            return {
-                "type": "exit",
-                "track_id": track_id,
-                "trajectory": list(history),
-                "confidence": 1.0,
-                "reason": "exit_polygon_outside_to_inside",
-            }
+        if last_seen_zone is None or last_seen_zone == stable_zone:
+            return None
 
-        return None
+        if {last_seen_zone, stable_zone} != {"entry", "exit"}:
+            return None
+
+        if motion_direction == "still" and motion_magnitude <= 0.0:
+            return None
+
+        lookback = min(5, len(history) - 1)
+        start_point = history[-(lookback + 1)]
+        move_vector = (curr[0] - start_point[0], curr[1] - start_point[1])
+        move_length = (move_vector[0] ** 2 + move_vector[1] ** 2) ** 0.5
+        if move_length < self.zone_config.min_crossing_displacement_px * 0.15:
+            return None
+
+        entry_center = self._polygon_centroid(polygon_entry)
+        exit_center = self._polygon_centroid(polygon_exit)
+
+        if last_seen_zone == "exit" and stable_zone == "entry":
+            expected = (entry_center[0] - exit_center[0], entry_center[1] - exit_center[1])
+            target_center = entry_center
+            event_type = "entry"
+            reason = "dual_polygon_transition_exit_to_entry"
+        elif last_seen_zone == "entry" and stable_zone == "exit":
+            expected = (exit_center[0] - entry_center[0], exit_center[1] - entry_center[1])
+            target_center = exit_center
+            event_type = "exit"
+            reason = "dual_polygon_transition_entry_to_exit"
+        else:
+            return None
+
+        dot = (move_vector[0] * expected[0]) + (move_vector[1] * expected[1])
+        if dot <= 0:
+            return None
+
+        start_to_target = ((start_point[0] - target_center[0]) ** 2 + (start_point[1] - target_center[1]) ** 2) ** 0.5
+        curr_to_target = ((curr[0] - target_center[0]) ** 2 + (curr[1] - target_center[1]) ** 2) ** 0.5
+        if (start_to_target - curr_to_target) < (self.zone_config.min_crossing_displacement_px * 0.05):
+            return None
+
+        self._last_event_frame_by_track[track_id] = self._frame_idx
+        return {
+            "type": event_type,
+            "track_id": track_id,
+            "trajectory": list(history),
+            "confidence": 1.0,
+            "reason": reason,
+        }
 
     def _check_entry_polygon(
         self,
@@ -291,3 +350,83 @@ class TrajectoryEntryAnalysisModule:
                         inside = not inside
             px1, py1 = px2, py2
         return inside
+
+    def _classify_dual_zone(
+        self,
+        point: Tuple[float, float],
+        polygon_entry: List[Tuple[float, float]],
+        polygon_exit: List[Tuple[float, float]],
+        tolerance_px: float,
+    ) -> str:
+        inside_entry = self._point_in_polygon(point, polygon_entry)
+        inside_exit = self._point_in_polygon(point, polygon_exit)
+
+        if inside_entry and inside_exit:
+            entry_center = self._polygon_centroid(polygon_entry)
+            exit_center = self._polygon_centroid(polygon_exit)
+            dist_entry = ((point[0] - entry_center[0]) ** 2 + (point[1] - entry_center[1]) ** 2) ** 0.5
+            dist_exit = ((point[0] - exit_center[0]) ** 2 + (point[1] - exit_center[1]) ** 2) ** 0.5
+            return "entry" if dist_entry <= dist_exit else "exit"
+        if inside_entry:
+            return "entry"
+        if inside_exit:
+            return "exit"
+
+        dist_entry = self._distance_to_polygon_boundary(point, polygon_entry)
+        dist_exit = self._distance_to_polygon_boundary(point, polygon_exit)
+        if min(dist_entry, dist_exit) <= tolerance_px:
+            return "entry" if dist_entry <= dist_exit else "exit"
+
+        return "none"
+
+    @staticmethod
+    def _dominant_zone(zone_history: Deque[str]) -> str:
+        if not zone_history:
+            return "none"
+        entry_votes = sum(1 for z in zone_history if z == "entry")
+        exit_votes = sum(1 for z in zone_history if z == "exit")
+        if entry_votes >= 2 and entry_votes > exit_votes:
+            return "entry"
+        if exit_votes >= 2 and exit_votes > entry_votes:
+            return "exit"
+        return zone_history[-1]
+
+    @staticmethod
+    def _distance_to_polygon_boundary(point: Tuple[float, float], polygon: List[Tuple[float, float]]) -> float:
+        if len(polygon) < 2:
+            return 10_000.0
+        min_dist = 10_000.0
+        for idx in range(len(polygon)):
+            p1 = polygon[idx]
+            p2 = polygon[(idx + 1) % len(polygon)]
+            dist = TrajectoryEntryAnalysisModule._point_to_segment_distance(point, p1, p2)
+            if dist < min_dist:
+                min_dist = dist
+        return min_dist
+
+    @staticmethod
+    def _point_to_segment_distance(point, seg_a, seg_b) -> float:
+        px, py = point
+        ax, ay = seg_a
+        bx, by = seg_b
+        abx = bx - ax
+        aby = by - ay
+        apx = px - ax
+        apy = py - ay
+        ab_len_sq = (abx * abx) + (aby * aby)
+        if ab_len_sq <= 1e-6:
+            return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+        t = ((apx * abx) + (apy * aby)) / ab_len_sq
+        t = max(0.0, min(1.0, t))
+        cx = ax + (t * abx)
+        cy = ay + (t * aby)
+        return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5
+
+    @staticmethod
+    def _polygon_centroid(polygon: List[Tuple[float, float]]) -> Tuple[float, float]:
+        if not polygon:
+            return (0.0, 0.0)
+        sx = sum(p[0] for p in polygon)
+        sy = sum(p[1] for p in polygon)
+        n = float(len(polygon))
+        return (sx / n, sy / n)

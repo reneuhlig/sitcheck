@@ -72,6 +72,8 @@ class LiveProcessor:
         )
         self.process_every_n_frames = max(1, int(process_every_n_frames))
         self._last_tracks = []
+        self._track_event_overlay: Dict[int, Dict[str, Any]] = {}
+        self._track_event_overlay_ttl_sec = 2.0
 
         self.entry_analysis = TrajectoryEntryAnalysisModule(zone_config=zone_config)
         self.zone_config = zone_config
@@ -136,9 +138,19 @@ class LiveProcessor:
                 events = self.entry_analysis.update(tracks=tracks, frame_shape=frame.shape) if run_tracking_now else []
                 frame_entries = 0
                 frame_exits = 0
+                now_overlay = time.monotonic()
 
                 for event in events:
                     if self.occupancy_state.handle_event(event):
+                        event_track_id = event.get("track_id")
+                        if event_track_id is not None:
+                            try:
+                                self._track_event_overlay[int(event_track_id)] = {
+                                    "type": str(event.get("type", "entry")).lower(),
+                                    "ts": now_overlay,
+                                }
+                            except (TypeError, ValueError):
+                                pass
                         event_type = str(event.get("type", "entry")).upper()
                         if event_type == "ENTRY":
                             frame_entries += 1
@@ -149,6 +161,15 @@ class LiveProcessor:
                             f"Occupancy={self.occupancy_state.occupancy}"
                         )
 
+                if self._track_event_overlay:
+                    expired_ids = [
+                        track_id
+                        for track_id, payload in self._track_event_overlay.items()
+                        if (now_overlay - float(payload.get("ts", 0.0))) > self._track_event_overlay_ttl_sec
+                    ]
+                    for track_id in expired_ids:
+                        self._track_event_overlay.pop(track_id, None)
+
                 frame_h, frame_w = frame.shape[:2]
                 vis_frame = self.visualization.draw(
                     frame=frame,
@@ -158,6 +179,7 @@ class LiveProcessor:
                     entries_total=self.occupancy_state.entries_total,
                     exits_total=self.occupancy_state.exits_total,
                     events_in_frame={"entry": frame_entries, "exit": frame_exits},
+                    track_event_overlay=self._track_event_overlay,
                 )
                 self.visualization.show(vis_frame)
 
