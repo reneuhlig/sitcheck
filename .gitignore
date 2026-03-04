@@ -17,3 +17,15 @@ temp_test_images/
 *.m4s
 *.tmp
 *.mpd
+/website-dashboard/runtime/dash/*
+!/website-dashboard/runtime/dash/.gitkeep
+/website-dashboard/runtime/hls/*
+!/website-dashboard/runtime/hls/.gitkeep
+/website-dashboard/runtime/logs/*
+!/website-dashboard/runtime/logs/.gitkeep
+/website-dashboard/runtime/original-site-out/*
+!/website-dashboard/runtime/original-site-out/.gitkeep
+/website-dashboard/original-site/nextapp/node_modules/
+/website-dashboard/original-site/nextapp/.next-local/
+/website-dashboard/original-site/nextapp/.next/
+/prognose/services/forecast-trainer/runtime/

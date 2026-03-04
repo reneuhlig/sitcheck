@@ -1,129 +1,98 @@
-# Library Occupancy Tracking (YOLO Track)
+# Sitcheck Workspace
 
-Config-driven real-time people tracking and occupancy counting for a library entrance (entry + exit capable).
+Dieses Workspace bleibt in drei Hauptbereiche gegliedert:
 
-## Core flow
-- Video source abstraction (`VideoInputModule.py`) with YouTube/RTSP/webcam/file support
-- Ultralytics tracking via `model.track(...)` (person class only)
-- Trajectory-based transition detection (`line`, `polygon`, or `dual_polygon` with entry+exit areas)
-- Event-based occupancy management
-- Optional PostgreSQL persistence for webpage + analysis
+## 1) Prognose
+Pfad: `./prognose`
 
-## Run
-```bash
-python3 run_live_detection.py --config config.yaml
-```
+Inhalt:
+- Forecasting, XAI, Recommendations
+- API-Gateway auf `:8000`
+- Lecture-Ingest auf `:8012`
+- Forecast-Trainer (nightly scientific evaluate + ablation) auf `:8013`
+- Streamlit-Analytics-Dashboard auf `:8501`
 
-Wichtig:
-- `run_live_detection.py` ist der Standalone-Tracker (ohne Web-Dashboard-Pipeline).
-- Für Webbetrieb mit Overlay + DASH ist `start_dashboard.sh` der empfohlene Einstieg.
-- `start_system.sh` und `start_dashboard.sh` nicht parallel auf derselben Quelle laufen lassen (sonst doppelte Inferenzlast und mehr Lag).
+## 2) Bildauswertung
+Pfad: `./bildauswertung`
 
-Default tracking runtime is configured for CPU with YOLO26:
-- `tracking.model_path: yolo26n.pt`
-- `tracking.device: cpu`
+Inhalt:
+- YOLO-Tracking
+- Trajektorien- und Event-Analyse (Entry/Exit)
+- Occupancy-State + optionale Direct-DB-Integration in `prognose.counts`
 
-Für bessere Erkennung von weiter entfernten Personen und weniger Box-Flimmern:
-- `tracking.imgsz` erhöhen (z. B. `640`, `768`, `960`, `1280`; meist Vielfache von 32 sinnvoll)
-- `preprocess.enabled: true` mit leichtem `preprocess.upscale` (z. B. `1.2-1.4`)
-- `tracking.stabilization_enabled: true` für temporale Glättung + kurze Hold-Phase
-- `tracking.track_hold_frames`, `tracking.box_ema_alpha`, `tracking.hold_confidence_decay` feinjustieren
-- `tracking.trail_length` und `tracking.motion_min_pixels` für Bewegungsrichtung-Overlay abstimmen
-- optional `tracking.tta_enabled: true` nur bei genügend CPU/GPU-Reserve
+## 3) Website/Dashboard
+Pfad: `./website-dashboard`
 
-Dashboard ROI-Cropping (spart Rechenzeit und reduziert Störbereiche):
-- Im Dashboard unter **Analysis ROI** den Analysebereich (`x_min`, `y_min`, `x_max`, `y_max`) setzen
-- Mit **Save ROI** speichern; Werte werden in `config.yaml` unter `tracking.analysis_roi` persistiert
-- Nur dieser Bildausschnitt wird von Ultralytics analysiert, Overlays/Zonen bleiben im Vollbild sichtbar
+Inhalt:
+- Portal/Gateway (`website-dashboard/portal`) auf `:8090`
+- Realtime Flask Dashboard (`website-dashboard/realtime`) auf `:8080`
+- Original-Website Snapshot (`website-dashboard/original-site/nextapp`)
+- Runtime-Ausgaben unter `website-dashboard/runtime`
 
-Tracker-Auswahl nach Ultralytics `track`-Doku:
-- `tracking.tracker: bytetrack_entrance.yaml` (hier Standard) ist robust bei niedrigen Confidence-Werten und kurzen Aussetzern
-- `tracking.tracker: botsort.yaml` kann bei stärkeren Okklusionen helfen (optional mit ReID im Tracker-YAML)
-- Für eigene Profile: YAML aus Ultralytics-Trackern kopieren und nur Parameter (nicht `tracker_type`) anpassen
-
-Production start wrapper (standalone tracker) uses its own runtime venv automatically:
-```bash
-./start_system.sh start
-```
-
-Optional overrides:
-- `SITCHECK_RUNTIME_VENV=/path/to/venv` to change managed runtime venv location
-- `SITCHECK_PYTHON=/path/to/python` to use a fixed interpreter directly
-
-## Live calibration tool
-With window enabled (`ui.show_window: true`), you can calibrate zone live:
-- `L` line mode
-- `P` polygon mode
-- `D` toggle line direction
-- left click set/add points
-- right click remove polygon point
-- `S` save
-- `Q`/`ESC` quit
-
-Zone changes are persisted immediately into `config.yaml`.
-
-## Web dashboard (headless server)
-Use browser dashboard for live stream + zone editing on servers without GUI:
+## One Flow (empfohlen, no-docker)
+Zentraler Start/Stop über Root-Orchestrator:
 
 ```bash
-./start_dashboard.sh start
-./start_dashboard.sh status
-./start_dashboard.sh logs
+./sitcheckctl.sh start
+./sitcheckctl.sh status
+./sitcheckctl.sh logs
+./sitcheckctl.sh stop
 ```
 
-Default URL: `http://<server-ip>:8080`
+Scientific-Training Utilities:
 
-Empfohlener Pipeline-Start (Tracking + Overlay + DASH):
 ```bash
-./start_dashboard.sh restart
+./prognose/scripts/train/run_nightly_eval_once.sh
+./prognose/scripts/train/promote_latest_validated.sh
+./prognose/scripts/train/switch_backend_tf.sh tf_mlp
 ```
 
-Für sauberen Wechsel vom Standalone-Tracker auf Dashboard:
+Hauptzugänge:
+- Hauptseite (Portal + Original-Website): `http://<host>:8090`
+- Realtime direkt: `http://<host>:8080`
+- Analytics (Streamlit): `http://<host>:8501`
+- API/Command Center: `http://<host>:8000/api/v1/dashboard/command-center?zone_id=default-zone&horizon=60&history_minutes=180`
+- Lecture-Impact (latest): `http://<host>:8000/api/v1/lectures/impact/latest?zone_id=default-zone`
+- Hub-API der Hauptseite: `http://<host>:8090/api/hub/overview`
+- Forecast-Trainer Health: `http://<host>:8013/health`
+
+Hinweis:
+- Sitcheck bindet keinen Port `80` (osTicket/Apache bleibt unangetastet).
+- Direkte Ports `8080/8501/8000` sind als Advanced-/Debug-Pfade gedacht; Standardzugang ist `:8090`.
+
+## Original-Website Build
+Statische Ausgabe fuer das Portal erzeugen:
+
 ```bash
-./start_system.sh stop
-./start_dashboard.sh restart
+./website-dashboard/original-site/scripts/build_static_site.sh
 ```
 
-Alles stoppen + clean neu starten (inkl. Altprozesse):
+Upstream-Snapshot aktualisieren:
+
 ```bash
-cd /sitcheck && ./start_dashboard.sh stop; ./start_system.sh stop; pkill -f 'dashboard_app.py|run_live_detection.py|ffmpeg.*dash/stream.mpd' || true; ./start_dashboard.sh restart
+./website-dashboard/original-site/scripts/update_from_upstream.sh
 ```
 
-Das Dashboard nutzt DASH (YouTube-ähnlich mit `.mpd` + Segmenten) mit Server-seitigem Packaging.
-Voraussetzung: `ffmpeg` (System) oder das Python-Paket `imageio-ffmpeg` (wird über `start_dashboard.sh` automatisch installiert).
+Lokale Website-Overrides (update-sicher):
+- Quelle: `website-dashboard/original-site/local-overrides/`
+- Anwenden: `./website-dashboard/original-site/scripts/apply_local_overrides.sh`
+- `update_from_upstream.sh` führt Overrides + Build automatisch aus.
 
-Für flüssiges DASH-Web-Streaming kannst du in `config.yaml` unter `dashboard` anpassen:
-- `stream_fps` (Ziel-Ausgabe-FPS im Browser)
-- `jpeg_quality` (40-95, niedriger = schneller/kleinere Frames)
-- `stream_max_width` (maximale Stream-Breite in Pixeln; kleiner = deutlich weniger Bandbreite)
-- `analysis_queue_frames` (Frame-Puffer für Ultralytics-Analyse)
-- `analysis_skip_threshold_frames` (0 = keine Analyse-Skips, >0 = bei Überlast ältere Analyse-Frames verwerfen)
-- `dash.enabled` (DASH-Generierung an/aus)
-- `dash.output_dir` (Segment-/Manifest-Ordner)
-- `dash.segment_time` (Segmentlänge in Sekunden)
-- `dash.list_size` (Anzahl Segmente im Live-Fenster)
-- `dash.abr.enabled` (adaptive Bitrate mit mehreren Qualitätsstufen)
-- `dash.abr.high_bitrate_kbps` / `dash.abr.low_bitrate_kbps` (Bitraten der ABR-Stufen)
-- `dash.abr.low_scale` (Skalierung der kleineren ABR-Stufe, z. B. `0.6`)
+Fixierter Upstream-Stand:
+- `website-dashboard/original-site/UPSTREAM_PINNED_COMMIT`
 
-Hinweis: Das Dashboard streamt über den DASH-Pfad `/dash/stream.mpd`.
-Die Track-Visualisierung (Boxen/ID/Richtung) bleibt im DASH-Stream erhalten.
+## Kompatibilitäts-Wrapper (Root)
+Die alten Root-Kommandos bleiben verfügbar und delegieren intern:
+- `./start_system.sh ...` -> `./bildauswertung/start_system.sh ...`
+- `./start_dashboard.sh ...` -> `./website-dashboard/realtime/start_dashboard.sh ...`
 
-Effizienter Internet-Preset (ähnlich „adaptive light“):
-- `stream_fps: 20`
-- `jpeg_quality: 65`
-- `stream_max_width: 960`
-
-- `dual_polygon` mode supports separate `entry_polygon` and `exit_polygon`
-- Occupancy increases on outside→inside crossing of `entry_polygon`
-- Occupancy decreases on outside→inside crossing of `exit_polygon`
-- Counting includes cooldown/displacement filters to reduce false toggles
-
-## Webpage data functions
-`DatabaseHandler.py` provides:
-- `get_occupancy_snapshot()`
-- `get_occupancy_timeseries(minutes)`
-- `get_entry_summary(minutes)`
-- `get_recent_entry_events(limit)`
-
-For full architecture, assumptions, and business rules, see `Agent.md`.
+## Architektur- und Analyse-Dokumente
+- Bereichsarchitektur Bildauswertung: `bildauswertung/docs/architecture.md`
+- Dashboard-Mapping: `website-dashboard/docs/dashboard-map.md`
+- Portal-Contract: `website-dashboard/portal/docs/portal-contract.md`
+- Integrationsvertrag Vision -> Prognose: `docs/integration/vision-to-prognose-contract.md`
+- Lecture-Impact Vertrag: `prognose/docs/lecture-impact-contract.md`
+- Vollanalyse-Artefakte:
+  - `docs/overview/01_inventory.md`
+  - `docs/overview/02_dependency-map.md`
+  - `docs/overview/03_area-mapping.csv`

@@ -10,6 +10,7 @@ class VideoInputModule:
     def __init__(
         self,
         source: str,
+        fallback_source: str | int | None = None,
         reconnect_delay: float = 1.0,
         max_retries: int = 0,
         hwaccel: str = "auto",
@@ -20,6 +21,7 @@ class VideoInputModule:
     ):
         self.raw_source = source
         self.source = self._parse_source(source)
+        self.fallback_source = None if fallback_source in (None, "") else self._parse_source(str(fallback_source))
         self.is_youtube_source = self._is_youtube_url(str(source))
         self.reconnect_delay = reconnect_delay
         self.max_retries = max_retries
@@ -29,6 +31,7 @@ class VideoInputModule:
         self.youtube_format = str(youtube_format or "best[ext=mp4]/best")
         self.youtube_player_client = str(youtube_player_client or "android").strip() or "android"
         self.capture: Optional[cv2.VideoCapture] = None
+        self.active_source: Any = self.source
         self._retries = 0
         self._last_youtube_resolve_ts = 0.0
         self._youtube_resolve_failures = 0
@@ -115,13 +118,16 @@ class VideoInputModule:
             resolved_source = self._resolve_youtube_stream(str(self.raw_source))
             if not resolved_source:
                 self._youtube_resolve_failures += 1
-                return False
-            source_to_open = resolved_source
-            self.source = resolved_source
-            self._youtube_resolve_failures = 0
+                if self.fallback_source is None:
+                    return False
+                source_to_open = self.fallback_source
+            else:
+                source_to_open = resolved_source
+                self.source = resolved_source
+                self._youtube_resolve_failures = 0
 
         if isinstance(source_to_open, int):
-            self.capture = cv2.VideoCapture(self.source)
+            self.capture = cv2.VideoCapture(source_to_open)
         else:
             self.capture = cv2.VideoCapture(source_to_open, cv2.CAP_FFMPEG)
             if not (self.capture and self.capture.isOpened()):
@@ -133,6 +139,7 @@ class VideoInputModule:
                 self.capture = cv2.VideoCapture(source_to_open)
 
         if self.capture and self.capture.isOpened():
+            self.active_source = source_to_open
             self.capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             self._configure_hwaccel()
         return bool(self.capture and self.capture.isOpened())

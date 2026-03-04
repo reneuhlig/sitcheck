@@ -5,17 +5,16 @@ Startskript für YOLO26-Tracking basierte Live-Erkennung am Bibliothekseingang.
 
 import argparse
 import logging
+import os
 import sys
 from typing import Any, Dict, Optional
 
 from ConfigManager import ConfigManager
-from LiveProcessor import LiveProcessor
-from TrajectoryEntryAnalysisModule import EntranceZoneConfig
-from UltralyticsPersonDetector import UltralyticsPersonDetector
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def _parse_args():
@@ -23,7 +22,11 @@ def _parse_args():
         description="Live people tracking + occupancy counting with Ultralytics YOLO track API",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--config", default="config.yaml", help="Pfad zur YAML-Konfiguration")
+    parser.add_argument(
+        "--config",
+        default=os.path.join(SCRIPT_DIR, "config.yaml"),
+        help="Pfad zur YAML-Konfiguration",
+    )
     parser.add_argument("--video-source", default=None, help="Optionaler Override für Videoquelle")
     parser.add_argument("--show-window", action="store_true", help="Window explizit aktivieren")
     parser.add_argument("--headless", action="store_true", help="Window explizit deaktivieren")
@@ -43,13 +46,34 @@ def _build_db_config(config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "port": int(db["port"]),
     }
 
+def _resolve_config_path(config_path: str) -> str:
+    if os.path.isabs(config_path):
+        return config_path
+    return os.path.abspath(os.path.join(os.getcwd(), config_path))
+
+
+def _resolve_relative_to_config(config_path: str, value: str) -> str:
+    if not value:
+        return value
+    if os.path.isabs(value):
+        return value
+    config_dir = os.path.dirname(config_path)
+    return os.path.abspath(os.path.join(config_dir, value))
+
 
 def main():
     args = _parse_args()
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    config_manager = ConfigManager(config_path=args.config)
+    # Verzögert Importe von schweren/optionalen Abhängigkeiten, damit
+    # `--help` ohne komplette Runtime-Dependencies funktioniert.
+    from LiveProcessor import LiveProcessor
+    from TrajectoryEntryAnalysisModule import EntranceZoneConfig
+    from UltralyticsPersonDetector import UltralyticsPersonDetector
+
+    resolved_config_path = _resolve_config_path(args.config)
+    config_manager = ConfigManager(config_path=resolved_config_path)
     config = config_manager.load()
 
     if args.video_source:
@@ -59,8 +83,19 @@ def main():
     if args.headless:
         config["ui"]["show_window"] = False
 
+    tracking_cfg = config.get("tracking", {})
+    tracking_cfg["model_path"] = _resolve_relative_to_config(
+        resolved_config_path,
+        str(tracking_cfg.get("model_path", "models/yolo26n.pt")),
+    )
+    tracking_cfg["tracker"] = _resolve_relative_to_config(
+        resolved_config_path,
+        str(tracking_cfg.get("tracker", "bytetrack_entrance.yaml")),
+    )
+
     zone_config = EntranceZoneConfig.from_dict(config["zone"])
     db_config = _build_db_config(config)
+    integration_config = dict(config.get("integration", {}) or {})
 
     def _persist_zone_update(updated_zone: EntranceZoneConfig):
         # Nicht-trivial: Änderungen aus der Live-UI sollen sofort wirksam und
@@ -102,6 +137,8 @@ def main():
             enable_zone_editor=bool(config["ui"].get("enable_zone_editor", True)),
             on_zone_changed=_persist_zone_update,
             db_config=db_config,
+            integration_config=integration_config,
+            config_dir=os.path.dirname(resolved_config_path),
         )
         processor.start()
 

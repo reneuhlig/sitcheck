@@ -48,17 +48,23 @@ class VisualizationOutputModule:
             track_id = track.get("track_id")
             confidence = track.get("confidence", 0.0)
             is_stale = bool(track.get("is_stale", False))
-            color = (50, 170, 255) if is_stale else (0, 200, 0)
 
             event_tag = None
             if track_event_overlay and track_id is not None:
                 event_payload = track_event_overlay.get(int(track_id))
                 if event_payload:
                     event_tag = str(event_payload.get("type", "")).upper()
-                    if event_tag == "ENTRY":
-                        color = (0, 255, 0)
-                    elif event_tag == "EXIT":
-                        color = (0, 0, 255)
+
+            state_tag = event_tag if event_tag in {"ENTRY", "EXIT"} else "PASSING"
+            if state_tag == "ENTRY":
+                color = (0, 255, 0)
+                badge_bg = (0, 110, 0)
+            elif state_tag == "EXIT":
+                color = (0, 0, 255)
+                badge_bg = (0, 0, 140)
+            else:
+                color = (0, 215, 255) if not is_stale else (80, 160, 220)
+                badge_bg = (130, 80, 0) if not is_stale else (90, 90, 90)
 
             cv2.rectangle(output, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
 
@@ -81,23 +87,48 @@ class VisualizationOutputModule:
                 )
                 cv2.arrowedLine(output, start_point, end_point, (0, 255, 255), 2, tipLength=0.35)
 
+            label_text = f"ID {track_id} | {state_tag} | {confidence:.2f}"
+            label_w = max(160, min(260, 8 * len(label_text)))
+            label_x = int(x1)
+            label_y = max(4, int(y1) - 20)
+            cv2.rectangle(output, (label_x, label_y), (label_x + label_w, label_y + 18), (0, 0, 0), -1)
             cv2.putText(
                 output,
-                f"ID {track_id} | {confidence:.2f} | {motion_direction}",
-                (int(x1), max(20, int(y1) - 8)),
+                label_text,
+                (label_x + 4, label_y + 3),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                color,
+                0.48,
+                (255, 255, 255),
                 1,
             )
 
-            if event_tag in {"ENTRY", "EXIT"}:
-                badge_bg = (0, 90, 0) if event_tag == "ENTRY" else (0, 0, 120)
-                badge_text = f"{event_tag}"
-                text_x = int(x1)
-                text_y = min(output.shape[0] - 8, int(y2) + 18)
-                cv2.rectangle(output, (text_x, text_y - 14), (text_x + 62, text_y + 4), badge_bg, -1)
-                cv2.putText(output, badge_text, (text_x + 4, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(
+                output,
+                motion_direction,
+                (int(x1) + 4, max(22, int(y1) - 3)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                (220, 220, 220),
+                1,
+            )
+
+            badge_text = "ENTRY +" if state_tag == "ENTRY" else ("EXIT -" if state_tag == "EXIT" else "PASSING")
+            badge_w = 86 if state_tag == "PASSING" else 72
+            text_x = int(x1)
+            text_y = min(output.shape[0] - 8, int(y2) + 18)
+            cv2.rectangle(output, (text_x, text_y - 14), (text_x + badge_w, text_y + 4), badge_bg, -1)
+            cv2.putText(output, badge_text, (text_x + 4, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+        legend_x = output.shape[1] - 220
+        legend_y = 20
+        cv2.rectangle(output, (legend_x - 10, legend_y - 12), (output.shape[1] - 10, legend_y + 78), (0, 0, 0), -1)
+        cv2.putText(output, "Track Status", (legend_x, legend_y), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 1)
+        cv2.rectangle(output, (legend_x, legend_y + 10), (legend_x + 12, legend_y + 22), (0, 255, 0), -1)
+        cv2.putText(output, "ENTRY", (legend_x + 18, legend_y + 21), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 1)
+        cv2.rectangle(output, (legend_x, legend_y + 30), (legend_x + 12, legend_y + 42), (0, 0, 255), -1)
+        cv2.putText(output, "EXIT", (legend_x + 18, legend_y + 41), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 1)
+        cv2.rectangle(output, (legend_x, legend_y + 50), (legend_x + 12, legend_y + 62), (0, 215, 255), -1)
+        cv2.putText(output, "PASSING", (legend_x + 18, legend_y + 61), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 1)
 
         cv2.putText(output, f"Occupancy: {occupancy}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
         cv2.putText(output, f"Entries total: {entries_total}", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)

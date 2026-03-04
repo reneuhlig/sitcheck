@@ -2,6 +2,7 @@ import time
 from typing import Dict, Optional, Any, Callable
 
 from DatabaseHandler import DatabaseHandler
+from integration.prognose_db_writer import PrognoseDbWriter
 from VideoInputModule import VideoInputModule
 from YOLOTrackingModule import YOLOTrackingModule
 from TrajectoryEntryAnalysisModule import (
@@ -44,6 +45,8 @@ class LiveProcessor:
         enable_zone_editor: bool = True,
         on_zone_changed: Optional[Callable[[EntranceZoneConfig], None]] = None,
         db_config: Optional[Dict[str, Any]] = None,
+        integration_config: Optional[Dict[str, Any]] = None,
+        config_dir: Optional[str] = None,
     ):
         self.video_input = VideoInputModule(
             source=video_source,
@@ -90,6 +93,24 @@ class LiveProcessor:
             on_zone_changed=self._handle_zone_changed,
         )
         self._on_zone_changed = on_zone_changed
+        self.integration_writer: Optional[PrognoseDbWriter] = None
+        integration_cfg = dict(integration_config or {})
+        prognose_cfg = integration_cfg.get("prognose_db", integration_cfg)
+        if isinstance(prognose_cfg, dict) and prognose_cfg.get("enabled", False):
+            cfg_dir = config_dir or "."
+            try:
+                self.integration_writer = PrognoseDbWriter(
+                    config=prognose_cfg,
+                    config_dir=cfg_dir,
+                    component_name="bildauswertung.LiveProcessor",
+                )
+                print(
+                    "[INFO] Prognose-Direct-DB Writer aktiviert "
+                    f"(zone_id={self.integration_writer.zone_id}, max_wps={self.integration_writer.max_writes_per_second})"
+                )
+            except Exception as exc:
+                print(f"[WARN] Prognose-Writer konnte nicht initialisiert werden: {exc}")
+                self.integration_writer = None
 
         self.running = False
 
@@ -161,6 +182,21 @@ class LiveProcessor:
                             f"Occupancy={self.occupancy_state.occupancy}"
                         )
 
+                if self.integration_writer:
+                    track_ok = bool(getattr(self.tracking_module.detector, "last_track_ok", True))
+                    track_error = str(getattr(self.tracking_module.detector, "last_track_error", "") or "")
+                    self.integration_writer.write_frame(
+                        occupancy=self.occupancy_state.occupancy,
+                        tracks=tracks,
+                        run_tracking_now=run_tracking_now,
+                        track_ok=track_ok,
+                        track_error=track_error,
+                        model_name=str(getattr(self.tracking_module.detector, "model_name", "yolo")),
+                        model_version=str(getattr(self.tracking_module.detector, "model_version", "unknown")),
+                        frame_id=frame_idx,
+                        events_in_frame={"entry": frame_entries, "exit": frame_exits},
+                    )
+
                 if self._track_event_overlay:
                     expired_ids = [
                         track_id
@@ -209,6 +245,8 @@ class LiveProcessor:
         self.visualization.close()
         if self.db:
             self.db.close()
+        if self.integration_writer:
+            self.integration_writer.close()
         print(
             f"[INFO] Tracking beendet | Entries={self.occupancy_state.entries_total} | "
             f"Exits={self.occupancy_state.exits_total} | "

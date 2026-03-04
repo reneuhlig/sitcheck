@@ -9,12 +9,18 @@ import yaml
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "video": {
-        "source": "https://www.youtube.com/watch?v=8JCk5M_xrBs",
+        "source": "0",
+        "fallback_source": "0",
         "reconnect_delay": 1.0,
         "max_retries": 0,
+        "hwaccel": "auto",
+        "youtube_cookies_from_browser": "",
+        "youtube_cookiefile": "",
+        "youtube_format": "best[ext=mp4]/best",
+        "youtube_player_client": "android",
     },
     "tracking": {
-        "model_path": "yolo26n.pt",
+        "model_path": "models/yolo26n.pt",
         "device": "cpu",
         "tracker": "bytetrack_entrance.yaml",
         "confidence_threshold": 0.25,
@@ -59,7 +65,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "dynamic_skip_max_n": 4,
         "dash": {
             "enabled": False,
-            "output_dir": "dash",
+            "output_dir": "../website-dashboard/runtime/dash",
             "segment_time": 1.0,
             "list_size": 12,
             "preset": "ultrafast",
@@ -112,6 +118,34 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "database": "ai_detection",
         "port": 5432,
     },
+    "integration": {
+        "prognose_db": {
+            "enabled": False,
+            "api_ingest_enabled": False,
+            "api_base_url": "http://127.0.0.1:8000",
+            "api_timeout_seconds": 3.0,
+            "host": "127.0.0.1",
+            "user": "sitcheck",
+            "password": "change_me",
+            "database": "sitcheck",
+            "port": 5432,
+            "zone_id": "default-zone",
+            "source": "vision-direct-db",
+            "write_mode": "frame_near",
+            "max_writes_per_second": 2,
+            "strict_zone_check": True,
+            "ensure_zone": False,
+            "default_zone_capacity": 100,
+            "capacity_refresh_seconds": 30,
+            "flush_batch_size": 200,
+            "log_path": "../website-dashboard/runtime/logs/integration_writer.log",
+            "spool": {
+                "enabled": True,
+                "path": "../website-dashboard/runtime/logs/prognose_counts_spool.jsonl",
+                "max_entries": 20000,
+            },
+        }
+    },
 }
 
 
@@ -144,6 +178,7 @@ class ConfigManager:
     def _apply_env_overrides(self, config: Dict[str, Any]):
         env_map = {
             "SITCHECK_VIDEO_SOURCE": ("video", "source", str),
+            "SITCHECK_VIDEO_FALLBACK_SOURCE": ("video", "fallback_source", str),
             "SITCHECK_YOLO_MODEL": ("tracking", "model_path", str),
             "SITCHECK_DEVICE": ("tracking", "device", str),
             "SITCHECK_TRACKER": ("tracking", "tracker", str),
@@ -181,6 +216,28 @@ class ConfigManager:
             "SITCHECK_DB_PASSWORD": ("database", "password", str),
             "SITCHECK_DB_NAME": ("database", "database", str),
             "SITCHECK_DB_PORT": ("database", "port", int),
+            "SITCHECK_PROGNOSE_DB_ENABLED": ("integration", "prognose_db.enabled", self._parse_bool),
+            "SITCHECK_PROGNOSE_API_INGEST_ENABLED": ("integration", "prognose_db.api_ingest_enabled", self._parse_bool),
+            "SITCHECK_PROGNOSE_API_BASE_URL": ("integration", "prognose_db.api_base_url", str),
+            "SITCHECK_PROGNOSE_API_TIMEOUT_SECONDS": ("integration", "prognose_db.api_timeout_seconds", float),
+            "SITCHECK_PROGNOSE_DB_HOST": ("integration", "prognose_db.host", str),
+            "SITCHECK_PROGNOSE_DB_USER": ("integration", "prognose_db.user", str),
+            "SITCHECK_PROGNOSE_DB_PASSWORD": ("integration", "prognose_db.password", str),
+            "SITCHECK_PROGNOSE_DB_NAME": ("integration", "prognose_db.database", str),
+            "SITCHECK_PROGNOSE_DB_PORT": ("integration", "prognose_db.port", int),
+            "SITCHECK_PROGNOSE_DB_ZONE_ID": ("integration", "prognose_db.zone_id", str),
+            "SITCHECK_PROGNOSE_DB_SOURCE": ("integration", "prognose_db.source", str),
+            "SITCHECK_PROGNOSE_DB_WRITE_MODE": ("integration", "prognose_db.write_mode", str),
+            "SITCHECK_PROGNOSE_DB_MAX_WPS": ("integration", "prognose_db.max_writes_per_second", float),
+            "SITCHECK_PROGNOSE_DB_STRICT_ZONE_CHECK": ("integration", "prognose_db.strict_zone_check", self._parse_bool),
+            "SITCHECK_PROGNOSE_DB_ENSURE_ZONE": ("integration", "prognose_db.ensure_zone", self._parse_bool),
+            "SITCHECK_PROGNOSE_DB_DEFAULT_CAPACITY": ("integration", "prognose_db.default_zone_capacity", int),
+            "SITCHECK_PROGNOSE_DB_CAPACITY_REFRESH_SECONDS": ("integration", "prognose_db.capacity_refresh_seconds", int),
+            "SITCHECK_PROGNOSE_DB_FLUSH_BATCH_SIZE": ("integration", "prognose_db.flush_batch_size", int),
+            "SITCHECK_PROGNOSE_DB_LOG_PATH": ("integration", "prognose_db.log_path", str),
+            "SITCHECK_PROGNOSE_DB_SPOOL_ENABLED": ("integration", "prognose_db.spool.enabled", self._parse_bool),
+            "SITCHECK_PROGNOSE_DB_SPOOL_PATH": ("integration", "prognose_db.spool.path", str),
+            "SITCHECK_PROGNOSE_DB_SPOOL_MAX_ENTRIES": ("integration", "prognose_db.spool.max_entries", int),
         }
 
         for env_key, (section, key, caster) in env_map.items():

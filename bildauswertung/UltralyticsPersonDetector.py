@@ -1,5 +1,6 @@
 import logging
 import time
+import os
 
 from ultralytics import YOLO
 from ultralytics.utils import LOGGER as ULTRALYTICS_LOGGER
@@ -19,7 +20,7 @@ def _as_numpy(value):
 class UltralyticsPersonDetector(BaseDetector):
     """Ultralytics YOLO Detektor fuer Personenerkennung und Tracking."""
     
-    def __init__(self, model_path: str = "yolo26n.pt", confidence_threshold: float = 0.5, device: str = "cpu"):
+    def __init__(self, model_path: str = "models/yolo26n.pt", confidence_threshold: float = 0.5, device: str = "cpu"):
         """
         Initialisiert den Ultralytics Detektor
         
@@ -33,9 +34,10 @@ class UltralyticsPersonDetector(BaseDetector):
         normalized_device = str(device).strip().lower()
         self.device = "cpu" if normalized_device in {"", "auto"} else normalized_device
         normalized_model = str(model_path).strip()
-        if normalized_model != "yolo26n.pt":
+        model_name = os.path.basename(normalized_model)
+        if model_name != "yolo26n.pt":
             raise ValueError(
-                f"Dieses System ist auf YOLO26n fixiert. Erwartet 'yolo26n.pt', erhalten: '{normalized_model}'"
+                f"Dieses System ist auf YOLO26n fixiert. Erwartet Dateiname 'yolo26n.pt', erhalten: '{normalized_model}'"
             )
         self.model_path = normalized_model
         print(f"[INFO] Lade Ultralytics Modell: {self.model_path}", flush=True)

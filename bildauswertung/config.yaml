@@ -1,5 +1,6 @@
 video:
-  source: https://www.youtube.com/watch?v=8JCk5M_xrBs
+  source: 0
+  fallback_source: '0'
   reconnect_delay: 1.0
   max_retries: 0
   hwaccel: auto
@@ -8,7 +9,7 @@ video:
   youtube_format: best[ext=mp4]/best
   youtube_player_client: android
 tracking:
-  model_path: yolo26n.pt
+  model_path: models/yolo26n.pt
   device: auto
   tracker: bytetrack_entrance.yaml
   confidence_threshold: 0.15
@@ -60,7 +61,7 @@ dashboard:
   dynamic_skip_max_n: 5
   dash:
     enabled: true
-    output_dir: dash
+    output_dir: ../website-dashboard/runtime/dash
     segment_time: 0.5
     list_size: 6
     preset: ultrafast
@@ -106,32 +107,38 @@ zone:
       - 0.1699258691206544
   entry_polygon:
     points:
-    - - 0.906896551724138
-      - 0.3682898773006135
-    - - 0.957471264367816
-      - 0.6627684049079755
+    - - 0.8471264367816091
+      - 0.36419989775051126
+    - - 0.8735632183908046
+      - 0.34579498977505113
+    - - 0.8758620689655172
+      - 0.25786042944785276
+    - - 0.9183908045977012
+      - 0.24559049079754602
+    - - 0.9988505747126437
+      - 0.3846497955010225
+    - - 0.9977011494252873
+      - 0.6504984662576687
     - - 0.8
-      - 0.6423185071574642
-    - - 0.8482758620689655
-      - 0.3621549079754601
+      - 0.6443634969325154
   exit_polygon:
     points:
-    - - 0.8459770114942529
-      - 0.2926252556237219
-    - - 0.7505747126436781
-      - 0.27422034764826175
-    - - 0.24942528735632183
-      - 0.7670628834355828
-    - - 0.9804597701149426
-      - 0.8897622699386503
-    - - 0.9620689655172414
-      - 0.68935327198364
-    - - 0.9551724137931035
-      - 0.6689033742331288
-    - - 0.7931034482758621
-      - 0.6504984662576687
+    - - 0.867816091954023
+      - 0.261950408997955
+    - - 0.8666666666666667
+      - 0.34579498977505113
     - - 0.8436781609195402
-      - 0.3539749488752556
+      - 0.3519299591002045
+    - - 0.7919540229885057
+      - 0.654588445807771
+    - - 0.9919540229885058
+      - 0.6689033742331288
+    - - 0.996551724137931
+      - 0.9715618609406953
+    - - 0.2482758620689655
+      - 0.7629729038854806
+    - - 0.7494252873563219
+      - 0.2721753578732106
   min_crossing_displacement_px: 20.0
   min_track_points: 4
   min_event_cooldown_frames: 8
@@ -146,3 +153,28 @@ database:
   password: DHBW1234!?
   database: ai_detection
   port: 5432
+integration:
+  prognose_db:
+    enabled: true
+    api_ingest_enabled: true
+    api_base_url: http://127.0.0.1:8000
+    api_timeout_seconds: 3.0
+    host: 127.0.0.1
+    user: sitcheck
+    password: change_me
+    database: sitcheck
+    port: 5432
+    zone_id: default-zone
+    source: vision-direct-db
+    write_mode: frame_near
+    max_writes_per_second: 2
+    strict_zone_check: true
+    ensure_zone: false
+    default_zone_capacity: 100
+    capacity_refresh_seconds: 30
+    flush_batch_size: 200
+    log_path: ../website-dashboard/runtime/logs/integration_writer.log
+    spool:
+      enabled: true
+      path: ../website-dashboard/runtime/logs/prognose_counts_spool.jsonl
+      max_entries: 20000

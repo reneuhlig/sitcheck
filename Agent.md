@@ -25,20 +25,20 @@ Counting is event-based and must avoid false positives from pedestrians passing 
 ## 3) Runtime Architecture
 
 ### Modules
-1. **Video source handling** → `VideoInputModule.py`
-2. **YOLO tracking** → `UltralyticsPersonDetector.py`, `YOLOTrackingModule.py`
-3. **Trajectory & entry analysis** → `TrajectoryEntryAnalysisModule.py`
-4. **Occupancy state** → `OccupancyStateModule.py`
-5. **Visualization + interactive editor** → `VisualizationOutputModule.py`
-6. **Orchestration** → `LiveProcessor.py`
-7. **Configuration layer** → `ConfigManager.py`, `config.yaml`
-8. **Persistence/analytics** → `DatabaseHandler.py` (optional)
+1. **Video source handling** → `bildauswertung/VideoInputModule.py`
+2. **YOLO tracking** → `bildauswertung/UltralyticsPersonDetector.py`, `bildauswertung/YOLOTrackingModule.py`
+3. **Trajectory & entry analysis** → `bildauswertung/TrajectoryEntryAnalysisModule.py`
+4. **Occupancy state** → `bildauswertung/OccupancyStateModule.py`
+5. **Visualization + interactive editor** → `bildauswertung/VisualizationOutputModule.py`
+6. **Orchestration** → `bildauswertung/LiveProcessor.py`
+7. **Configuration layer** → `bildauswertung/ConfigManager.py`, `bildauswertung/config.yaml`
+8. **Persistence/analytics** → `bildauswertung/DatabaseHandler.py` (optional)
 
 ### Current execution model (important)
-- `dashboard_app.py` contains the full live pipeline for web usage:
+- `website-dashboard/realtime/dashboard_app.py` contains the full live pipeline for web usage:
   video ingest + YOLO tracking + trajectory analysis + overlay rendering + DASH output.
-- `run_live_detection.py` / `start_system.sh` is a standalone local/CLI runtime.
-- To avoid duplicate inference load and lag, do **not** run `start_dashboard.sh` and `start_system.sh` at the same time on the same source.
+- `bildauswertung/run_live_detection.py` / `bildauswertung/start_system.sh` is a standalone local/CLI runtime.
+- To avoid duplicate inference load and lag, do **not** run `website-dashboard/realtime/start_dashboard.sh` and `bildauswertung/start_system.sh` at the same time on the same source.
 
 ### Separation Principles
 - Video source is abstracted and replaceable via configuration.
@@ -51,7 +51,7 @@ Counting is event-based and must avoid false positives from pedestrians passing 
 ## 4) Video Source Abstraction
 
 ### Initial development source
-Default source in `config.yaml`:
+Default source in `bildauswertung/config.yaml`:
 - `https://www.youtube.com/watch?v=8JCk5M_xrBs`
 
 ### Supported source types
@@ -61,9 +61,9 @@ Default source in `config.yaml`:
 - local video file path
 
 ### Configuration inputs
-- YAML (`config.yaml`) is primary.
+- YAML (`bildauswertung/config.yaml`) is primary.
 - ENV overrides supported (e.g. `SITCHECK_VIDEO_SOURCE`, `SITCHECK_TRACKER`, `SITCHECK_DB_ENABLED`, ...).
-- Optional CLI overrides in `run_live_detection.py`.
+- Optional CLI overrides in `bildauswertung/run_live_detection.py`.
 
 ---
 
@@ -106,7 +106,7 @@ Per `track_id`:
 
 ## 7) Interactive Live Visualization & Calibration Tool
 
-Provided by `VisualizationOutputModule.py`:
+Provided by `bildauswertung/VisualizationOutputModule.py`:
 - Live feed rendering (minimal latency via OpenCV loop)
 - Bounding boxes + persistent track IDs
 - Occupancy and entry counters
@@ -124,7 +124,7 @@ Provided by `VisualizationOutputModule.py`:
 - `Q` or `ESC`: quit
 
 ### Persistence behavior
-Zone edits are immediately written to `config.yaml` through `ConfigManager.update_zone(...)`, so calibration persists across restarts.
+Zone edits are immediately written to `bildauswertung/config.yaml` through `ConfigManager.update_zone(...)`, so calibration persists across restarts.
 
 ---
 
@@ -145,7 +145,7 @@ Optional DB integration (`database.enabled: true`) writes:
 - `movement_tracking` (event log)
 - `room_state` (occupancy timeline)
 
-Minimal query surface for webpage/business analytics in `DatabaseHandler.py`:
+Minimal query surface for webpage/business analytics in `bildauswertung/DatabaseHandler.py`:
 - `get_occupancy_snapshot()`
 - `get_occupancy_timeseries(minutes)`
 - `get_entry_summary(minutes)`
@@ -157,31 +157,31 @@ Minimal query surface for webpage/business analytics in `DatabaseHandler.py`:
 
 ## Standalone tracker (without web dashboard)
 ```bash
-python3 run_live_detection.py --config config.yaml
+python3 bildauswertung/run_live_detection.py --config bildauswertung/config.yaml
 ```
 
 ## Override source quickly
 ```bash
-python3 run_live_detection.py --config config.yaml --video-source 0
-python3 run_live_detection.py --config config.yaml --video-source "rtsp://..."
-python3 run_live_detection.py --config config.yaml --video-source "video.mp4"
+python3 bildauswertung/run_live_detection.py --config bildauswertung/config.yaml --video-source 0
+python3 bildauswertung/run_live_detection.py --config bildauswertung/config.yaml --video-source "rtsp://..."
+python3 bildauswertung/run_live_detection.py --config bildauswertung/config.yaml --video-source "video.mp4"
 ```
 
 ## Service helper (standalone mode)
 ```bash
-./start_system.sh start
-./start_system.sh status
-./start_system.sh room
-./start_system.sh logs
-./start_system.sh stop
+./bildauswertung/start_system.sh start
+./bildauswertung/start_system.sh status
+./bildauswertung/start_system.sh room
+./bildauswertung/start_system.sh logs
+./bildauswertung/start_system.sh stop
 ```
 
 ## Recommended production pipeline (web + tracking + DASH in one process)
 ```bash
-./start_dashboard.sh start
-./start_dashboard.sh status
-./start_dashboard.sh logs
-./start_dashboard.sh stop
+./website-dashboard/realtime/start_dashboard.sh start
+./website-dashboard/realtime/start_dashboard.sh status
+./website-dashboard/realtime/start_dashboard.sh logs
+./website-dashboard/realtime/start_dashboard.sh stop
 ```
 
 Default web URL:

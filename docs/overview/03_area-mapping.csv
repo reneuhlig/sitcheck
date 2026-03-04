@@ -1,0 +1,21 @@
+path_pattern,area,subcategory,reason
+/sitcheck/prognose/**,Prognose,Forecasting+XAI+Recommendations,Eigenstaendiges Subprojekt mit eigener Service-Architektur
+/sitcheck/prognose/apps/dashboard/**,Website/Dashboard,Analytics Dashboard (Streamlit),Dashboard bleibt physisch im Prognose-Repo
+/sitcheck/bildauswertung/BaseDetector.py,Bildauswertung,Detection Abstraction,YOLO detector contract
+/sitcheck/bildauswertung/UltralyticsPersonDetector.py,Bildauswertung,Detection/Tracking Adapter,Ultralytics model.track integration
+/sitcheck/bildauswertung/YOLOTrackingModule.py,Bildauswertung,Tracking Pipeline,Tracking + Stabilization
+/sitcheck/bildauswertung/TrajectoryEntryAnalysisModule.py,Bildauswertung,Trajectory Analysis,Entry/Exit event logic
+/sitcheck/bildauswertung/OccupancyStateModule.py,Bildauswertung,Occupancy State,Event-driven occupancy management
+/sitcheck/bildauswertung/VideoInputModule.py,Bildauswertung,Video Ingest,YouTube/RTSP/file/webcam capture abstraction
+/sitcheck/bildauswertung/VisualizationOutputModule.py,Bildauswertung,Overlay Rendering,Zone rendering/editor
+/sitcheck/bildauswertung/LiveProcessor.py,Bildauswertung,Orchestration,Coordinates ingest->track->analyze->state
+/sitcheck/bildauswertung/DatabaseHandler.py,Bildauswertung,Persistence,Optional PostgreSQL persistence layer
+/sitcheck/bildauswertung/ConfigManager.py,Bildauswertung,Configuration,YAML+ENV config contract
+/sitcheck/bildauswertung/run_live_detection.py,Bildauswertung,CLI Entrypoint,Standalone tracking runtime
+/sitcheck/bildauswertung/start_system.sh,Bildauswertung,Runtime Control,Start/stop/status wrapper for tracking runtime
+/sitcheck/bildauswertung/models/**,Bildauswertung,Model Artifacts,YOLO model binaries
+/sitcheck/website-dashboard/realtime/dashboard_app.py,Website/Dashboard,Realtime Flask UI,Live feed + controls + API endpoints
+/sitcheck/website-dashboard/realtime/start_dashboard.sh,Website/Dashboard,Runtime Control,Start/stop/status wrapper for realtime dashboard
+/sitcheck/website-dashboard/runtime/**,Website/Dashboard,Runtime Artifacts,DASH/HLS/log outputs (non-versioned)
+/sitcheck/start_system.sh,Website/Dashboard,Compatibility Wrapper,Delegates old root command to new area path
+/sitcheck/start_dashboard.sh,Website/Dashboard,Compatibility Wrapper,Delegates old root command to new area path
