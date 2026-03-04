@@ -29,6 +29,7 @@ from UltralyticsPersonDetector import UltralyticsPersonDetector
 from VideoInputModule import VideoInputModule
 from VisualizationOutputModule import VisualizationOutputModule
 from YOLOTrackingModule import YOLOTrackingModule
+from simulation_video_registry import DEFAULT_SIMULATION_DIR, SimulationVideoRegistry
 
 
 HTML_PAGE = """
@@ -99,7 +100,9 @@ HTML_PAGE = """
           <a class="navlink" id="main_link">Zur Hauptseite</a>
           <a class="navlink" id="analytics_link" target="_blank" rel="noopener">Analytics öffnen</a>
           <a class="navlink" id="api_link" target="_blank" rel="noopener">API/Command Center</a>
+          <a class="navlink" id="remote_link" target="_blank" rel="noopener">Fernbedienung öffnen</a>
         </div>
+        <div id="remote_link_info" class="muted">Fernbedienung: wird gesetzt...</div>
 
         <h3 class="title" style="margin-top:16px;">Video Source</h3>
         <div class="row">
@@ -203,6 +206,8 @@ HTML_PAGE = """
     const mainLinkEl = document.getElementById('main_link');
     const analyticsLinkEl = document.getElementById('analytics_link');
     const apiLinkEl = document.getElementById('api_link');
+    const remoteLinkEl = document.getElementById('remote_link');
+    const remoteLinkInfoEl = document.getElementById('remote_link_info');
     const videoModeEl = document.getElementById('video_mode');
     const videoSourceEl = document.getElementById('video_source');
     const videoSourceStatusEl = document.getElementById('video_source_status');
@@ -610,10 +615,16 @@ HTML_PAGE = """
       mainLinkEl.href = '/';
       analyticsLinkEl.href = '/analytics';
       apiLinkEl.href = '/api/v1/dashboard/command-center?zone_id=default-zone&horizon=60&history_minutes=180';
+      remoteLinkEl.href = `http://${HOST}:8091`;
+      remoteLinkEl.textContent = `Fernbedienung (:8091)`;
+      remoteLinkInfoEl.textContent = `Fernbedienung URL: http://${HOST}:8091`;
     } else {
       mainLinkEl.href = `http://${HOST}:8090`;
       analyticsLinkEl.href = `http://${HOST}:8501`;
       apiLinkEl.href = `http://${HOST}:8000/api/v1/dashboard/command-center?zone_id=default-zone&horizon=60&history_minutes=180`;
+      remoteLinkEl.href = `http://${HOST}:8091`;
+      remoteLinkEl.textContent = `Fernbedienung (:8091)`;
+      remoteLinkInfoEl.textContent = `Fernbedienung URL: http://${HOST}:8091`;
     }
 
     reloadZone();
@@ -929,6 +940,20 @@ class TrackingEngine:
             device=str(tracking_cfg.get("device", "cpu")),
         )
         self.video_mode = self._sanitize_video_mode(self.config.get("video", {}).get("input_mode", "youtube"))
+        self.simulation_control_mode = self._sanitize_simulation_control_mode(
+          self.config.get("video", {}).get("simulation", {}).get("control_mode", "remote_control")
+        )
+        simulation_dir = str(
+          self.config.get("video", {}).get("simulation", {}).get("directory", DEFAULT_SIMULATION_DIR)
+        ).strip() or DEFAULT_SIMULATION_DIR
+        self.simulation_registry = SimulationVideoRegistry(self._resolve_config_relative_path(simulation_dir))
+        self.simulation_registry.refresh()
+        self._simulation_pending_clip_ids = deque()
+        self._simulation_basic_clip_id = ""
+        self._simulation_active_clip_id = ""
+        self._simulation_active_kind = "basic"
+        self._simulation_lock = threading.Lock()
+        self._initialize_simulation_state(self.config.get("video", {}))
         self.video_input = self._create_video_input(self.config.get("video", {}))
 
         self.tracking_module = YOLOTrackingModule(
@@ -1094,8 +1119,140 @@ class TrackingEngine:
         return "youtube"
       return mode
 
+    @staticmethod
+    def _sanitize_simulation_control_mode(value: Any) -> str:
+      mode = str(value or "remote_control").strip().lower()
+      if mode not in {"remote_control", "auto_rules"}:
+        return "remote_control"
+      return mode
+
+    def _ensure_simulation_defaults(self, video_cfg: Dict[str, Any]) -> Dict[str, Any]:
+      merged = dict(video_cfg or {})
+      simulation_cfg = dict(merged.get("simulation", {}) or {})
+      simulation_cfg["control_mode"] = self._sanitize_simulation_control_mode(
+        simulation_cfg.get("control_mode", self.simulation_control_mode)
+      )
+      simulation_cfg["directory"] = str(simulation_cfg.get("directory", DEFAULT_SIMULATION_DIR)).strip() or DEFAULT_SIMULATION_DIR
+      simulation_cfg["default_clip_id"] = str(simulation_cfg.get("default_clip_id", "")).strip()
+      merged["simulation"] = simulation_cfg
+      return merged
+
+    def _initialize_simulation_state(self, video_cfg: Dict[str, Any]):
+      prepared_cfg = self._ensure_simulation_defaults(video_cfg)
+      self.simulation_registry.refresh()
+      basic_clip = self._resolve_basic_simulation_clip(prepared_cfg)
+      with self._simulation_lock:
+        self._simulation_pending_clip_ids.clear()
+        if basic_clip:
+          self._simulation_basic_clip_id = basic_clip.clip_id
+          self._simulation_active_clip_id = basic_clip.clip_id
+          self._simulation_active_kind = "basic"
+
+    def _resolve_basic_simulation_clip(self, video_cfg: Dict[str, Any]):
+      simulation_cfg = dict(video_cfg.get("simulation", {}) or {})
+      default_clip_id = str(simulation_cfg.get("default_clip_id", "")).strip()
+      if default_clip_id:
+        clip = self.simulation_registry.get_clip(default_clip_id)
+        if clip:
+          return clip
+
+      basic_loop = self.simulation_registry.get_default_basic_loop()
+      if basic_loop:
+        return basic_loop
+
+      clips = self.simulation_registry.list_clips()
+      if clips:
+        first_id = str(clips[0].get("clip_id", "")).strip()
+        if first_id:
+          return self.simulation_registry.get_clip(first_id)
+      return None
+
+    def _resolve_simulation_source(self, video_cfg: Dict[str, Any]) -> str:
+      simulation_cfg = dict(video_cfg.get("simulation", {}) or {})
+      self.simulation_control_mode = self._sanitize_simulation_control_mode(simulation_cfg.get("control_mode", "remote_control"))
+      self.simulation_registry.refresh()
+
+      with self._simulation_lock:
+        active_clip_id = str(self._simulation_active_clip_id or "").strip()
+      if active_clip_id:
+        active_clip = self.simulation_registry.get_clip(active_clip_id)
+        if active_clip:
+          return active_clip.canonical_path
+
+      basic_clip = self._resolve_basic_simulation_clip(video_cfg)
+      if basic_clip:
+        with self._simulation_lock:
+          self._simulation_basic_clip_id = basic_clip.clip_id
+          self._simulation_active_clip_id = basic_clip.clip_id
+          self._simulation_active_kind = "basic"
+        return basic_clip.canonical_path
+
+      return "0"
+
+    def _set_video_input_source(self, source_path: str, loop_file_source: bool = False) -> bool:
+      replacement_input = VideoInputModule(
+        source=source_path,
+        fallback_source=None,
+        reconnect_delay=float(self.config.get("video", {}).get("reconnect_delay", 1.0)),
+        max_retries=int(self.config.get("video", {}).get("max_retries", 0)),
+        loop_file_source=loop_file_source,
+        hwaccel=str(self.config.get("video", {}).get("hwaccel", "auto")),
+        youtube_cookies_from_browser=str(self.config.get("video", {}).get("youtube_cookies_from_browser", "")),
+        youtube_cookiefile=str(self.config.get("video", {}).get("youtube_cookiefile", "")),
+        youtube_format=str(self.config.get("video", {}).get("youtube_format", "best[ext=mp4]/best")),
+        youtube_player_client=str(self.config.get("video", {}).get("youtube_player_client", "android")),
+      )
+
+      with self._video_input_lock:
+        previous_input = self.video_input
+        self.video_input = replacement_input
+        try:
+          previous_input.release()
+        except Exception:
+          pass
+        return bool(self.video_input.open())
+
+    def _switch_to_simulation_clip_id(self, clip_id: str, kind: str) -> bool:
+      clip = self.simulation_registry.get_clip(clip_id)
+      if not clip:
+        self.simulation_registry.refresh()
+        clip = self.simulation_registry.get_clip(clip_id)
+      if not clip:
+        return False
+
+      opened = self._set_video_input_source(clip.canonical_path, loop_file_source=False)
+      if opened:
+        with self._simulation_lock:
+          self._simulation_active_clip_id = clip.clip_id
+          self._simulation_active_kind = kind
+      return opened
+
+    def _simulation_switch_after_eof(self):
+      with self._simulation_lock:
+        next_clip_id = self._simulation_pending_clip_ids.popleft() if self._simulation_pending_clip_ids else ""
+        active_kind = self._simulation_active_kind
+        basic_clip_id = self._simulation_basic_clip_id
+
+      if next_clip_id:
+        switched = self._switch_to_simulation_clip_id(next_clip_id, kind="scheduled")
+        if switched:
+          return
+
+      if active_kind == "scheduled" and basic_clip_id:
+        switched = self._switch_to_simulation_clip_id(basic_clip_id, kind="basic")
+        if switched:
+          return
+
+      if basic_clip_id:
+        self._switch_to_simulation_clip_id(basic_clip_id, kind="basic")
+
     def _create_video_input(self, video_cfg: Dict[str, Any]) -> VideoInputModule:
-      source = str(video_cfg.get("source", "0"))
+      prepared_cfg = self._ensure_simulation_defaults(video_cfg)
+      source = str(prepared_cfg.get("source", "0"))
+      loop_file_source = True
+      if self.video_mode == "livefeed_simulation":
+        source = self._resolve_simulation_source(prepared_cfg)
+        loop_file_source = False
       cookiefile = str(video_cfg.get("youtube_cookiefile", "") or "").strip()
       if cookiefile and not os.path.isabs(cookiefile):
         cookiefile = os.path.abspath(os.path.join(self.config_dir, cookiefile))
@@ -1104,6 +1261,7 @@ class TrackingEngine:
         fallback_source=None,
         reconnect_delay=float(video_cfg.get("reconnect_delay", 1.0)),
         max_retries=int(video_cfg.get("max_retries", 0)),
+        loop_file_source=loop_file_source,
         hwaccel=str(video_cfg.get("hwaccel", "auto")),
         youtube_cookies_from_browser=str(video_cfg.get("youtube_cookies_from_browser", "")),
         youtube_cookiefile=cookiefile,
@@ -1149,6 +1307,8 @@ class TrackingEngine:
         with self._video_input_lock:
           ok, frame = self.video_input.read()
         if not ok or frame is None:
+          if self.video_mode == "livefeed_simulation":
+            self._simulation_switch_after_eof()
           time.sleep(0.02)
           continue
 
@@ -1391,36 +1551,128 @@ class TrackingEngine:
           ),
           "running": bool(self._running),
           "video_mode": self.video_mode,
+          "simulation_control_mode": self.simulation_control_mode,
         }
       with self._video_input_lock:
         state["video_source"] = str(self.video_input.raw_source)
         state["video_active_source"] = str(getattr(self.video_input, "active_source", self.video_input.source))
         state["video_opened"] = bool(self.video_input.capture and self.video_input.capture.isOpened())
+      with self._simulation_lock:
+        state["simulation_active_clip_id"] = self._simulation_active_clip_id
+        state["simulation_active_kind"] = self._simulation_active_kind
+        state["simulation_basic_clip_id"] = self._simulation_basic_clip_id
+        state["simulation_pending_count"] = len(self._simulation_pending_clip_ids)
       return state
 
     def get_video_source(self) -> Dict[str, Any]:
+      simulation_clip_id = self.simulation_registry.find_clip_id_by_path(str(getattr(self.video_input, "raw_source", "")))
+      with self._simulation_lock:
+        pending_count = len(self._simulation_pending_clip_ids)
+        active_clip_id = self._simulation_active_clip_id
+        active_kind = self._simulation_active_kind
+        basic_clip_id = self._simulation_basic_clip_id
       with self._video_input_lock:
         return {
           "mode": self.video_mode,
           "source": str(getattr(self.video_input, "raw_source", "")),
           "active_source": str(getattr(self.video_input, "active_source", getattr(self.video_input, "source", ""))),
           "opened": bool(self.video_input.capture and self.video_input.capture.isOpened()),
+          "simulation_control_mode": self.simulation_control_mode,
+          "simulation_clip_id": simulation_clip_id,
+          "simulation_active_clip_id": active_clip_id,
+          "simulation_active_kind": active_kind,
+          "simulation_basic_clip_id": basic_clip_id,
+          "simulation_pending_count": pending_count,
         }
+
+    def get_simulation_catalog(self) -> Dict[str, Any]:
+      summary = self.simulation_registry.refresh()
+      clips = []
+      for clip in self.simulation_registry.list_clips():
+        item = dict(clip)
+        item["aliases_count"] = len(item.get("aliases", []))
+        clips.append(item)
+      return {"ok": True, "summary": summary, "clips": clips}
+
+    def select_simulation_clip(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+      clip_id = str((payload or {}).get("clip_id", "")).strip()
+      if not clip_id:
+        raise ValueError("clip_id fehlt")
+
+      clip = self.simulation_registry.get_clip(clip_id)
+      if not clip:
+        self.simulation_registry.refresh()
+        clip = self.simulation_registry.get_clip(clip_id)
+      if not clip:
+        raise ValueError(f"clip_id unbekannt: {clip_id}")
+
+      cfg = self.config_manager.load()
+      video_cfg = self._ensure_simulation_defaults(dict(cfg.get("video", {}) or {}))
+      sim_cfg = dict(video_cfg.get("simulation", {}) or {})
+      sim_cfg["control_mode"] = self._sanitize_simulation_control_mode(payload.get("control_mode", sim_cfg.get("control_mode", "remote_control")))
+      video_cfg["simulation"] = sim_cfg
+      video_cfg["input_mode"] = "livefeed_simulation"
+
+      basic_clip = self._resolve_basic_simulation_clip(video_cfg)
+      if not basic_clip:
+        basic_clip = clip
+        sim_cfg["default_clip_id"] = clip.clip_id
+
+      video_cfg["source"] = basic_clip.canonical_path
+      cfg["video"] = video_cfg
+      self.config_manager.save(cfg)
+
+      self.config = cfg
+      self.video_mode = "livefeed_simulation"
+      self.simulation_control_mode = str(sim_cfg.get("control_mode", "remote_control"))
+
+      with self._simulation_lock:
+        self._simulation_basic_clip_id = basic_clip.clip_id
+        self._simulation_pending_clip_ids.clear()
+
+      opened = self._switch_to_simulation_clip_id(clip.clip_id, kind="scheduled")
+      if not opened:
+        opened = self._switch_to_simulation_clip_id(basic_clip.clip_id, kind="basic")
+
+      return {
+        "ok": True,
+        "opened": bool(opened),
+        "selected": {
+          "clip_id": clip.clip_id,
+          "display_name": clip.display_name,
+          "canonical_path": clip.canonical_path,
+          "relative_path": clip.relative_path,
+        },
+        "next": {
+          "clip_id": basic_clip.clip_id,
+          "display_name": basic_clip.display_name,
+        },
+      }
 
     def update_video_source(self, payload: Dict[str, Any]) -> Dict[str, Any]:
       payload = dict(payload or {})
       mode = self._sanitize_video_mode(payload.get("mode", self.video_mode))
       source_value = payload.get("source", self.config.get("video", {}).get("source", "0"))
       source = str(source_value).strip() or str(self.config.get("video", {}).get("source", "0"))
+      simulation_control_mode = self._sanitize_simulation_control_mode(
+        payload.get(
+          "simulation_control_mode",
+          self.config.get("video", {}).get("simulation", {}).get("control_mode", self.simulation_control_mode),
+        )
+      )
 
       cfg = self.config_manager.load()
-      video_cfg = dict(cfg.get("video", {}) or {})
+      video_cfg = self._ensure_simulation_defaults(dict(cfg.get("video", {}) or {}))
       video_cfg["input_mode"] = mode
       video_cfg["source"] = source
+      video_cfg.setdefault("simulation", {})["control_mode"] = simulation_control_mode
       cfg["video"] = video_cfg
       self.config_manager.save(cfg)
       self.config = cfg
       self.video_mode = mode
+      self.simulation_control_mode = simulation_control_mode
+      if self.video_mode == "livefeed_simulation":
+        self._initialize_simulation_state(video_cfg)
 
       replacement_input = self._create_video_input(video_cfg)
 
@@ -1439,6 +1691,7 @@ class TrackingEngine:
         "source": str(self.video_input.raw_source),
         "active_source": str(getattr(self.video_input, "active_source", self.video_input.source)),
         "opened": bool(opened),
+        "simulation_control_mode": self.simulation_control_mode,
       }
 
     def get_zone(self) -> Dict[str, Any]:
@@ -1635,6 +1888,21 @@ def create_app(config_path: str) -> Flask:
             return jsonify(engine.update_video_source(payload))
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc)}), 400
+
+    @app.route("/api/simulation/catalog", methods=["GET"])
+    def api_simulation_catalog():
+      try:
+        return jsonify(engine.get_simulation_catalog())
+      except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    @app.route("/api/simulation/select", methods=["POST"])
+    def api_simulation_select():
+      payload = request.get_json(silent=True) or {}
+      try:
+        return jsonify(engine.select_simulation_clip(payload))
+      except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
     @app.route("/health")
     def health():

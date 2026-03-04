@@ -9,8 +9,10 @@ DASH_LOG="${LOG_DIR}/dashboard.log"
 DASH_PID_FILE="${LOG_DIR}/dashboard.pid"
 CONFIG_PATH="${WORKSPACE_ROOT}/bildauswertung/config.yaml"
 APP_PATH="${SCRIPT_DIR}/dashboard_app.py"
+SIM_REMOTE_SCRIPT="${SCRIPT_DIR}/start_simulation_remote.sh"
 HOST="${SITCHECK_DASHBOARD_HOST:-0.0.0.0}"
 PORT="${SITCHECK_DASHBOARD_PORT:-8080}"
+SIM_REMOTE_WITH_DASHBOARD="${SITCHECK_SIM_REMOTE_WITH_DASHBOARD:-1}"
 RUNTIME_VENV="${SITCHECK_RUNTIME_VENV:-/tmp/sitcheck_runtime_venv}"
 PYTHON_BIN=""
 
@@ -118,7 +120,30 @@ start_dashboard() {
     exit 1
 }
 
+start_simulation_remote_if_enabled() {
+    if [ "$SIM_REMOTE_WITH_DASHBOARD" != "1" ]; then
+        log_message "[INFO] Simulation-Remote Autostart deaktiviert (SITCHECK_SIM_REMOTE_WITH_DASHBOARD=$SIM_REMOTE_WITH_DASHBOARD)"
+        return
+    fi
+    if [ ! -x "$SIM_REMOTE_SCRIPT" ]; then
+        log_message "[WARN] Simulation-Remote Script nicht ausführbar: $SIM_REMOTE_SCRIPT"
+        return
+    fi
+    "$SIM_REMOTE_SCRIPT" start || log_message "[WARN] Simulation-Remote konnte nicht gestartet werden"
+}
+
+stop_simulation_remote_if_enabled() {
+    if [ "$SIM_REMOTE_WITH_DASHBOARD" != "1" ]; then
+        return
+    fi
+    if [ ! -x "$SIM_REMOTE_SCRIPT" ]; then
+        return
+    fi
+    "$SIM_REMOTE_SCRIPT" stop >/dev/null 2>&1 || true
+}
+
 stop_dashboard() {
+    stop_simulation_remote_if_enabled
     if [ -f "$DASH_PID_FILE" ]; then
         PID=$(cat "$DASH_PID_FILE")
         if ps -p "$PID" > /dev/null 2>&1; then
@@ -160,6 +185,7 @@ case "$1" in
         check_dependencies
         create_directories
         start_dashboard
+        start_simulation_remote_if_enabled
         ;;
     stop)
         stop_dashboard
@@ -172,6 +198,7 @@ case "$1" in
         check_dependencies
         create_directories
         start_dashboard
+        start_simulation_remote_if_enabled
         ;;
     status)
         show_status

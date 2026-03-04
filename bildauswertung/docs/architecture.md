@@ -15,7 +15,9 @@ Seit der letzten Integration liegt auch das Realtime-Dashboard direkt in diesem 
 
 ### Realtime-Stack
 - Dashboard/API/Overlay: `realtime/dashboard_app.py`
+- Separate Remote-Webapp (Clip-Steuerung): `realtime/simulation_remote_app.py`
 - Start/Stop Wrapper: `realtime/start_dashboard.sh`
+- Start/Stop Wrapper Remote: `realtime/start_simulation_remote.sh`
 - DASH-Ausgabe: `runtime/dash/`
 - Logs/PID: `runtime/logs/`, `runtime/pids/`
 
@@ -27,12 +29,60 @@ Seit der letzten Integration liegt auch das Realtime-Dashboard direkt in diesem 
 ### Videoquellen-Modi
 - `youtube`: Stream über YouTube-URL (Auflösung via `yt-dlp`, optional Cookie-Datei)
 - `livefeed_simulation`: lokaler Simulations-Feed über Video/Clips
+- Simulation-Control (`video.simulation.control_mode`):
+	- `remote_control` (jetzt): externer Controller/Webapp kann aktiv Clip wählen
+	- `auto_rules` (später): regelbasierte automatische Clip-Auswahl
 - Kein Kamera-Fallback: Bei Ausfall der primären Quelle wird nicht auf `/dev/video*` gewechselt
+
+### LiveFeed Simulation Struktur (Stand 04.03.2026)
+- Verzeichnis: `LiveFeed Simulation/`
+- Enthält redundante Ordner-Sichten (`1 Person`, `Rein gehen`, `T ...` usw.)
+- Bestand: **59 Video-Dateien**, davon **23 eindeutige Inhalte** (hash-basiert), **36 Duplikate**
+- Neutraler Basis-Feed: `LiveFeed Simulation/basic loop.mp4`
+
+### Zugriffskonzept für Simulation (erweiterbar)
+- Zentrale Registry: `simulation_video_registry.py`
+- Verhalten:
+	1. Scan des Simulations-Ordners nach Video-Dateien
+	2. Deduplizierung per Dateihash (SHA-1)
+	3. Auswahl eines kanonischen Pfads pro Inhalt (Alias-Pfade bleiben referenzierbar)
+	4. Vergabe stabiler `clip_id` für API/Webapp-Steuerung
+- Fallback-Reihenfolge für `livefeed_simulation`:
+	1. expliziter `video.source`
+	2. `video.simulation.default_clip_id`
+	3. `basic loop.mp4`
+	4. erster verfügbarer Clip
+
+### Dashboard-/API-Steuerung Simulation
+- Video-Source API erweitert um Simulation-Control:
+	- `GET/POST /api/video-source`
+- Neuer Simulations-Katalog:
+	- `GET /api/simulation/catalog` (kanonische Clips + Duplikatinfo)
+- Neuer Remote-Playback-Endpunkt (für separate Webapp/Fernsteuerung):
+	- `POST /api/simulation/select` mit `clip_id` und optional `control_mode`
+	- Verhalten: ausgewählter Clip wird **einmal** abgespielt (`scheduled`), danach automatische Rückkehr zu `basic loop`
 
 ## Startpfade
 - Primär: `./bildauswertung/start_system.sh start`
 - Direkt: `python3 bildauswertung/run_live_detection.py --config bildauswertung/config.yaml`
 - Dashboard: `./bildauswertung/realtime/start_dashboard.sh start`
+- Simulation-Remote: `./bildauswertung/realtime/start_simulation_remote.sh start`
+
+### Separate Remote-Webapp (MVP)
+- Zweck: Fernsteuerung der Simulationsclips ohne Zugriff auf das volle Dashboard
+- Standard-URL: `http://<host>:8091`
+- Nutzt Dashboard als Backend (Default `SITCHECK_DASHBOARD_API_BASE=http://127.0.0.1:8080`)
+- Wird standardmäßig mit `start_dashboard.sh` mitgestartet (`SITCHECK_SIM_REMOTE_WITH_DASHBOARD=1`)
+- Funktionen:
+	- Katalog laden (`/api/simulation/catalog` via Proxy)
+	- Clip auswählen (`/api/simulation/select` via Proxy)
+	- `control_mode` setzen (`remote_control`/`auto_rules`)
+
+### Aktivierungslogik Simulations-Feed
+- Der Feed wird **nur** als Simulations-Feed erzeugt, wenn im Tracking-Dashboard `video_mode=livefeed_simulation` gesetzt ist.
+- Läuft das Dashboard in `video_mode=youtube`, bleibt die Simulation inaktiv (auch wenn die Remote-Webapp mitläuft).
+- Wenn keine Fernbedienungs-Auswahl aktiv ist, läuft automatisch der Basic-Loop.
+- Fernbedienungs-Auswahl überschreibt den laufenden Clip einmalig und fällt nach Clip-Ende auf den Basic-Loop zurück.
 
 ## Persistenz
 - Optionales PostgreSQL-Logging über `DatabaseHandler.py`

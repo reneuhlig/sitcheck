@@ -1,5 +1,5 @@
 video:
-  source: https://www.youtube.com/watch?v=8JCk5M_xrBs
+  source: /sitcheck/bildauswertung/LiveFeed Simulation/basic loop.mp4
   fallback_source: ''
   reconnect_delay: 1.0
   max_retries: 0
@@ -8,7 +8,11 @@ video:
   youtube_cookiefile: www.youtube.com_cookies.txt
   youtube_format: best[ext=mp4]/best
   youtube_player_client: android
-  input_mode: youtube
+  input_mode: livefeed_simulation
+  simulation:
+    directory: LiveFeed Simulation
+    control_mode: remote_control
+    default_clip_id: basic-loop
 tracking:
   model_path: models/yolo26n.pt
   device: auto
@@ -17,23 +21,13 @@ tracking:
   iou_threshold: 0.45
   imgsz: 640
   analysis_roi:
-    enabled: false
+    enabled: true
     mode: polygon
     x_min: 0.0
     y_min: 0.0
     x_max: 1.0
     y_max: 1.0
-    polygon_points:
-    - - 0.2655172413793103
-      - 0.967471881390593
-    - - 0.2655172413793103
-      - 0.9695168711656442
-    - - 0.30689655172413793
-      - 0.20060071574642127
-    - - 0.9977011494252873
-      - 0.1535659509202454
-    - - 0.9954022988505747
-      - 0.9879217791411042
+    polygon_points: []
   tta_enabled: false
   max_detections: 300
   stabilization_enabled: true
@@ -49,14 +43,14 @@ preprocess:
   clahe_clip: 2.0
   denoise: false
 dashboard:
-  stream_fps: 20
-  capture_max_fps: 20
-  visual_update_fps: 20
-  jpeg_quality: 40
+  stream_fps: 30
+  capture_max_fps: 30
+  visual_update_fps: 30
+  jpeg_quality: 100
   jpeg_optimize: false
-  stream_max_width: 640
-  analysis_queue_frames: 64
-  analysis_skip_threshold_frames: 8
+  stream_max_width: 1280
+  analysis_queue_frames: 128
+  analysis_skip_threshold_frames: 4
   dynamic_skip_enabled: true
   dynamic_skip_queue_threshold: 4
   dynamic_skip_max_n: 5
@@ -108,38 +102,36 @@ zone:
       - 0.1699258691206544
   entry_polygon:
     points:
-    - - 0.8471264367816091
-      - 0.36419989775051126
-    - - 0.8735632183908046
-      - 0.34579498977505113
-    - - 0.8758620689655172
-      - 0.25786042944785276
-    - - 0.9183908045977012
-      - 0.24559049079754602
-    - - 0.9988505747126437
-      - 0.3846497955010225
-    - - 0.9977011494252873
-      - 0.6504984662576687
-    - - 0.8
-      - 0.6443634969325154
+    - - 0.3833882705479452
+      - 0.7631421232876713
+    - - 0.39965967465753427
+      - 0.7987585616438356
+    - - 0.6135124143835616
+      - 0.7316352739726028
+    - - 0.6584524828767124
+      - 0.0056078767123287675
+    - - 0.8723052226027398
+      - 0.0014982876712328766
+    - - 0.9234439212328768
+      - 0.9987585616438356
+    - - 0.0006228595890411129
+      - 0.9987585616438356
+    - - 0.0006228595890411129
+      - 0.0028681506849315068
+    - - 0.31907748287671234
+      - 0.004238013698630137
   exit_polygon:
     points:
-    - - 0.867816091954023
-      - 0.261950408997955
-    - - 0.8666666666666667
-      - 0.34579498977505113
-    - - 0.8436781609195402
-      - 0.3519299591002045
-    - - 0.7919540229885057
-      - 0.654588445807771
-    - - 0.9919540229885058
-      - 0.6689033742331288
-    - - 0.996551724137931
-      - 0.9715618609406953
-    - - 0.2482758620689655
-      - 0.7629729038854806
-    - - 0.7494252873563219
-      - 0.2721753578732106
+    - - 0.38803724315068494
+      - 0.7604023972602739
+    - - 0.404308647260274
+      - 0.7919092465753425
+    - - 0.6042144691780822
+      - 0.723416095890411
+    - - 0.6538035102739727
+      - 0.0028681506849315068
+    - - 0.32605094178082195
+      - 0.0014982876712328766
   min_crossing_displacement_px: 20.0
   min_track_points: 4
   min_event_cooldown_frames: 8

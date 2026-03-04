@@ -13,6 +13,7 @@ class VideoInputModule:
         fallback_source: str | int | None = None,
         reconnect_delay: float = 1.0,
         max_retries: int = 0,
+        loop_file_source: bool = True,
         hwaccel: str = "auto",
         youtube_cookies_from_browser: str = "",
         youtube_cookiefile: str = "",
@@ -25,6 +26,7 @@ class VideoInputModule:
         self.is_youtube_source = self._is_youtube_url(str(source))
         self.reconnect_delay = reconnect_delay
         self.max_retries = max_retries
+        self.loop_file_source = bool(loop_file_source)
         self.hwaccel = str(hwaccel or "auto").lower()
         self.youtube_cookies_from_browser = str(youtube_cookies_from_browser or "").strip()
         self.youtube_cookiefile = str(youtube_cookiefile or "").strip()
@@ -206,10 +208,23 @@ class VideoInputModule:
             self._retries = 0
             return True, frame
 
+        if self._is_file_source_active() and not self.loop_file_source:
+            return False, None
+
         if not self._try_reconnect():
             return False, None
 
         return self.capture.read()
+
+    def _is_file_source_active(self) -> bool:
+        source = self.active_source
+        if isinstance(source, int):
+            return False
+        if not isinstance(source, str):
+            return False
+        if source.startswith(("http://", "https://", "rtsp://", "rtmp://")):
+            return False
+        return os.path.isfile(source)
 
     def _try_reconnect(self) -> bool:
         if self.max_retries > 0 and self._retries >= self.max_retries:

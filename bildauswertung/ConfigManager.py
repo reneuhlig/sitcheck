@@ -18,6 +18,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "youtube_cookiefile": "",
         "youtube_format": "best[ext=mp4]/best",
         "youtube_player_client": "android",
+        "input_mode": "youtube",
+        "simulation": {
+            "directory": "LiveFeed Simulation",
+            "control_mode": "remote_control",
+            "default_clip_id": "",
+        },
     },
     "tracking": {
         "model_path": "models/yolo26n.pt",
