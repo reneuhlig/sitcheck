@@ -14,8 +14,8 @@ path_pattern,area,subcategory,reason
 /sitcheck/bildauswertung/run_live_detection.py,Bildauswertung,CLI Entrypoint,Standalone tracking runtime
 /sitcheck/bildauswertung/start_system.sh,Bildauswertung,Runtime Control,Start/stop/status wrapper for tracking runtime
 /sitcheck/bildauswertung/models/**,Bildauswertung,Model Artifacts,YOLO model binaries
-/sitcheck/website-dashboard/realtime/dashboard_app.py,Website/Dashboard,Realtime Flask UI,Live feed + controls + API endpoints
-/sitcheck/website-dashboard/realtime/start_dashboard.sh,Website/Dashboard,Runtime Control,Start/stop/status wrapper for realtime dashboard
+/sitcheck/bildauswertung/realtime/dashboard_app.py,Website/Dashboard,Realtime Flask UI,Live feed + controls + API endpoints
+/sitcheck/bildauswertung/realtime/start_dashboard.sh,Website/Dashboard,Runtime Control,Start/stop/status wrapper for realtime dashboard
 /sitcheck/website-dashboard/runtime/**,Website/Dashboard,Runtime Artifacts,DASH/HLS/log outputs (non-versioned)
 /sitcheck/start_system.sh,Website/Dashboard,Compatibility Wrapper,Delegates old root command to new area path
 /sitcheck/start_dashboard.sh,Website/Dashboard,Compatibility Wrapper,Delegates old root command to new area path

@@ -9,7 +9,7 @@ Core module dependencies:
 - `VisualizationOutputModule.py` -> `EntranceZoneConfig` for overlay + zone editing
 
 ## 2. Website/Realtime Graph
-- `website-dashboard/realtime/dashboard_app.py` imports tracking modules from `bildauswertung`.
+- `bildauswertung/realtime/dashboard_app.py` imports tracking modules from `bildauswertung`.
 - Config source for realtime dashboard: `bildauswertung/config.yaml`.
 - DASH output target: `website-dashboard/runtime/dash`.
 
@@ -22,7 +22,7 @@ Core module dependencies:
 
 ## 4. Cross-Area Coupling Rules
 Current intentional couplings:
-- `website-dashboard/realtime` -> `bildauswertung` (shared runtime detection stack)
+- `bildauswertung/realtime` -> `bildauswertung` (shared runtime detection stack)
 - `bildauswertung` and `prognose` are logically complementary but code-decoupled.
 - Root wrappers (`start_system.sh`, `start_dashboard.sh`) delegate to new area paths.
 

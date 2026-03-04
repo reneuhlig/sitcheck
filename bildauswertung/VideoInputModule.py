@@ -35,6 +35,9 @@ class VideoInputModule:
         self._retries = 0
         self._last_youtube_resolve_ts = 0.0
         self._youtube_resolve_failures = 0
+        self._cached_youtube_stream_url: Optional[str] = None
+        self._cached_youtube_stream_ts = 0.0
+        self._youtube_stream_cache_ttl_sec = 1800.0
 
     @staticmethod
     def _parse_source(source: str):
@@ -60,6 +63,10 @@ class VideoInputModule:
                 "no_warnings": True,
                 "format": self.youtube_format,
                 "noplaylist": True,
+                "js_runtimes": {
+                    "node": {},
+                },
+                "remote_components": ["ejs:github"],
                 "extractor_args": {
                     "youtube": {
                         "player_client": [self.youtube_player_client, "web"],
@@ -67,7 +74,19 @@ class VideoInputModule:
                 },
             }
 
-            option_candidates = [dict(base_options)]
+            if self.youtube_cookiefile and os.path.exists(self.youtube_cookiefile):
+                base_options["extractor_args"] = {
+                    "youtube": {
+                        "player_client": ["web"],
+                    }
+                }
+
+            option_candidates = []
+
+            if self.youtube_cookiefile and os.path.exists(self.youtube_cookiefile):
+                options_with_cookiefile = dict(base_options)
+                options_with_cookiefile["cookiefile"] = self.youtube_cookiefile
+                option_candidates.append(options_with_cookiefile)
 
             if self.youtube_cookies_from_browser:
                 browser_parts = tuple(part for part in self.youtube_cookies_from_browser.split(":") if part)
@@ -75,16 +94,13 @@ class VideoInputModule:
                     options_with_browser = dict(base_options)
                     options_with_browser["cookiesfrombrowser"] = browser_parts
                     option_candidates.append(options_with_browser)
-            else:
+            elif not (self.youtube_cookiefile and os.path.exists(self.youtube_cookiefile)):
                 for browser in ("firefox", "chrome", "chromium", "brave"):
                     options_with_browser = dict(base_options)
                     options_with_browser["cookiesfrombrowser"] = (browser,)
                     option_candidates.append(options_with_browser)
 
-            if self.youtube_cookiefile and os.path.exists(self.youtube_cookiefile):
-                options_with_cookiefile = dict(base_options)
-                options_with_cookiefile["cookiefile"] = self.youtube_cookiefile
-                option_candidates.append(options_with_cookiefile)
+            option_candidates.append(dict(base_options))
 
             for options in option_candidates:
                 try:
@@ -108,23 +124,33 @@ class VideoInputModule:
 
     def open(self) -> bool:
         source_to_open = self.source
+        used_cached_stream = False
         if self.is_youtube_source:
             now = time.monotonic()
-            retry_backoff = min(30.0, max(1.0, float(self.reconnect_delay)) * (2 ** min(self._youtube_resolve_failures, 4)))
-            if self._youtube_resolve_failures > 0 and (now - self._last_youtube_resolve_ts) < retry_backoff:
-                return False
-
-            self._last_youtube_resolve_ts = now
-            resolved_source = self._resolve_youtube_stream(str(self.raw_source))
-            if not resolved_source:
-                self._youtube_resolve_failures += 1
-                if self.fallback_source is None:
-                    return False
-                source_to_open = self.fallback_source
+            if (
+                self._cached_youtube_stream_url
+                and (now - self._cached_youtube_stream_ts) <= self._youtube_stream_cache_ttl_sec
+            ):
+                source_to_open = self._cached_youtube_stream_url
+                used_cached_stream = True
             else:
-                source_to_open = resolved_source
-                self.source = resolved_source
-                self._youtube_resolve_failures = 0
+                retry_backoff = min(120.0, max(1.0, float(self.reconnect_delay)) * (2 ** min(self._youtube_resolve_failures, 6)))
+                if self._youtube_resolve_failures > 0 and (now - self._last_youtube_resolve_ts) < retry_backoff:
+                    return False
+
+                self._last_youtube_resolve_ts = now
+                resolved_source = self._resolve_youtube_stream(str(self.raw_source))
+                if not resolved_source:
+                    self._youtube_resolve_failures += 1
+                    if self.fallback_source is None:
+                        return False
+                    source_to_open = self.fallback_source
+                else:
+                    source_to_open = resolved_source
+                    self.source = resolved_source
+                    self._cached_youtube_stream_url = resolved_source
+                    self._cached_youtube_stream_ts = now
+                    self._youtube_resolve_failures = 0
 
         if isinstance(source_to_open, int):
             self.capture = cv2.VideoCapture(source_to_open)
@@ -142,6 +168,9 @@ class VideoInputModule:
             self.active_source = source_to_open
             self.capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             self._configure_hwaccel()
+        elif self.is_youtube_source and used_cached_stream:
+            self._cached_youtube_stream_url = None
+            self._cached_youtube_stream_ts = 0.0
         return bool(self.capture and self.capture.isOpened())
 
     def _configure_hwaccel(self):

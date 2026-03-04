@@ -35,10 +35,10 @@ Counting is event-based and must avoid false positives from pedestrians passing 
 8. **Persistence/analytics** → `bildauswertung/DatabaseHandler.py` (optional)
 
 ### Current execution model (important)
-- `website-dashboard/realtime/dashboard_app.py` contains the full live pipeline for web usage:
+- `bildauswertung/realtime/dashboard_app.py` contains the full live pipeline for web usage:
   video ingest + YOLO tracking + trajectory analysis + overlay rendering + DASH output.
 - `bildauswertung/run_live_detection.py` / `bildauswertung/start_system.sh` is a standalone local/CLI runtime.
-- To avoid duplicate inference load and lag, do **not** run `website-dashboard/realtime/start_dashboard.sh` and `bildauswertung/start_system.sh` at the same time on the same source.
+- To avoid duplicate inference load and lag, do **not** run `bildauswertung/realtime/start_dashboard.sh` and `bildauswertung/start_system.sh` at the same time on the same source.
 
 ### Separation Principles
 - Video source is abstracted and replaceable via configuration.
@@ -178,10 +178,10 @@ python3 bildauswertung/run_live_detection.py --config bildauswertung/config.yaml
 
 ## Recommended production pipeline (web + tracking + DASH in one process)
 ```bash
-./website-dashboard/realtime/start_dashboard.sh start
-./website-dashboard/realtime/start_dashboard.sh status
-./website-dashboard/realtime/start_dashboard.sh logs
-./website-dashboard/realtime/start_dashboard.sh stop
+./bildauswertung/realtime/start_dashboard.sh start
+./bildauswertung/realtime/start_dashboard.sh status
+./bildauswertung/realtime/start_dashboard.sh logs
+./bildauswertung/realtime/start_dashboard.sh stop
 ```
 
 Default web URL:

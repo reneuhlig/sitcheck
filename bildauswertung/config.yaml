@@ -1,13 +1,14 @@
 video:
-  source: 0
-  fallback_source: '0'
+  source: https://www.youtube.com/watch?v=8JCk5M_xrBs
+  fallback_source: ''
   reconnect_delay: 1.0
   max_retries: 0
   hwaccel: auto
   youtube_cookies_from_browser: ''
-  youtube_cookiefile: ''
+  youtube_cookiefile: www.youtube.com_cookies.txt
   youtube_format: best[ext=mp4]/best
   youtube_player_client: android
+  input_mode: youtube
 tracking:
   model_path: models/yolo26n.pt
   device: auto
@@ -61,7 +62,7 @@ dashboard:
   dynamic_skip_max_n: 5
   dash:
     enabled: true
-    output_dir: ../website-dashboard/runtime/dash
+    output_dir: runtime/dash
     segment_time: 0.5
     list_size: 6
     preset: ultrafast
@@ -167,7 +168,7 @@ integration:
     zone_id: default-zone
     source: vision-direct-db
     write_mode: frame_near
-    max_writes_per_second: 2
+    max_writes_per_second: 2.0
     strict_zone_check: true
     ensure_zone: false
     default_zone_capacity: 100

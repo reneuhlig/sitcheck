@@ -22,7 +22,7 @@ Excluded for this overview:
 
 ## Size/Complexity Snapshot (LOC)
 Largest code/config files in scope:
-- `1423` lines: `website-dashboard/realtime/dashboard_app.py`
+- `1423` lines: `bildauswertung/realtime/dashboard_app.py`
 - `1198` lines: `prognose/apps/api-gateway/main.py`
 - `749` lines: `prognose/services/forecast/main.py`
 - `462` lines: `prognose/services/lecture-ingest/main.py`
@@ -36,7 +36,7 @@ Largest code/config files in scope:
 ## Entrypoints (`if __name__ == "__main__"`)
 Primary runtime entrypoints:
 - `bildauswertung/run_live_detection.py`
-- `website-dashboard/realtime/dashboard_app.py`
+- `bildauswertung/realtime/dashboard_app.py`
 
 Additional service/test entrypoints live under:
 - `prognose/services/*`

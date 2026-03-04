@@ -25,7 +25,7 @@ Pfad: `./website-dashboard`
 
 Inhalt:
 - Portal/Gateway (`website-dashboard/portal`) auf `:8090`
-- Realtime Flask Dashboard (`website-dashboard/realtime`) auf `:8080`
+- Realtime Flask Dashboard (`bildauswertung/realtime`) auf `:8080`
 - Original-Website Snapshot (`website-dashboard/original-site/nextapp`)
 - Runtime-Ausgaben unter `website-dashboard/runtime`
 
@@ -84,7 +84,7 @@ Fixierter Upstream-Stand:
 ## Kompatibilitäts-Wrapper (Root)
 Die alten Root-Kommandos bleiben verfügbar und delegieren intern:
 - `./start_system.sh ...` -> `./bildauswertung/start_system.sh ...`
-- `./start_dashboard.sh ...` -> `./website-dashboard/realtime/start_dashboard.sh ...`
+- `./start_dashboard.sh ...` -> `./bildauswertung/realtime/start_dashboard.sh ...`
 
 ## Architektur- und Analyse-Dokumente
 - Bereichsarchitektur Bildauswertung: `bildauswertung/docs/architecture.md`

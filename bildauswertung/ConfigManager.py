@@ -10,7 +10,7 @@ import yaml
 DEFAULT_CONFIG: Dict[str, Any] = {
     "video": {
         "source": "0",
-        "fallback_source": "0",
+        "fallback_source": "",
         "reconnect_delay": 1.0,
         "max_retries": 0,
         "hwaccel": "auto",
@@ -65,7 +65,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "dynamic_skip_max_n": 4,
         "dash": {
             "enabled": False,
-            "output_dir": "../website-dashboard/runtime/dash",
+            "output_dir": "runtime/dash",
             "segment_time": 1.0,
             "list_size": 12,
             "preset": "ultrafast",

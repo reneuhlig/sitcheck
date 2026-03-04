@@ -29,3 +29,5 @@ temp_test_images/
 /website-dashboard/original-site/nextapp/.next-local/
 /website-dashboard/original-site/nextapp/.next/
 /prognose/services/forecast-trainer/runtime/
+*.MP4
+*.mp4

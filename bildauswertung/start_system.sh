@@ -48,6 +48,7 @@ missing = []
 for mod, pkg in [
     ("cv2", "opencv-python"),
     ("ultralytics", "ultralytics"),
+    ("lap", "lapx"),
     ("pg8000", "pg8000"),
     ("numpy", "numpy"),
     ("yaml", "pyyaml"),

@@ -130,7 +130,6 @@ class UltralyticsPersonDetector(BaseDetector):
                 persist=True,
                 classes=[self.person_class_id],
                 tracker=tracker,
-                end2end=False,
                 conf=max(conf, self.confidence_threshold),
                 iou=iou,
                 imgsz=imgsz,

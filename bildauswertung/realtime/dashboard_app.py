@@ -16,6 +16,7 @@ from flask import Flask, jsonify, render_template_string, request, send_from_dir
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 WORKSPACE_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "..", ".."))
 BILDAUSWERTUNG_DIR = os.path.join(WORKSPACE_ROOT, "bildauswertung")
+YOLO26N_MODEL_NAME = "yolo26n.pt"
 
 if BILDAUSWERTUNG_DIR not in sys.path:
     sys.path.insert(0, BILDAUSWERTUNG_DIR)
@@ -39,30 +40,38 @@ HTML_PAGE = """
   <title>Sitcheck Dashboard</title>
   <style>
     body { font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; }
-    .wrap { max-width: 1360px; margin: 0 auto; padding: 16px; }
-    .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    .wrap { max-width: 1760px; margin: 0 auto; padding: 16px; }
+    .grid { display: grid; grid-template-columns: minmax(0, 3.6fr) minmax(320px, 420px); gap: 16px; align-items: start; }
     .panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 12px; }
+    .controls-panel { max-height: calc(100vh - 90px); overflow: auto; }
     .title { margin: 0 0 10px; font-size: 16px; }
-    .feed-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; border-radius: 8px; }
+    .feed-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 420px; background: #000; overflow: hidden; border-radius: 8px; }
     #dashFeed { width: 100%; height: 100%; object-fit: contain; display: block; }
     #dashFeed { background: #000; }
     #overlay { position: absolute; inset: 0; pointer-events: auto; }
     .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-    .stat { background: #0b1220; border: 1px solid #1f2937; border-radius: 8px; padding: 8px; flex: 1 1 120px; }
-    button, select { background: #1f2937; color: #e5e7eb; border: 1px solid #374151; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
+    .stat { background: #0b1220; border: 1px solid #1f2937; border-radius: 8px; padding: 7px; flex: 1 1 96px; min-width: 90px; }
+    button, select, input { background: #1f2937; color: #e5e7eb; border: 1px solid #374151; border-radius: 6px; padding: 8px 10px; }
+    button, select { cursor: pointer; }
     button:hover, select:hover { background: #374151; }
     .navlink { display: inline-block; background: #1f2937; color: #e5e7eb; border: 1px solid #374151; border-radius: 6px; padding: 8px 10px; text-decoration: none; }
     .navlink:hover { background: #374151; }
     .muted { color: #9ca3af; font-size: 13px; }
     .ok { color: #22c55e; }
     .warn { color: #f59e0b; }
+
+    @media (max-width: 1280px) {
+      .grid { grid-template-columns: minmax(0, 1fr); }
+      .controls-panel { max-height: none; overflow: visible; }
+      .feed-wrap { min-height: 320px; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h2 style="margin-top: 0;">Sitcheck YOLO26 Dashboard</h2>
     <div class="grid">
-      <div class="panel">
+      <div class="panel controls-panel">
         <h3 class="title">Live Feed + Tracking</h3>
         <div class="feed-wrap">
           <video id="dashFeed" muted autoplay playsinline></video>
@@ -91,6 +100,24 @@ HTML_PAGE = """
           <a class="navlink" id="analytics_link" target="_blank" rel="noopener">Analytics öffnen</a>
           <a class="navlink" id="api_link" target="_blank" rel="noopener">API/Command Center</a>
         </div>
+
+        <h3 class="title" style="margin-top:16px;">Video Source</h3>
+        <div class="row">
+          <label>Mode</label>
+          <select id="video_mode">
+            <option value="youtube">youtube</option>
+            <option value="livefeed_simulation">Livefeed Simulation</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>Source URL/Pfad</label>
+          <input id="video_source" type="text" placeholder="https://youtube.com/watch?v=..." style="flex: 1 1 360px;" />
+        </div>
+        <div class="row">
+          <button id="save_source">Save Source</button>
+          <button id="reload_source">Reload Source</button>
+        </div>
+        <div id="video_source_status" class="muted">Source wird geladen...</div>
 
         <div class="row" style="margin-top:10px;">
           <label>Mode</label>
@@ -176,6 +203,9 @@ HTML_PAGE = """
     const mainLinkEl = document.getElementById('main_link');
     const analyticsLinkEl = document.getElementById('analytics_link');
     const apiLinkEl = document.getElementById('api_link');
+    const videoModeEl = document.getElementById('video_mode');
+    const videoSourceEl = document.getElementById('video_source');
+    const videoSourceStatusEl = document.getElementById('video_source_status');
     const activePolySel = document.getElementById('activePoly');
     const roiEnabledEl = document.getElementById('roi_enabled');
     const roiModeEl = document.getElementById('roi_mode');
@@ -204,6 +234,10 @@ HTML_PAGE = """
     let lineStage = 0;
     let analysisRoi = { enabled: false, mode: 'rect', x_min: 0.0, y_min: 0.0, x_max: 1.0, y_max: 1.0, polygon_points: [] };
     let dashController = null;
+
+    function clamp01(value) {
+      return Math.max(0, Math.min(1, value));
+    }
 
     function initDashPlayer() {
       if (!DASH_ENABLED) {
@@ -241,14 +275,35 @@ HTML_PAGE = """
       canvas.height = Math.max(1, Math.floor(rect.height));
     }
 
+    function getVideoGeometry() {
+      const canvasW = Math.max(1, canvas.width);
+      const canvasH = Math.max(1, canvas.height);
+      const videoW = Math.max(1, dashFeed.videoWidth || canvasW);
+      const videoH = Math.max(1, dashFeed.videoHeight || canvasH);
+      const scale = Math.min(canvasW / videoW, canvasH / videoH);
+      const drawW = Math.max(1, videoW * scale);
+      const drawH = Math.max(1, videoH * scale);
+      const offsetX = (canvasW - drawW) * 0.5;
+      const offsetY = (canvasH - drawH) * 0.5;
+      return { canvasW, canvasH, drawW, drawH, offsetX, offsetY };
+    }
+
+    function normToCanvas(nx, ny, geom) {
+      return [
+        geom.offsetX + (clamp01(nx) * geom.drawW),
+        geom.offsetY + (clamp01(ny) * geom.drawH),
+      ];
+    }
+
     function drawZone() {
       syncCanvasSize();
+      const geom = getVideoGeometry();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.lineWidth = 2;
 
       if (zone.mode === 'line') {
-        const p1 = [zone.line.p1[0] * canvas.width, zone.line.p1[1] * canvas.height];
-        const p2 = [zone.line.p2[0] * canvas.width, zone.line.p2[1] * canvas.height];
+        const p1 = normToCanvas(zone.line.p1[0], zone.line.p1[1], geom);
+        const p2 = normToCanvas(zone.line.p2[0], zone.line.p2[1], geom);
         ctx.strokeStyle = '#00ffff';
         ctx.beginPath();
         ctx.moveTo(p1[0], p1[1]);
@@ -258,7 +313,7 @@ HTML_PAGE = """
         ctx.beginPath(); ctx.arc(p1[0], p1[1], 5, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.arc(p2[0], p2[1], 5, 0, Math.PI * 2); ctx.fill();
       } else if (zone.mode === 'polygon') {
-        const pts = zone.polygon.points.map(p => [p[0] * canvas.width, p[1] * canvas.height]);
+        const pts = zone.polygon.points.map(p => normToCanvas(p[0], p[1], geom));
         if (pts.length >= 2) {
           ctx.strokeStyle = '#ff7f50';
           ctx.beginPath();
@@ -270,8 +325,8 @@ HTML_PAGE = """
         ctx.fillStyle = '#ff7f50';
         for (const p of pts) { ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, Math.PI * 2); ctx.fill(); }
       } else {
-        const entryPts = zone.entry_polygon.points.map(p => [p[0] * canvas.width, p[1] * canvas.height]);
-        const exitPts = zone.exit_polygon.points.map(p => [p[0] * canvas.width, p[1] * canvas.height]);
+        const entryPts = zone.entry_polygon.points.map(p => normToCanvas(p[0], p[1], geom));
+        const exitPts = zone.exit_polygon.points.map(p => normToCanvas(p[0], p[1], geom));
 
         if (entryPts.length >= 2) {
           ctx.strokeStyle = '#22c55e';
@@ -300,7 +355,7 @@ HTML_PAGE = """
         ctx.strokeStyle = '#ff00ff';
         ctx.lineWidth = 2;
         if ((analysisRoi.mode || 'rect') === 'polygon') {
-          const pts = (analysisRoi.polygon_points || []).map(p => [p[0] * canvas.width, p[1] * canvas.height]);
+          const pts = (analysisRoi.polygon_points || []).map(p => normToCanvas(p[0], p[1], geom));
           if (pts.length >= 2) {
             ctx.beginPath();
             ctx.moveTo(pts[0][0], pts[0][1]);
@@ -311,10 +366,8 @@ HTML_PAGE = """
           ctx.fillStyle = '#ff00ff';
           for (const p of pts) { ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, Math.PI * 2); ctx.fill(); }
         } else {
-          const rx1 = analysisRoi.x_min * canvas.width;
-          const ry1 = analysisRoi.y_min * canvas.height;
-          const rx2 = analysisRoi.x_max * canvas.width;
-          const ry2 = analysisRoi.y_max * canvas.height;
+          const [rx1, ry1] = normToCanvas(analysisRoi.x_min, analysisRoi.y_min, geom);
+          const [rx2, ry2] = normToCanvas(analysisRoi.x_max, analysisRoi.y_max, geom);
           ctx.strokeRect(rx1, ry1, rx2 - rx1, ry2 - ry1);
         }
       }
@@ -381,9 +434,43 @@ HTML_PAGE = """
 
     function clickToNorm(ev) {
       const rect = canvas.getBoundingClientRect();
-      const x = (ev.clientX - rect.left) / rect.width;
-      const y = (ev.clientY - rect.top) / rect.height;
-      return [Math.max(0, Math.min(1, x)), Math.max(0, Math.min(1, y))];
+      const geom = getVideoGeometry();
+      const xCanvas = ((ev.clientX - rect.left) / Math.max(1, rect.width)) * canvas.width;
+      const yCanvas = ((ev.clientY - rect.top) / Math.max(1, rect.height)) * canvas.height;
+      const nx = (xCanvas - geom.offsetX) / Math.max(1, geom.drawW);
+      const ny = (yCanvas - geom.offsetY) / Math.max(1, geom.drawH);
+      return [clamp01(nx), clamp01(ny)];
+    }
+
+    async function loadVideoSource() {
+      const res = await fetch(withPrefix('/api/video-source'));
+      const payload = await res.json();
+      const mode = String(payload.mode || 'youtube');
+      videoModeEl.value = mode === 'livefeed_simulation' ? 'livefeed_simulation' : 'youtube';
+      videoSourceEl.value = String(payload.source || '');
+      const active = String(payload.active_source || '');
+      videoSourceStatusEl.textContent = active ? `Aktiv: ${active}` : 'Keine aktive Source';
+    }
+
+    async function saveVideoSource() {
+      const mode = videoModeEl.value === 'livefeed_simulation' ? 'livefeed_simulation' : 'youtube';
+      const source = String(videoSourceEl.value || '').trim();
+      const res = await fetch(withPrefix('/api/video-source'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, source }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const openedTag = data.opened ? 'ok' : 'pending';
+        videoSourceStatusEl.textContent = `Source gespeichert (${openedTag}) | aktiv: ${data.active_source || '-'}`;
+        statusEl.textContent = 'Video source updated.';
+        statusEl.className = 'ok';
+      } else {
+        videoSourceStatusEl.textContent = 'Source update fehlgeschlagen';
+        statusEl.textContent = 'Source error: ' + (data.error || 'unknown');
+        statusEl.className = 'warn';
+      }
     }
 
     async function saveZone() {
@@ -493,6 +580,8 @@ HTML_PAGE = """
 
     document.getElementById('save').addEventListener('click', saveZone);
     document.getElementById('reload').addEventListener('click', reloadZone);
+    document.getElementById('save_source').addEventListener('click', saveVideoSource);
+    document.getElementById('reload_source').addEventListener('click', loadVideoSource);
     document.getElementById('save_roi').addEventListener('click', saveRoi);
     document.getElementById('reload_roi').addEventListener('click', loadRoi);
     document.getElementById('undo_roi').addEventListener('click', () => {
@@ -529,6 +618,7 @@ HTML_PAGE = """
 
     reloadZone();
     loadRoi();
+    loadVideoSource();
     initDashPlayer();
     setInterval(pollState, 1000);
     setInterval(drawZone, 1000);
@@ -829,6 +919,7 @@ class TrackingEngine:
         self.config = self.config_manager.load()
 
         tracking_cfg = self.config["tracking"]
+        tracking_cfg["model_path"] = os.path.join("models", YOLO26N_MODEL_NAME)
         model_path = self._resolve_config_relative_path(str(tracking_cfg["model_path"]))
         tracker_path = self._resolve_config_relative_path(str(tracking_cfg["tracker"]))
 
@@ -837,18 +928,8 @@ class TrackingEngine:
             confidence_threshold=float(tracking_cfg["confidence_threshold"]),
             device=str(tracking_cfg.get("device", "cpu")),
         )
-
-        self.video_input = VideoInputModule(
-            source=str(self.config["video"]["source"]),
-            fallback_source=self.config.get("video", {}).get("fallback_source"),
-            reconnect_delay=float(self.config["video"]["reconnect_delay"]),
-            max_retries=int(self.config["video"]["max_retries"]),
-            hwaccel=str(self.config.get("video", {}).get("hwaccel", "auto")),
-            youtube_cookies_from_browser=str(self.config.get("video", {}).get("youtube_cookies_from_browser", "")),
-            youtube_cookiefile=str(self.config.get("video", {}).get("youtube_cookiefile", "")),
-            youtube_format=str(self.config.get("video", {}).get("youtube_format", "best[ext=mp4]/best")),
-            youtube_player_client=str(self.config.get("video", {}).get("youtube_player_client", "android")),
-        )
+        self.video_mode = self._sanitize_video_mode(self.config.get("video", {}).get("input_mode", "youtube"))
+        self.video_input = self._create_video_input(self.config.get("video", {}))
 
         self.tracking_module = YOLOTrackingModule(
             detector=self.detector,
@@ -902,7 +983,7 @@ class TrackingEngine:
         dash_cfg = dashboard_cfg.get("dash", dashboard_cfg.get("hls", {}))
         self.dash_enabled = bool(dash_cfg.get("enabled", True))
         self.dash_output_dir = self._resolve_config_relative_path(
-            str(dash_cfg.get("output_dir", "../website-dashboard/runtime/dash"))
+          str(dash_cfg.get("output_dir", "runtime/dash"))
         )
         self.dash_segment_time = float(dash_cfg.get("segment_time", 1.0))
         self.dash_list_size = int(dash_cfg.get("list_size", 12))
@@ -974,11 +1055,14 @@ class TrackingEngine:
         self._current_effective_process_n = self.process_every_n_frames
         self._track_event_overlay: Dict[int, Dict[str, Any]] = {}
         self._track_event_overlay_ttl_sec = 2.0
+        self._video_input_lock = threading.Lock()
 
     def start(self):
       if self._running:
         return
-      if not self.video_input.open():
+      with self._video_input_lock:
+        opened = self.video_input.open()
+      if not opened:
         print("[WARN] Videoquelle beim Start nicht geöffnet; reconnect läuft im Hintergrund weiter.")
       self.dash_streamer.start()
       self._running = True
@@ -998,9 +1082,34 @@ class TrackingEngine:
       if self._packetizer_thread:
         self._packetizer_thread.join(timeout=2)
       self.dash_streamer.stop()
-      self.video_input.release()
+      with self._video_input_lock:
+        self.video_input.release()
       if self.integration_writer:
         self.integration_writer.close()
+
+    @staticmethod
+    def _sanitize_video_mode(value: Any) -> str:
+      mode = str(value or "youtube").strip().lower()
+      if mode not in {"youtube", "livefeed_simulation"}:
+        return "youtube"
+      return mode
+
+    def _create_video_input(self, video_cfg: Dict[str, Any]) -> VideoInputModule:
+      source = str(video_cfg.get("source", "0"))
+      cookiefile = str(video_cfg.get("youtube_cookiefile", "") or "").strip()
+      if cookiefile and not os.path.isabs(cookiefile):
+        cookiefile = os.path.abspath(os.path.join(self.config_dir, cookiefile))
+      return VideoInputModule(
+        source=source,
+        fallback_source=None,
+        reconnect_delay=float(video_cfg.get("reconnect_delay", 1.0)),
+        max_retries=int(video_cfg.get("max_retries", 0)),
+        hwaccel=str(video_cfg.get("hwaccel", "auto")),
+        youtube_cookies_from_browser=str(video_cfg.get("youtube_cookies_from_browser", "")),
+        youtube_cookiefile=cookiefile,
+        youtube_format=str(video_cfg.get("youtube_format", "best[ext=mp4]/best")),
+        youtube_player_client=str(video_cfg.get("youtube_player_client", "android")),
+      )
 
     def _resolve_config_relative_path(self, path_value: str) -> str:
       if os.path.isabs(path_value):
@@ -1037,7 +1146,8 @@ class TrackingEngine:
             time.sleep(min(sleep_for, 0.02))
 
         frame = None
-        ok, frame = self.video_input.read()
+        with self._video_input_lock:
+          ok, frame = self.video_input.read()
         if not ok or frame is None:
           time.sleep(0.02)
           continue
@@ -1255,35 +1365,81 @@ class TrackingEngine:
           next_deadline = now
 
     def get_state(self) -> Dict[str, Any]:
-        with self._lock:
-            return {
-                "occupancy": self.occupancy_state.occupancy,
-                "entries_total": self.entries_total,
-                "exits_total": self.exits_total,
-                "entries_frame": self.last_entries,
-                "exits_frame": self.last_exits,
-                "tracks": self.last_tracks,
-                "fps": self.last_fps,
-                "inference_fps": self.last_inference_fps,
-                "analysis_queue": len(self._analysis_queue),
-                "analysis_skipped_frames": self.analysis_skipped_frames,
-                "capture_max_fps": self.capture_max_fps,
-                "effective_process_every_n_frames": self._current_effective_process_n,
-                "dash_enabled": self.dash_streamer.enabled,
-                "dash_encoder": self.dash_streamer.encoder_name,
-                "dash_output_dir": self.dash_output_dir,
-                "track_ok": self.last_track_ok,
-                "track_error": self.last_track_error,
-                "zone": self.zone_config.to_dict(),
-                "analysis_roi": self.analysis_roi,
-                "integration_writer": (
-                    self.integration_writer.get_status() if self.integration_writer else {"enabled": False}
-                ),
-                "running": bool(self._running),
-                "video_source": str(self.video_input.raw_source),
-                "video_active_source": str(getattr(self.video_input, "active_source", self.video_input.source)),
-                "video_opened": bool(self.video_input.capture and self.video_input.capture.isOpened()),
-            }
+      with self._lock:
+        state = {
+          "occupancy": self.occupancy_state.occupancy,
+          "entries_total": self.entries_total,
+          "exits_total": self.exits_total,
+          "entries_frame": self.last_entries,
+          "exits_frame": self.last_exits,
+          "tracks": self.last_tracks,
+          "fps": self.last_fps,
+          "inference_fps": self.last_inference_fps,
+          "analysis_queue": len(self._analysis_queue),
+          "analysis_skipped_frames": self.analysis_skipped_frames,
+          "capture_max_fps": self.capture_max_fps,
+          "effective_process_every_n_frames": self._current_effective_process_n,
+          "dash_enabled": self.dash_streamer.enabled,
+          "dash_encoder": self.dash_streamer.encoder_name,
+          "dash_output_dir": self.dash_output_dir,
+          "track_ok": self.last_track_ok,
+          "track_error": self.last_track_error,
+          "zone": self.zone_config.to_dict(),
+          "analysis_roi": self.analysis_roi,
+          "integration_writer": (
+            self.integration_writer.get_status() if self.integration_writer else {"enabled": False}
+          ),
+          "running": bool(self._running),
+          "video_mode": self.video_mode,
+        }
+      with self._video_input_lock:
+        state["video_source"] = str(self.video_input.raw_source)
+        state["video_active_source"] = str(getattr(self.video_input, "active_source", self.video_input.source))
+        state["video_opened"] = bool(self.video_input.capture and self.video_input.capture.isOpened())
+      return state
+
+    def get_video_source(self) -> Dict[str, Any]:
+      with self._video_input_lock:
+        return {
+          "mode": self.video_mode,
+          "source": str(getattr(self.video_input, "raw_source", "")),
+          "active_source": str(getattr(self.video_input, "active_source", getattr(self.video_input, "source", ""))),
+          "opened": bool(self.video_input.capture and self.video_input.capture.isOpened()),
+        }
+
+    def update_video_source(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+      payload = dict(payload or {})
+      mode = self._sanitize_video_mode(payload.get("mode", self.video_mode))
+      source_value = payload.get("source", self.config.get("video", {}).get("source", "0"))
+      source = str(source_value).strip() or str(self.config.get("video", {}).get("source", "0"))
+
+      cfg = self.config_manager.load()
+      video_cfg = dict(cfg.get("video", {}) or {})
+      video_cfg["input_mode"] = mode
+      video_cfg["source"] = source
+      cfg["video"] = video_cfg
+      self.config_manager.save(cfg)
+      self.config = cfg
+      self.video_mode = mode
+
+      replacement_input = self._create_video_input(video_cfg)
+
+      with self._video_input_lock:
+        previous_input = self.video_input
+        self.video_input = replacement_input
+        try:
+          previous_input.release()
+        except Exception:
+          pass
+        opened = self.video_input.open()
+
+      return {
+        "ok": True,
+        "mode": self.video_mode,
+        "source": str(self.video_input.raw_source),
+        "active_source": str(getattr(self.video_input, "active_source", self.video_input.source)),
+        "opened": bool(opened),
+      }
 
     def get_zone(self) -> Dict[str, Any]:
         return self.zone_config.to_dict()
@@ -1466,6 +1622,17 @@ def create_app(config_path: str) -> Flask:
         try:
             engine.update_analysis_roi(roi_payload)
             return jsonify({"ok": True, "analysis_roi": engine.get_analysis_roi()})
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+
+    @app.route("/api/video-source", methods=["GET", "POST"])
+    def api_video_source():
+        if request.method == "GET":
+            return jsonify(engine.get_video_source())
+
+        payload = request.get_json(silent=True) or {}
+        try:
+            return jsonify(engine.update_video_source(payload))
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc)}), 400
 

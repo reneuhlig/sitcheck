@@ -15,6 +15,7 @@ from ConfigManager import ConfigManager
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+YOLO26N_MODEL_NAME = "yolo26n.pt"
 
 
 def _parse_args():
@@ -84,14 +85,16 @@ def main():
         config["ui"]["show_window"] = False
 
     tracking_cfg = config.get("tracking", {})
+    enforced_model_rel = os.path.join("models", YOLO26N_MODEL_NAME)
     tracking_cfg["model_path"] = _resolve_relative_to_config(
         resolved_config_path,
-        str(tracking_cfg.get("model_path", "models/yolo26n.pt")),
+        enforced_model_rel,
     )
     tracking_cfg["tracker"] = _resolve_relative_to_config(
         resolved_config_path,
         str(tracking_cfg.get("tracker", "bytetrack_entrance.yaml")),
     )
+    config["tracking"] = tracking_cfg
 
     zone_config = EntranceZoneConfig.from_dict(config["zone"])
     db_config = _build_db_config(config)
@@ -112,6 +115,15 @@ def main():
         processor = LiveProcessor(
             detector=detector,
             video_source=str(config["video"]["source"]),
+            fallback_source=config.get("video", {}).get("fallback_source"),
+            hwaccel=str(config.get("video", {}).get("hwaccel", "auto")),
+            youtube_cookies_from_browser=str(config.get("video", {}).get("youtube_cookies_from_browser", "")),
+            youtube_cookiefile=_resolve_relative_to_config(
+                resolved_config_path,
+                str(config.get("video", {}).get("youtube_cookiefile", "")),
+            ) if str(config.get("video", {}).get("youtube_cookiefile", "")).strip() else "",
+            youtube_format=str(config.get("video", {}).get("youtube_format", "best[ext=mp4]/best")),
+            youtube_player_client=str(config.get("video", {}).get("youtube_player_client", "android")),
             zone_config=zone_config,
             tracker_config=str(config["tracking"]["tracker"]),
             confidence_threshold=float(config["tracking"]["confidence_threshold"]),

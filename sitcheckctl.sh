@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROGNOSE_DIR="${SCRIPT_DIR}/prognose"
 BILDAUSWERTUNG_CTL="${SCRIPT_DIR}/bildauswertung/start_system.sh"
-DASHBOARD_CTL="${SCRIPT_DIR}/website-dashboard/realtime/start_dashboard.sh"
+DASHBOARD_CTL="${SCRIPT_DIR}/bildauswertung/realtime/start_dashboard.sh"
 PORTAL_CTL="${SCRIPT_DIR}/website-dashboard/portal/start_portal.sh"
 RUNTIME_ROOT="${SCRIPT_DIR}/website-dashboard/runtime"
 LOG_DIR="${RUNTIME_ROOT}/logs"
@@ -191,12 +191,12 @@ start_prognose_local_stack() {
     log "[INFO] Forecast training mode: ${FORECAST_TRAINING_MODE}"
 
     start_local_service "api-gateway" 8000 "${PROGNOSE_DIR}/apps/api-gateway" \
-      "env DATABASE_URL='${PROGNOSE_DATABASE_URL}' DEFAULT_ZONE_ID='default-zone' DEFAULT_ZONE_CAPACITY='100' FORECAST_SERVICE_URL='http://127.0.0.1:8001' XAI_SERVICE_URL='http://127.0.0.1:8002' RECOMMENDATIONS_SERVICE_URL='http://127.0.0.1:8003' SCHEDULER_SERVICE_URL='http://127.0.0.1:8011' INTERNAL_API_TOKEN='change_me_internal' OLLAMA_ENABLED='true' OLLAMA_BASE_URL='http://127.0.0.1:11434' OLLAMA_MODEL='gemma3:4b' EXPLAINABILITY_OLLAMA_TIMEOUT_SECONDS='300' EXPLAINABILITY_FALLBACK_ENABLED='true' '${PROGNOSE_PY}' -m uvicorn main:app --host 0.0.0.0 --port 8000"
+      "env DATABASE_URL='${PROGNOSE_DATABASE_URL}' DEFAULT_ZONE_ID='default-zone' DEFAULT_ZONE_CAPACITY='100' FORECAST_SERVICE_URL='http://127.0.0.1:8001' XAI_SERVICE_URL='http://127.0.0.1:8002' RECOMMENDATIONS_SERVICE_URL='http://127.0.0.1:8003' SCHEDULER_SERVICE_URL='http://127.0.0.1:8011' INTERNAL_API_TOKEN='change_me_internal' OLLAMA_ENABLED='true' OLLAMA_BASE_URL='http://127.0.0.1:11434' OLLAMA_MODEL='gemma3:4b' EXPLAINABILITY_OLLAMA_TIMEOUT_SECONDS='180' EXPLAINABILITY_FALLBACK_ENABLED='false' '${PROGNOSE_PY}' -m uvicorn main:app --host 0.0.0.0 --port 8000"
     wait_for_http "${API_HEALTH_URL}" "api-gateway" 120 0
 
     # Legacy API alias for Cloudflare ingress compatibility.
     start_local_service "api-gateway-legacy" 5000 "${PROGNOSE_DIR}/apps/api-gateway" \
-      "env DATABASE_URL='${PROGNOSE_DATABASE_URL}' DEFAULT_ZONE_ID='default-zone' DEFAULT_ZONE_CAPACITY='100' FORECAST_SERVICE_URL='http://127.0.0.1:8001' XAI_SERVICE_URL='http://127.0.0.1:8002' RECOMMENDATIONS_SERVICE_URL='http://127.0.0.1:8003' SCHEDULER_SERVICE_URL='http://127.0.0.1:8011' INTERNAL_API_TOKEN='change_me_internal' OLLAMA_ENABLED='true' OLLAMA_BASE_URL='http://127.0.0.1:11434' OLLAMA_MODEL='gemma3:4b' EXPLAINABILITY_OLLAMA_TIMEOUT_SECONDS='300' EXPLAINABILITY_FALLBACK_ENABLED='true' '${PROGNOSE_PY}' -m uvicorn main:app --host 0.0.0.0 --port 5000"
+      "env DATABASE_URL='${PROGNOSE_DATABASE_URL}' DEFAULT_ZONE_ID='default-zone' DEFAULT_ZONE_CAPACITY='100' FORECAST_SERVICE_URL='http://127.0.0.1:8001' XAI_SERVICE_URL='http://127.0.0.1:8002' RECOMMENDATIONS_SERVICE_URL='http://127.0.0.1:8003' SCHEDULER_SERVICE_URL='http://127.0.0.1:8011' INTERNAL_API_TOKEN='change_me_internal' OLLAMA_ENABLED='true' OLLAMA_BASE_URL='http://127.0.0.1:11434' OLLAMA_MODEL='gemma3:4b' EXPLAINABILITY_OLLAMA_TIMEOUT_SECONDS='180' EXPLAINABILITY_FALLBACK_ENABLED='false' '${PROGNOSE_PY}' -m uvicorn main:app --host 0.0.0.0 --port 5000"
     wait_for_http "${API_LEGACY_HEALTH_URL}" "api-gateway legacy (:5000)" 120 1
 
     start_local_service "forecast" 8001 "${PROGNOSE_DIR}/services/forecast" \
@@ -228,7 +228,7 @@ start_prognose_local_stack() {
     wait_for_http "http://127.0.0.1:8011/health" "forecast-scheduler" 120 1
 
     start_local_service "dashboard" 8501 "${PROGNOSE_DIR}/apps/dashboard" \
-      "env API_BASE_URL='http://127.0.0.1:8000' DEFAULT_ZONE_ID='default-zone' OLLAMA_ENABLED='true' OLLAMA_BASE_URL='http://127.0.0.1:11434' OLLAMA_MODEL='gemma3:4b' DASHBOARD_API_TIMEOUT_SECONDS='420' '${PROGNOSE_PY}' -m streamlit run app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true"
+      "env API_BASE_URL='http://127.0.0.1:8000' DEFAULT_ZONE_ID='default-zone' OLLAMA_ENABLED='true' OLLAMA_BASE_URL='http://127.0.0.1:11434' OLLAMA_MODEL='gemma3:4b' ASSISTANT_LOCAL_TEMPLATE_FALLBACK='false' DASHBOARD_API_TIMEOUT_SECONDS='240' '${PROGNOSE_PY}' -m streamlit run app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true"
     wait_for_http "${STREAMLIT_HEALTH_URL}" "streamlit dashboard" 180 0
 
     if [ "${FORECAST_TRAINER_ENABLED}" = "1" ]; then

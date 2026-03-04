@@ -18,7 +18,7 @@ Start:
 
 ## 2. Realtime Dashboard (Flask)
 Pfad:
-- `website-dashboard/realtime/dashboard_app.py`
+- `bildauswertung/realtime/dashboard_app.py`
 
 Aufgabe:
 - Live-Trackingfeed (DASH)
@@ -31,7 +31,7 @@ Runtime-Artefakte:
 - `website-dashboard/runtime/logs`
 
 Start:
-- `./website-dashboard/realtime/start_dashboard.sh start`
+- `./bildauswertung/realtime/start_dashboard.sh start`
 - oder zentral: `./sitcheckctl.sh start`
 
 ## 3. Analytics/Executive Dashboard (Streamlit)

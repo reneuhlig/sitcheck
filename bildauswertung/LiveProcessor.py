@@ -20,6 +20,12 @@ class LiveProcessor:
         self,
         detector,
         video_source: str,
+        fallback_source: Optional[str] = None,
+        hwaccel: str = "auto",
+        youtube_cookies_from_browser: str = "",
+        youtube_cookiefile: str = "",
+        youtube_format: str = "best[ext=mp4]/best",
+        youtube_player_client: str = "android",
         zone_config: EntranceZoneConfig,
         tracker_config: str = "bytetrack.yaml",
         confidence_threshold: float = 0.4,
@@ -50,8 +56,14 @@ class LiveProcessor:
     ):
         self.video_input = VideoInputModule(
             source=video_source,
+            fallback_source=fallback_source,
             reconnect_delay=reconnect_delay,
             max_retries=max_retries,
+            hwaccel=hwaccel,
+            youtube_cookies_from_browser=youtube_cookies_from_browser,
+            youtube_cookiefile=youtube_cookiefile,
+            youtube_format=youtube_format,
+            youtube_player_client=youtube_player_client,
         )
 
         self.tracking_module = YOLOTrackingModule(
