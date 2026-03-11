@@ -26,7 +26,7 @@ class LiveProcessor:
         youtube_cookiefile: str = "",
         youtube_format: str = "best[ext=mp4]/best",
         youtube_player_client: str = "android",
-        zone_config: EntranceZoneConfig,
+        zone_config: Optional[EntranceZoneConfig] = None,
         tracker_config: str = "bytetrack.yaml",
         confidence_threshold: float = 0.4,
         iou_threshold: float = 0.5,
@@ -54,6 +54,9 @@ class LiveProcessor:
         integration_config: Optional[Dict[str, Any]] = None,
         config_dir: Optional[str] = None,
     ):
+        if zone_config is None:
+            raise ValueError("zone_config darf nicht None sein")
+
         self.video_input = VideoInputModule(
             source=video_source,
             fallback_source=fallback_source,

@@ -17,7 +17,7 @@ tracking:
   model_path: models/yolo26n.pt
   device: auto
   tracker: bytetrack_entrance.yaml
-  confidence_threshold: 0.15
+  confidence_threshold: 0.1
   iou_threshold: 0.45
   imgsz: 640
   analysis_roi:
@@ -50,10 +50,10 @@ dashboard:
   jpeg_optimize: false
   stream_max_width: 1280
   analysis_queue_frames: 128
-  analysis_skip_threshold_frames: 4
-  dynamic_skip_enabled: true
-  dynamic_skip_queue_threshold: 4
-  dynamic_skip_max_n: 5
+  analysis_skip_threshold_frames: 24
+  dynamic_skip_enabled: false
+  dynamic_skip_queue_threshold: 8
+  dynamic_skip_max_n: 2
   dash:
     enabled: true
     output_dir: runtime/dash
@@ -102,39 +102,27 @@ zone:
       - 0.1699258691206544
   entry_polygon:
     points:
-    - - 0.3833882705479452
-      - 0.7631421232876713
-    - - 0.39965967465753427
-      - 0.7987585616438356
-    - - 0.6135124143835616
-      - 0.7316352739726028
-    - - 0.6584524828767124
-      - 0.0056078767123287675
-    - - 0.8723052226027398
-      - 0.0014982876712328766
-    - - 0.9234439212328768
-      - 0.9987585616438356
-    - - 0.0006228595890411129
-      - 0.9987585616438356
-    - - 0.0006228595890411129
-      - 0.0028681506849315068
-    - - 0.31907748287671234
-      - 0.004238013698630137
+    - - 0.34
+      - 0.51
+    - - 0.66
+      - 0.51
+    - - 0.75
+      - 0.84
+    - - 0.25
+      - 0.84
   exit_polygon:
     points:
-    - - 0.38803724315068494
-      - 0.7604023972602739
-    - - 0.404308647260274
-      - 0.7919092465753425
-    - - 0.6042144691780822
-      - 0.723416095890411
-    - - 0.6538035102739727
-      - 0.0028681506849315068
-    - - 0.32605094178082195
-      - 0.0014982876712328766
+    - - 0.34
+      - 0.26
+    - - 0.66
+      - 0.26
+    - - 0.64
+      - 0.56
+    - - 0.36
+      - 0.56
   min_crossing_displacement_px: 20.0
-  min_track_points: 4
-  min_event_cooldown_frames: 8
+  min_track_points: 3
+  min_event_cooldown_frames: 6
 ui:
   show_window: true
   enable_zone_editor: true

@@ -40,6 +40,8 @@ class VideoInputModule:
         self._cached_youtube_stream_url: Optional[str] = None
         self._cached_youtube_stream_ts = 0.0
         self._youtube_stream_cache_ttl_sec = 1800.0
+        self._file_frame_interval_sec = 0.0
+        self._next_file_frame_deadline_ts = 0.0
 
     @staticmethod
     def _parse_source(source: str):
@@ -170,10 +172,36 @@ class VideoInputModule:
             self.active_source = source_to_open
             self.capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             self._configure_hwaccel()
+            self._configure_file_source_timing()
         elif self.is_youtube_source and used_cached_stream:
             self._cached_youtube_stream_url = None
             self._cached_youtube_stream_ts = 0.0
         return bool(self.capture and self.capture.isOpened())
+
+    def _configure_file_source_timing(self):
+        self._file_frame_interval_sec = 0.0
+        self._next_file_frame_deadline_ts = 0.0
+        if not self.capture or not self._is_file_source_active():
+            return
+
+        fps = float(self.capture.get(cv2.CAP_PROP_FPS) or 0.0)
+        if fps <= 0.0 or fps > 240.0:
+            return
+
+        self._file_frame_interval_sec = 1.0 / fps
+        self._next_file_frame_deadline_ts = time.monotonic()
+
+    def _throttle_file_source_read(self):
+        if self._file_frame_interval_sec <= 0.0:
+            return
+
+        now_ts = time.monotonic()
+        if self._next_file_frame_deadline_ts <= 0.0:
+            self._next_file_frame_deadline_ts = now_ts
+
+        wait_for = self._next_file_frame_deadline_ts - now_ts
+        if wait_for > 0:
+            time.sleep(min(wait_for, 0.02))
 
     def _configure_hwaccel(self):
         if self.hwaccel not in {"auto", "vaapi", "cuda", "any"}:
@@ -203,9 +231,18 @@ class VideoInputModule:
             if not self._try_reconnect():
                 return False, None
 
+        self._throttle_file_source_read()
+
         ok, frame = self.capture.read()
         if ok:
             self._retries = 0
+            if self._file_frame_interval_sec > 0.0:
+                now_ts = time.monotonic()
+                if self._next_file_frame_deadline_ts <= 0.0:
+                    self._next_file_frame_deadline_ts = now_ts + self._file_frame_interval_sec
+                else:
+                    while self._next_file_frame_deadline_ts <= now_ts:
+                        self._next_file_frame_deadline_ts += self._file_frame_interval_sec
             return True, frame
 
         if self._is_file_source_active() and not self.loop_file_source:
@@ -239,3 +276,5 @@ class VideoInputModule:
         if self.capture:
             self.capture.release()
             self.capture = None
+        self._file_frame_interval_sec = 0.0
+        self._next_file_frame_deadline_ts = 0.0

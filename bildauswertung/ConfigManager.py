@@ -29,7 +29,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "model_path": "models/yolo26n.pt",
         "device": "cpu",
         "tracker": "bytetrack_entrance.yaml",
-        "confidence_threshold": 0.25,
+        "confidence_threshold": 0.1,
         "iou_threshold": 0.45,
         "imgsz": 640,
         "analysis_roi": {
@@ -65,10 +65,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "jpeg_optimize": False,
         "stream_max_width": 640,
         "analysis_queue_frames": 64,
-        "analysis_skip_threshold_frames": 16,
-        "dynamic_skip_enabled": True,
-        "dynamic_skip_queue_threshold": 6,
-        "dynamic_skip_max_n": 4,
+        "analysis_skip_threshold_frames": 24,
+        "dynamic_skip_enabled": False,
+        "dynamic_skip_queue_threshold": 8,
+        "dynamic_skip_max_n": 2,
         "dash": {
             "enabled": False,
             "output_dir": "runtime/dash",
