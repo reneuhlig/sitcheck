@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
-/* Farben für die Light-Variante */
 :root {
-  --background: #f0f4f8;
-  --foreground: #1a1a1a;
-  --header-footer: #c0e3ff;
-  --sidebar-bg: #c0e3ff;
+  --page-bg: #f4faff;
+  --surface-frost: rgba(246, 251, 255, 0.82);
+  --surface-raised: rgba(255, 255, 255, 0.92);
+  --surface-muted: rgba(225, 239, 252, 0.9);
+  --stroke-soft: rgba(108, 143, 173, 0.16);
+  --stroke-strong: rgba(87, 122, 152, 0.28);
+  --ink-strong: #1a3448;
+  --ink-soft: #5b7488;
+  --ink-muted: #7f97aa;
+  --accent: #6baed8;
+  --accent-strong: #3f7198;
+  --accent-soft: #bce4fe;
+  --warning: #cc8b52;
+  --danger: #b2473e;
 }
 
-/* Grundstyles */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    linear-gradient(180deg, rgba(188, 228, 254, 0.35), transparent 22%),
+    var(--page-bg);
+}
+
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 14%, rgba(188, 228, 254, 0.4), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(139, 198, 236, 0.22), transparent 25%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(244, 250, 255, 0.96)),
+    var(--page-bg);
+  color: var(--ink-strong);
+  font-family: var(--font-geist-sans), "Segoe UI Variable", "Segoe UI", sans-serif;
 }
 
-header,
-footer {
-  background-color: var(--header-footer);
+a,
+button,
+input,
+textarea,
+select {
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
-.sidebar {
-  background-color: var(--sidebar-bg);
-  color: white;
+::selection {
+  background: rgba(188, 228, 254, 0.5);
 }

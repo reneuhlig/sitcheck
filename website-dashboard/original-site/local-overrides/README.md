@@ -1,13 +1,9 @@
 # Local Overrides
 
-Dieses Verzeichnis enthält lokale Anpassungen, die nach einem Upstream-Sync
-gezielt wieder auf `nextapp/` angewendet werden.
+Dieses Verzeichnis ist aktuell bewusst leer, damit ein späterer
+`scripts/apply_local_overrides.sh`-Lauf keine veraltete Demo-Oberfläche wieder
+nach `nextapp/` zurückkopiert.
 
-Ablauf:
-1. Upstream nach `nextapp/` synchronisieren
-2. `scripts/apply_local_overrides.sh` ausführen
-3. Statische Seite neu bauen
-
-Aktive Overrides:
-- `src/app/layout.js`
-- `src/app/page.js`
+Wenn künftig gezielte Overrides benötigt werden, sollten sie von der aktuellen
+Bibliotheksoberfläche abgeleitet und anschließend erneut export-getestet
+werden.

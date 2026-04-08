@@ -1,5 +1,5 @@
 video:
-  source: /sitcheck/bildauswertung/LiveFeed Simulation/basic loop.mp4
+  source: /sitcheck/bildauswertung/LiveFeed Simulation/DEMO/Demo.mp4
   fallback_source: ''
   reconnect_delay: 1.0
   max_retries: 0
@@ -12,9 +12,11 @@ video:
   simulation:
     directory: LiveFeed Simulation
     control_mode: remote_control
-    default_clip_id: basic-loop
+    default_clip_id: demo
 tracking:
-  model_path: models/yolo26n.pt
+  api_url: https://predict-69c3e01f0ad4a9f263ed-dproatj77a-ey.a.run.app/predict
+  api_key: ul_1464994a534bea3e58bd6539b980ba1e3deb6317
+  api_timeout_seconds: 3.0
   device: auto
   tracker: bytetrack_entrance.yaml
   confidence_threshold: 0.1

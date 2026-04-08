@@ -16,7 +16,6 @@ from flask import Flask, jsonify, render_template_string, request, send_from_dir
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 WORKSPACE_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "..", ".."))
 BILDAUSWERTUNG_DIR = os.path.join(WORKSPACE_ROOT, "bildauswertung")
-YOLO26N_MODEL_NAME = "yolo26n.pt"
 
 if BILDAUSWERTUNG_DIR not in sys.path:
     sys.path.insert(0, BILDAUSWERTUNG_DIR)
@@ -96,6 +95,10 @@ HTML_PAGE = """
           <div class="stat"><b>Frame Ev.</b><div id="events">-</div></div>
         </div>
         <div id="status" class="muted">Loading...</div>
+        <div class="row" style="margin-top:10px; align-items:center;">
+          <button id="toggle_analysis">Auswertung stoppen</button>
+          <div class="muted">Status: <span id="analysis_status" class="ok">aktiv</span></div>
+        </div>
         <div class="row" style="margin-top:10px;">
           <a class="navlink" id="main_link">Zur Hauptseite</a>
           <a class="navlink" id="analytics_link" target="_blank" rel="noopener">Analytics öffnen</a>
@@ -202,6 +205,8 @@ HTML_PAGE = """
     const inferFpsEl = document.getElementById('infer_fps');
     const eventsEl = document.getElementById('events');
     const statusEl = document.getElementById('status');
+    const toggleAnalysisBtn = document.getElementById('toggle_analysis');
+    const analysisStatusEl = document.getElementById('analysis_status');
     const streamStatusEl = document.getElementById('stream_status');
     const mainLinkEl = document.getElementById('main_link');
     const analyticsLinkEl = document.getElementById('analytics_link');
@@ -238,7 +243,15 @@ HTML_PAGE = """
     };
     let lineStage = 0;
     let analysisRoi = { enabled: false, mode: 'rect', x_min: 0.0, y_min: 0.0, x_max: 1.0, y_max: 1.0, polygon_points: [] };
+    let analysisEnabled = true;
     let dashController = null;
+
+    function setAnalysisUi(enabled) {
+      analysisEnabled = !!enabled;
+      toggleAnalysisBtn.textContent = analysisEnabled ? 'Auswertung stoppen' : 'Auswertung starten';
+      analysisStatusEl.textContent = analysisEnabled ? 'aktiv' : 'pausiert';
+      analysisStatusEl.className = analysisEnabled ? 'ok' : 'warn';
+    }
 
     function clamp01(value) {
       return Math.max(0, Math.min(1, value));
@@ -511,7 +524,35 @@ HTML_PAGE = """
         fpsEl.textContent = st.fps;
         inferFpsEl.textContent = st.inference_fps;
         eventsEl.textContent = `+${st.entries_frame} / -${st.exits_frame}`;
+        setAnalysisUi(st.analysis_enabled !== false);
       } catch (e) {}
+    }
+
+    async function toggleAnalysis() {
+      toggleAnalysisBtn.disabled = true;
+      try {
+        const res = await fetch(withPrefix('/api/analysis-control'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: !analysisEnabled }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setAnalysisUi(data.analysis_enabled);
+          statusEl.textContent = data.analysis_enabled
+            ? 'Auswertung gestartet.'
+            : 'Auswertung pausiert. Keine Inferenz-API-Aufrufe aktiv.';
+          statusEl.className = 'ok';
+        } else {
+          statusEl.textContent = 'Steuerung fehlgeschlagen: ' + (data.error || 'unknown');
+          statusEl.className = 'warn';
+        }
+      } catch (e) {
+        statusEl.textContent = 'Steuerung fehlgeschlagen';
+        statusEl.className = 'warn';
+      } finally {
+        toggleAnalysisBtn.disabled = false;
+      }
     }
 
     canvas.addEventListener('click', (ev) => {
@@ -585,6 +626,7 @@ HTML_PAGE = """
 
     document.getElementById('save').addEventListener('click', saveZone);
     document.getElementById('reload').addEventListener('click', reloadZone);
+    toggleAnalysisBtn.addEventListener('click', toggleAnalysis);
     document.getElementById('save_source').addEventListener('click', saveVideoSource);
     document.getElementById('reload_source').addEventListener('click', loadVideoSource);
     document.getElementById('save_roi').addEventListener('click', saveRoi);
@@ -930,14 +972,14 @@ class TrackingEngine:
         self.config = self.config_manager.load()
 
         tracking_cfg = self.config["tracking"]
-        tracking_cfg["model_path"] = os.path.join("models", YOLO26N_MODEL_NAME)
-        model_path = self._resolve_config_relative_path(str(tracking_cfg["model_path"]))
         tracker_path = self._resolve_config_relative_path(str(tracking_cfg["tracker"]))
 
         self.detector = UltralyticsPersonDetector(
-            model_path=model_path,
+          api_url=str(tracking_cfg.get("api_url", "")),
+          api_key=str(tracking_cfg.get("api_key", "")),
             confidence_threshold=float(tracking_cfg["confidence_threshold"]),
             device=str(tracking_cfg.get("device", "cpu")),
+          request_timeout_seconds=float(tracking_cfg.get("api_timeout_seconds", 10.0)),
         )
         self.video_mode = self._sanitize_video_mode(self.config.get("video", {}).get("input_mode", "youtube"))
         self.simulation_control_mode = self._sanitize_simulation_control_mode(
@@ -983,6 +1025,7 @@ class TrackingEngine:
         self.occupancy_state = OccupancyStateModule(db=None)
         self.visualizer = VisualizationOutputModule(show_window=False, enable_zone_editor=False)
         self.integration_writer: Optional[PrognoseDbWriter] = None
+        self.integration_write_mode = "occupancy_state"
 
         integration_cfg = dict(self.config.get("integration", {}) or {})
         prognose_cfg = integration_cfg.get("prognose_db", integration_cfg)
@@ -993,6 +1036,9 @@ class TrackingEngine:
               config_dir=self.config_dir,
               component_name="website-dashboard.realtime.TrackingEngine",
             )
+            self.integration_write_mode = str(
+              prognose_cfg.get("write_mode", getattr(self.integration_writer, "write_mode", "frame_near"))
+            ).strip().lower() or "frame_near"
           except Exception:
             self.integration_writer = None
 
@@ -1052,6 +1098,7 @@ class TrackingEngine:
         self.entries_total = 0
         self.exits_total = 0
         self.last_tracks = 0
+        self.current_frame_occupancy = 0
         self.last_entries = 0
         self.last_exits = 0
         self.last_fps = 0.0
@@ -1081,6 +1128,7 @@ class TrackingEngine:
         self._track_event_overlay: Dict[int, Dict[str, Any]] = {}
         self._track_event_overlay_ttl_sec = 2.0
         self._video_input_lock = threading.Lock()
+        self.analysis_enabled = True
 
     def start(self):
       if self._running:
@@ -1125,6 +1173,26 @@ class TrackingEngine:
       if mode not in {"remote_control", "auto_rules"}:
         return "remote_control"
       return mode
+
+    @staticmethod
+    def _count_active_tracks(tracks: list[dict[str, Any]] | None) -> int:
+      if not isinstance(tracks, list):
+        return 0
+      active_count = 0
+      for track in tracks:
+        if not isinstance(track, dict):
+          continue
+        if bool(track.get("is_stale", False)):
+          continue
+        active_count += 1
+      return active_count
+
+    def _resolve_live_occupancy(self, tracks: list[dict[str, Any]] | None = None) -> int:
+      if self.integration_write_mode == "frame_near":
+        if tracks is not None:
+          return self._count_active_tracks(tracks)
+        return int(self.current_frame_occupancy)
+      return int(self.occupancy_state.occupancy)
 
     def _ensure_simulation_defaults(self, video_cfg: Dict[str, Any]) -> Dict[str, Any]:
       merged = dict(video_cfg or {})
@@ -1321,16 +1389,19 @@ class TrackingEngine:
               self._next_capture_deadline_ts += self.capture_frame_interval
 
         with self._lock:
-          if len(self._analysis_queue) >= self.analysis_queue_frames:
-            try:
-              self._analysis_queue.popleft()
-              self.analysis_skipped_frames += 1
-            except IndexError:
-              pass
+          if self.analysis_enabled:
+            if len(self._analysis_queue) >= self.analysis_queue_frames:
+              try:
+                self._analysis_queue.popleft()
+                self.analysis_skipped_frames += 1
+              except IndexError:
+                pass
 
-          self._capture_frame_idx += 1
-          frame_id = self._capture_frame_idx
-          self._analysis_queue.append((frame_id, frame))
+            self._capture_frame_idx += 1
+            frame_id = self._capture_frame_idx
+            self._analysis_queue.append((frame_id, frame))
+          else:
+            self._analysis_queue.clear()
 
         should_update_raw = False
         now_ts = time.monotonic()
@@ -1353,6 +1424,18 @@ class TrackingEngine:
     def _inference_loop(self):
       while self._running:
         t0 = time.time()
+
+        with self._lock:
+          analysis_enabled = bool(self.analysis_enabled)
+
+        if not analysis_enabled:
+          self.last_tracks = 0
+          self.last_entries = 0
+          self.last_exits = 0
+          self.last_inference_fps = 0.0
+          self._last_tracks_cache = []
+          time.sleep(0.02)
+          continue
 
         with self._lock:
           if not self._analysis_queue:
@@ -1402,6 +1485,10 @@ class TrackingEngine:
         else:
           tracks = self._last_tracks_cache
 
+        frame_occupancy = self._count_active_tracks(tracks)
+        self.current_frame_occupancy = frame_occupancy
+        live_occupancy = self._resolve_live_occupancy(tracks)
+
         events = self.entry_analysis.update(tracks=tracks, frame_shape=frame.shape) if run_tracking_now else []
         frame_entries = 0
         frame_exits = 0
@@ -1435,7 +1522,7 @@ class TrackingEngine:
 
         if self.integration_writer:
           self.integration_writer.write_frame(
-            occupancy=self.occupancy_state.occupancy,
+            occupancy=live_occupancy,
             tracks=tracks,
             run_tracking_now=run_tracking_now,
             track_ok=self.last_track_ok,
@@ -1456,7 +1543,7 @@ class TrackingEngine:
             frame=frame,
             tracks=tracks,
             zone_config=self.zone_config,
-            occupancy=self.occupancy_state.occupancy,
+            occupancy=live_occupancy,
             entries_total=self.entries_total,
             exits_total=self.exits_total,
             events_in_frame={"entry": frame_entries, "exit": frame_exits},
@@ -1526,8 +1613,12 @@ class TrackingEngine:
 
     def get_state(self) -> Dict[str, Any]:
       with self._lock:
+        live_occupancy = self._resolve_live_occupancy()
         state = {
-          "occupancy": self.occupancy_state.occupancy,
+          "occupancy": live_occupancy,
+          "frame_occupancy": int(self.current_frame_occupancy),
+          "session_occupancy": int(self.occupancy_state.occupancy),
+          "occupancy_mode": self.integration_write_mode,
           "entries_total": self.entries_total,
           "exits_total": self.exits_total,
           "entries_frame": self.last_entries,
@@ -1550,6 +1641,7 @@ class TrackingEngine:
             self.integration_writer.get_status() if self.integration_writer else {"enabled": False}
           ),
           "running": bool(self._running),
+          "analysis_enabled": bool(self.analysis_enabled),
           "video_mode": self.video_mode,
           "simulation_control_mode": self.simulation_control_mode,
         }
@@ -1828,6 +1920,18 @@ class TrackingEngine:
       config.setdefault("tracking", {})["analysis_roi"] = roi
       self.config_manager.save(config)
 
+    def set_analysis_enabled(self, enabled: bool) -> Dict[str, Any]:
+      with self._lock:
+        self.analysis_enabled = bool(enabled)
+        if not self.analysis_enabled:
+          self._analysis_queue.clear()
+          self._last_tracks_cache = []
+      return {"ok": True, "analysis_enabled": bool(self.analysis_enabled)}
+
+    def get_analysis_control(self) -> Dict[str, Any]:
+      with self._lock:
+        return {"ok": True, "analysis_enabled": bool(self.analysis_enabled)}
+
 
 def create_app(config_path: str) -> Flask:
     app = Flask(__name__)
@@ -1875,6 +1979,18 @@ def create_app(config_path: str) -> Flask:
         try:
             engine.update_analysis_roi(roi_payload)
             return jsonify({"ok": True, "analysis_roi": engine.get_analysis_roi()})
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+
+    @app.route("/api/analysis-control", methods=["GET", "POST"])
+    def api_analysis_control():
+        if request.method == "GET":
+            return jsonify(engine.get_analysis_control())
+
+        payload = request.get_json(silent=True) or {}
+        try:
+            enabled = bool(payload.get("enabled", True))
+            return jsonify(engine.set_analysis_enabled(enabled))
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc)}), 400
 

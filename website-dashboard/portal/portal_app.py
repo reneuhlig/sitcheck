@@ -11,6 +11,7 @@ from typing import Any
 from urllib import error as urlerror
 from urllib import parse as urlparse
 from urllib import request as urlrequest
+from zoneinfo import ZoneInfo
 
 from flask import Flask, Response, jsonify, redirect, request, send_file
 
@@ -30,12 +31,35 @@ CC_HORIZON = int(os.getenv("SITCHECK_CC_HORIZON", "60"))
 CC_HISTORY_MINUTES = int(os.getenv("SITCHECK_CC_HISTORY_MINUTES", "180"))
 CC_HUB_HISTORY_MINUTES = int(os.getenv("SITCHECK_HUB_HISTORY_MINUTES", "180"))
 PROXY_TIMEOUT_SECONDS = float(os.getenv("SITCHECK_PROXY_TIMEOUT_SECONDS", "15"))
+EXPLAIN_NARRATIVE_TIMEOUT_SECONDS = float(
+    os.getenv("SITCHECK_EXPLAIN_NARRATIVE_TIMEOUT_SECONDS", str(max(PROXY_TIMEOUT_SECONDS, 180.0)))
+)
 CC_TIMEOUT_SECONDS = float(os.getenv("SITCHECK_COMMAND_CENTER_TIMEOUT_SECONDS", str(PROXY_TIMEOUT_SECONDS)))
 CC_HUB_COMMAND_CENTER_TIMEOUT_SECONDS = float(
     os.getenv("SITCHECK_HUB_COMMAND_CENTER_TIMEOUT_SECONDS", "2.5")
 )
 HUB_PROBE_COMMAND_CENTER = os.getenv("SITCHECK_HUB_PROBE_COMMAND_CENTER", "false").lower() == "true"
 ANALYTICS_REDIRECT_URL = os.getenv("SITCHECK_ANALYTICS_REDIRECT_URL", "").strip()
+DHBW_MANNHEIM_RAPLA_URL = os.getenv(
+    "SITCHECK_DHBW_MANNHEIM_RAPLA_URL",
+    "https://api.dhbw.app/rapla/MA/lectures",
+).strip()
+DHBW_MANNHEIM_TIMEOUT_SECONDS = float(os.getenv("SITCHECK_DHBW_MANNHEIM_TIMEOUT_SECONDS", "10"))
+DHBW_MANNHEIM_CACHE_TTL_SECONDS = float(os.getenv("SITCHECK_DHBW_MANNHEIM_CACHE_TTL_SECONDS", "60"))
+DHBW_LIBRARY_HOURS_SOURCE_URL = os.getenv(
+    "SITCHECK_DHBW_LIBRARY_HOURS_SOURCE_URL",
+    "https://www.mannheim.dhbw.de/service/bibliothek",
+).strip()
+LIBRARY_TIMEZONE = ZoneInfo(os.getenv("SITCHECK_LIBRARY_TIMEZONE", "Europe/Berlin"))
+LIBRARY_REGULAR_HOURS = {
+    0: ("10:00", "22:00"),
+    1: ("10:00", "22:00"),
+    2: ("10:00", "22:00"),
+    3: ("10:00", "22:00"),
+    4: ("10:00", "22:00"),
+    5: ("10:00", "18:00"),
+}
+LIBRARY_WEEKDAY_LABELS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -49,6 +73,7 @@ HOP_BY_HOP_HEADERS = {
 }
 
 app = Flask(__name__)
+_dhbw_mannheim_context_cache: dict[str, Any] = {"expires_at": 0.0, "payload": None}
 
 
 def _command_center_url(*, history_minutes: int | None = None) -> str:
@@ -123,7 +148,7 @@ def _copy_response_headers(target: Response, source_headers: Any) -> None:
         target.headers[key] = value
 
 
-def _proxy(base_url: str, upstream_path: str) -> Response:
+def _proxy(base_url: str, upstream_path: str, *, timeout_seconds: float | None = None) -> Response:
     url = _target_url(base_url=base_url, path=upstream_path)
     payload = None
     if request.method not in {"GET", "HEAD"}:
@@ -133,8 +158,10 @@ def _proxy(base_url: str, upstream_path: str) -> Response:
     for key, value in _forward_headers().items():
         req.add_header(key, value)
 
+    timeout = PROXY_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+
     try:
-        with urlrequest.urlopen(req, timeout=PROXY_TIMEOUT_SECONDS) as upstream:
+        with urlrequest.urlopen(req, timeout=timeout) as upstream:
             body = upstream.read()
             resp = Response(body, status=upstream.status)
             _copy_response_headers(resp, upstream.headers)
@@ -179,6 +206,223 @@ def _json_get(url: str, *, timeout_seconds: float | None = None) -> dict[str, An
         if not isinstance(parsed, dict):
             raise ValueError("Unerwartete Antwortstruktur")
         return parsed
+
+
+def _parse_external_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _count_phrase(count: int, singular: str, plural: str) -> str:
+    return f"{count} {singular if count == 1 else plural}"
+
+
+def _parse_hhmm(value: str) -> tuple[int, int]:
+    hours_text, minutes_text = value.split(":", 1)
+    return int(hours_text), int(minutes_text)
+
+
+def _combine_local_date_with_hhmm(day_value, hhmm: str) -> datetime:
+    hours, minutes = _parse_hhmm(hhmm)
+    return datetime(day_value.year, day_value.month, day_value.day, hours, minutes, tzinfo=LIBRARY_TIMEZONE)
+
+
+def _format_next_open_label(dt_value: datetime | None) -> str | None:
+    if dt_value is None:
+        return None
+    localized = dt_value.astimezone(LIBRARY_TIMEZONE)
+    return f"{LIBRARY_WEEKDAY_LABELS[localized.weekday()]} um {localized.strftime('%H:%M')} Uhr"
+
+
+def _next_library_opening(now_local: datetime) -> datetime | None:
+    for day_offset in range(0, 8):
+        day_value = now_local.date() + timedelta(days=day_offset)
+        hours = LIBRARY_REGULAR_HOURS.get(day_value.weekday())
+        if not hours:
+            continue
+
+        opens_at = _combine_local_date_with_hhmm(day_value, hours[0])
+        if day_offset == 0 and now_local >= opens_at:
+            continue
+        return opens_at
+    return None
+
+
+def _build_library_hours_context(*, horizon_minutes: int) -> dict[str, Any]:
+    now_local = datetime.now(UTC).astimezone(LIBRARY_TIMEZONE)
+    today_hours = LIBRARY_REGULAR_HOURS.get(now_local.weekday())
+    opens_at = _combine_local_date_with_hhmm(now_local.date(), today_hours[0]) if today_hours else None
+    closes_at = _combine_local_date_with_hhmm(now_local.date(), today_hours[1]) if today_hours else None
+    is_open_now = bool(opens_at and closes_at and opens_at <= now_local < closes_at)
+    next_open_at = None
+    minutes_until_open = None
+    minutes_until_close = None
+    statement = ""
+
+    if is_open_now and closes_at is not None:
+        minutes_until_close = max(int((closes_at - now_local).total_seconds() // 60), 0)
+        if minutes_until_close <= horizon_minutes:
+            statement = (
+                f"Laut den Öffnungszeiten der DHBW Mannheim schließt die Bibliothek heute um {closes_at.strftime('%H:%M')} Uhr, "
+                f"also in etwa {minutes_until_close} Minuten. Damit ist bis zum Ende des Prognosehorizonts eher mit begrenzter oder sinkender Belegung zu rechnen als mit einem späten Anstieg."
+            )
+        else:
+            statement = (
+                f"Laut den Öffnungszeiten der DHBW Mannheim ist die Bibliothek heute bis {closes_at.strftime('%H:%M')} Uhr geöffnet. "
+                f"Die Schließung liegt damit noch außerhalb des {horizon_minutes}-Minuten-Horizonts, bleibt aber als spätere Begrenzung relevant."
+            )
+    else:
+        next_open_at = _next_library_opening(now_local)
+        minutes_until_open = (
+            max(int((next_open_at - now_local).total_seconds() // 60), 0)
+            if next_open_at is not None
+            else None
+        )
+        statement = (
+            "Laut den Öffnungszeiten der DHBW Mannheim ist die Bibliothek aktuell geschlossen. "
+            f"{f'Sie öffnet wieder {_format_next_open_label(next_open_at)}. ' if next_open_at is not None else ''}"
+            "Für den kurzfristigen Ausblick ist das ein klarer begrenzender Faktor."
+        )
+
+    return {
+        "source_url": DHBW_LIBRARY_HOURS_SOURCE_URL,
+        "timezone": "Europe/Berlin",
+        "is_open_now": is_open_now,
+        "today_open": today_hours[0] if today_hours else None,
+        "today_close": today_hours[1] if today_hours else None,
+        "minutes_until_close": minutes_until_close,
+        "minutes_until_open": minutes_until_open,
+        "closes_within_horizon": bool(is_open_now and minutes_until_close is not None and minutes_until_close <= horizon_minutes),
+        "next_open_at": next_open_at.astimezone(UTC).isoformat() if next_open_at is not None else None,
+        "next_open_label": _format_next_open_label(next_open_at),
+        "statement": statement,
+    }
+
+
+def _build_dhbw_mannheim_statement(*, active: int, starts: int, ends: int) -> str:
+    changes: list[str] = []
+    if starts > 0:
+        changes.append(f"{_count_phrase(starts, 'Start', 'Starts')}")
+    if ends > 0:
+        changes.append(f"{_count_phrase(ends, 'Ende', 'Enden')}")
+    changes_text = " und ".join(changes)
+
+    if active > 0 and changes_text:
+        return (
+            f"Laut dhbw.app gibt es am Standort Mannheim aktuell {_count_phrase(active, 'laufende Präsenzveranstaltung', 'laufende Präsenzveranstaltungen')}. "
+            f"Für die nächste Stunde zeigt der öffentliche Stundenplan eine normale Wechselphase mit {changes_text}. "
+            "Das spricht eher für anhaltende Bewegung auf dem Campus als für einen einzelnen dominanten Sonderimpuls."
+        )
+
+    if active > 0:
+        return (
+            f"Laut dhbw.app laufen am Standort Mannheim aktuell {_count_phrase(active, 'Präsenzveranstaltung', 'Präsenzveranstaltungen')}. "
+            "Damit bleibt der Campus spürbar in Bewegung, auch ohne eine einzelne Vorlesung als Haupttreiber zu überbetonen."
+        )
+
+    if changes_text:
+        return (
+            f"Laut dhbw.app zeigt der öffentliche Stundenplan am Standort Mannheim in der nächsten Stunde eine Wechselphase mit {changes_text}. "
+            "Das kann zusätzliche Bewegung rund um die Bibliothek auslösen, ohne dass ein einzelner Termin alles dominiert."
+        )
+
+    return (
+        "Laut dhbw.app ist am Standort Mannheim im öffentlichen Präsenzstundenplan für die nächste Stunde keine auffällige Wechselphase zu sehen. "
+        "Vom Campus kommt aktuell also eher ein neutraler Zusatzimpuls."
+    )
+
+
+def _fetch_dhbw_mannheim_context() -> dict[str, Any]:
+    req = urlrequest.Request(
+        url=DHBW_MANNHEIM_RAPLA_URL,
+        method="GET",
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Sitcheck Portal)",
+        },
+    )
+    with urlrequest.urlopen(req, timeout=DHBW_MANNHEIM_TIMEOUT_SECONDS) as response:
+        body = response.read().decode("utf-8")
+    payload = json.loads(body)
+    if not isinstance(payload, list):
+        raise ValueError("Unexpected DHBW Mannheim lecture payload")
+
+    now = datetime.now(UTC)
+    next_hour = now + timedelta(minutes=60)
+    onsite_events: list[dict[str, Any]] = []
+
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("site") or "").strip().upper() != "MA":
+            continue
+        if str(item.get("type") or "").strip().upper() != "PRESENCE":
+            continue
+
+        start = _parse_external_datetime(item.get("startTime"))
+        end = _parse_external_datetime(item.get("endTime"))
+        if start is None or end is None or end <= start:
+            continue
+
+        rooms = [
+            str(room).strip()
+            for room in (item.get("rooms") or [])
+            if isinstance(room, str) and room.strip()
+        ]
+        onsite_events.append(
+            {
+                "start": start,
+                "end": end,
+                "course": str(item.get("course") or "").strip(),
+                "name": str(item.get("name") or "").strip(),
+                "rooms": rooms,
+            }
+        )
+
+    active_events = [event for event in onsite_events if event["start"] <= now < event["end"]]
+    starting_events = [event for event in onsite_events if now <= event["start"] <= next_hour]
+    ending_events = [event for event in onsite_events if now <= event["end"] <= next_hour]
+    active_courses = sorted({event["course"] for event in active_events if event["course"]})
+    active_rooms = sorted({room for event in active_events for room in event["rooms"]})
+
+    return {
+        "site_code": "MA",
+        "site_name": "Mannheim",
+        "source": "dhbw_app_rapla",
+        "source_url": DHBW_MANNHEIM_RAPLA_URL,
+        "generated_at": now.isoformat(),
+        "active_onsite_lectures": len(active_events),
+        "active_courses": len(active_courses),
+        "starting_next_60m": len(starting_events),
+        "ending_next_60m": len(ending_events),
+        "sample_active_courses": active_courses[:4],
+        "sample_active_rooms": active_rooms[:6],
+        "statement": _build_dhbw_mannheim_statement(
+            active=len(active_events),
+            starts=len(starting_events),
+            ends=len(ending_events),
+        ),
+        "library_hours": _build_library_hours_context(horizon_minutes=CC_HORIZON),
+    }
+
+
+def _get_dhbw_mannheim_context() -> dict[str, Any]:
+    now_monotonic = time.monotonic()
+    cached_payload = _dhbw_mannheim_context_cache.get("payload")
+    if cached_payload and float(_dhbw_mannheim_context_cache.get("expires_at", 0.0)) > now_monotonic:
+        return cached_payload
+
+    payload = _fetch_dhbw_mannheim_context()
+    _dhbw_mannheim_context_cache["payload"] = payload
+    _dhbw_mannheim_context_cache["expires_at"] = now_monotonic + max(DHBW_MANNHEIM_CACHE_TTL_SECONDS, 1.0)
+    return payload
 
 
 def _analytics_url_from_request() -> str:
@@ -523,11 +767,19 @@ def proxy_realtime(upstream_path: str) -> Response:
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
 )
 def proxy_api_v1(upstream_path: str) -> Response:
-    return _proxy(base_url=f"{PROGNOSE_API_BASE_URL.rstrip('/')}/api/v1", upstream_path=upstream_path)
+    timeout_seconds = (
+        EXPLAIN_NARRATIVE_TIMEOUT_SECONDS
+        if upstream_path.strip("/") == "explain/narrative"
+        else PROXY_TIMEOUT_SECONDS
+    )
+    return _proxy(
+        base_url=f"{PROGNOSE_API_BASE_URL.rstrip('/')}/api/v1",
+        upstream_path=upstream_path,
+        timeout_seconds=timeout_seconds,
+    )
 
 
-@app.get("/api/hub/overview")
-def hub_overview() -> Response:
+def _build_hub_overview_payload() -> dict[str, Any]:
     now_iso = datetime.now(UTC).isoformat()
 
     portal_health = {
@@ -674,18 +926,29 @@ def hub_overview() -> Response:
             "long_term": [],
         }
 
-    return jsonify(
-        {
-            "status": "degraded" if degraded else "ok",
-            "generated_at": now_iso,
-            "zone_id": DEFAULT_ZONE_ID,
-            "services": services,
-            "occupancy": occupancy_payload,
-            "forecast": forecast_payload,
-            "realtime_state": realtime_state,
-            "errors": errors,
-        }
-    )
+    return {
+        "status": "degraded" if degraded else "ok",
+        "generated_at": now_iso,
+        "zone_id": DEFAULT_ZONE_ID,
+        "services": services,
+        "occupancy": occupancy_payload,
+        "forecast": forecast_payload,
+        "realtime_state": realtime_state,
+        "errors": errors,
+    }
+
+
+@app.get("/api/hub/overview")
+def hub_overview() -> Response:
+    return jsonify(_build_hub_overview_payload())
+
+
+@app.get("/api/hub/dhbw-mannheim-context")
+def dhbw_mannheim_context() -> Response:
+    try:
+        return jsonify(_get_dhbw_mannheim_context())
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": "dhbw_mannheim_context_unavailable", "detail": str(exc)}), 502
 
 
 @app.route("/", defaults={"page_path": ""}, methods=["GET"])

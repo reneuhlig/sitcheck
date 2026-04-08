@@ -15,7 +15,6 @@ from ConfigManager import ConfigManager
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-YOLO26N_MODEL_NAME = "yolo26n.pt"
 
 
 def _parse_args():
@@ -85,11 +84,6 @@ def main():
         config["ui"]["show_window"] = False
 
     tracking_cfg = config.get("tracking", {})
-    enforced_model_rel = os.path.join("models", YOLO26N_MODEL_NAME)
-    tracking_cfg["model_path"] = _resolve_relative_to_config(
-        resolved_config_path,
-        enforced_model_rel,
-    )
     tracking_cfg["tracker"] = _resolve_relative_to_config(
         resolved_config_path,
         str(tracking_cfg.get("tracker", "bytetrack_entrance.yaml")),
@@ -107,9 +101,11 @@ def main():
 
     try:
         detector = UltralyticsPersonDetector(
-            model_path=config["tracking"]["model_path"],
+            api_url=str(config["tracking"].get("api_url", "")),
+            api_key=str(config["tracking"].get("api_key", "")),
             confidence_threshold=float(config["tracking"]["confidence_threshold"]),
             device=str(config["tracking"].get("device", "cpu")),
+            request_timeout_seconds=float(config["tracking"].get("api_timeout_seconds", 10.0)),
         )
 
         processor = LiveProcessor(

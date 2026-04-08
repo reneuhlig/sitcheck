@@ -26,7 +26,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         },
     },
     "tracking": {
-        "model_path": "models/yolo26n.pt",
+        "api_url": "",
+        "api_key": "",
+        "api_timeout_seconds": 10.0,
         "device": "cpu",
         "tracker": "bytetrack_entrance.yaml",
         "confidence_threshold": 0.1,
@@ -185,7 +187,9 @@ class ConfigManager:
         env_map = {
             "SITCHECK_VIDEO_SOURCE": ("video", "source", str),
             "SITCHECK_VIDEO_FALLBACK_SOURCE": ("video", "fallback_source", str),
-            "SITCHECK_YOLO_MODEL": ("tracking", "model_path", str),
+            "SITCHECK_PREDICT_URL": ("tracking", "api_url", str),
+            "SITCHECK_PREDICT_API_KEY": ("tracking", "api_key", str),
+            "SITCHECK_PREDICT_TIMEOUT_SECONDS": ("tracking", "api_timeout_seconds", float),
             "SITCHECK_DEVICE": ("tracking", "device", str),
             "SITCHECK_TRACKER": ("tracking", "tracker", str),
             "SITCHECK_CONFIDENCE": ("tracking", "confidence_threshold", float),
