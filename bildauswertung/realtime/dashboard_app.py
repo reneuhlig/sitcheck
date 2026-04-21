@@ -2241,6 +2241,16 @@ class TrackingEngine:
 
     def get_state(self) -> Dict[str, Any]:
       with self._lock:
+        # Drain pending simulation tick deltas so dashboard counters keep moving
+        # even when analysis/inference is temporarily paused.
+        sim_tick_events = self.profile_simulation.consume_tick_events()
+        sim_entries = int(sim_tick_events.get("entries", 0))
+        sim_exits = int(sim_tick_events.get("exits", 0))
+        if sim_entries > 0:
+          self.entries_total += sim_entries
+        if sim_exits > 0:
+          self.exits_total += sim_exits
+
         live_occupancy = self._resolve_live_occupancy()
         state = {
           "occupancy": live_occupancy,
