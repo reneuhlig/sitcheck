@@ -9,7 +9,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { authenticated, user, register, login, logout, sessionLoading } = useAppData();
   const [mode, setMode] = useState("login");
-  const [formState, setFormState] = useState({ username: "", password: "" });
+  const [formState, setFormState] = useState({ username: "", password: "", role: "user" });
   const [pending, setPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -18,10 +18,14 @@ export default function LoginPage() {
     setPending(true);
     setErrorMessage("");
     try {
+      const credentials = {
+        username: formState.username,
+        password: formState.password,
+      };
       if (mode === "register") {
-        await register(formState);
+        await register({ ...credentials, role: formState.role });
       } else {
-        await login(formState);
+        await login(credentials);
       }
       router.push("/bookings");
     } catch (error) {
@@ -163,6 +167,53 @@ export default function LoginPage() {
               minLength={4}
             />
           </label>
+
+          {mode === "register" && (
+            <fieldset>
+              <legend className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
+                Rolle
+              </legend>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                {[
+                  {
+                    id: "user",
+                    label: "Normaler User",
+                    description: "Standardzugang für Login und Buchungen.",
+                  },
+                  {
+                    id: "admin",
+                    label: "Admin",
+                    description: "Account wird direkt mit Admin-Rechten gespeichert.",
+                  },
+                ].map((item) => {
+                  const active = formState.role === item.id;
+                  return (
+                    <label
+                      key={item.id}
+                      className={`block cursor-pointer rounded-[1.25rem] border px-4 py-3 transition ${
+                        active
+                          ? "border-[color:var(--accent)] bg-[color:var(--surface-muted)]"
+                          : "border-[color:var(--stroke-strong)] bg-white hover:border-[color:var(--accent-soft)]"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="role"
+                        value={item.id}
+                        checked={active}
+                        onChange={(event) => setFormState((current) => ({ ...current, role: event.target.value }))}
+                        className="sr-only"
+                      />
+                      <span className="block text-sm font-semibold text-[color:var(--ink-strong)]">{item.label}</span>
+                      <span className="mt-1 block text-xs leading-6 text-[color:var(--ink-soft)]">
+                        {item.description}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
 
           {errorMessage && (
             <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

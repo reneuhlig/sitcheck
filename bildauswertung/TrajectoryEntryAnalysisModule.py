@@ -71,8 +71,8 @@ class TrajectoryEntryAnalysisModule:
         self.max_history = max_history
         self.track_history: Dict[int, Deque[Tuple[float, float]]] = {}
         self._recent_lost_tracks: Dict[int, Dict[str, Any]] = {}
-        self.reid_max_gap_frames = 12
-        self.reid_max_distance_px = 70.0
+        self.reid_max_gap_frames = 20
+        self.reid_max_distance_px = 120.0
         self._frame_idx = 0
         self._last_event_frame_by_track: Dict[int, int] = {}
         self._last_inside_entry_by_track: Dict[int, bool] = {}
@@ -91,10 +91,15 @@ class TrajectoryEntryAnalysisModule:
         frame_h, frame_w = frame_shape[:2]
         events = []
         active_track_ids = set()
+        valid_tracks: List[Dict[str, Any]] = []
 
+        self.reid_max_gap_frames = max(
+            14,
+            self.zone_config.min_event_cooldown_frames * 3,
+        )
         self.reid_max_distance_px = max(
-            40.0,
-            self.zone_config.min_crossing_displacement_px * 2.0,
+            120.0,
+            min(260.0, self.zone_config.min_crossing_displacement_px * 7.0),
         )
 
         for track in tracks:
@@ -105,22 +110,30 @@ class TrajectoryEntryAnalysisModule:
             if track_id is None or center is None:
                 continue
 
-            active_track_ids.add(int(track_id))
-            self._try_stitch_track_identity(int(track_id), center)
+            normalized_track_id = int(track_id)
+            active_track_ids.add(normalized_track_id)
+            valid_tracks.append(track)
+
+        # Mark tracks that disappeared in this frame before processing new IDs.
+        newly_lost_track_ids = self._update_recent_lost_tracks(active_track_ids)
+        if self.zone_config.mode == "dual_polygon" and newly_lost_track_ids:
+            lost_event = self._check_lost_track_zone_event(newly_lost_track_ids, frame_h)
+            if lost_event is not None:
+                events.append(lost_event)
+
+        for track in valid_tracks:
+            track_id = int(track["track_id"])
+            center = track["center"]
+            self._try_stitch_track_identity(track_id, center)
 
             history = self.track_history.setdefault(track_id, deque(maxlen=self.max_history))
             history.append(center)
-            motion_direction = str(track.get("motion_direction", "still"))
-            motion_magnitude = float(track.get("motion_magnitude", 0.0))
-
             if self.zone_config.mode == "dual_polygon":
                 event = self._check_entry_exit_dual_polygon(
                     track_id,
                     history,
                     frame_w,
                     frame_h,
-                    motion_direction,
-                    motion_magnitude,
                 )
             elif self.zone_config.mode == "polygon":
                 event = self._check_entry_polygon(track_id, history, frame_w, frame_h)
@@ -129,17 +142,6 @@ class TrajectoryEntryAnalysisModule:
 
             if event is not None:
                 events.append(event)
-
-        if self.zone_config.mode == "dual_polygon" and not events:
-            global_event = self._check_global_dual_polygon_transition(active_track_ids)
-            if global_event is not None:
-                events.append(global_event)
-
-        newly_lost_track_ids = self._update_recent_lost_tracks(active_track_ids)
-        if self.zone_config.mode == "dual_polygon" and not events and newly_lost_track_ids:
-            lost_track_event = self._check_lost_track_zone_event(newly_lost_track_ids, frame_h)
-            if lost_track_event is not None:
-                events.append(lost_track_event)
 
         return events
 
@@ -215,12 +217,7 @@ class TrajectoryEntryAnalysisModule:
         history: Deque[Tuple[float, float]],
         frame_w: int,
         frame_h: int,
-        motion_direction: str,
-        motion_magnitude: float,
     ) -> Optional[Dict[str, Any]]:
-        if len(history) < max(3, self.zone_config.min_track_points // 2):
-            return None
-
         entry_points = self.zone_config.entry_polygon_points
         exit_points = self.zone_config.exit_polygon_points
         if len(entry_points) < 3 or len(exit_points) < 3:
@@ -231,11 +228,23 @@ class TrajectoryEntryAnalysisModule:
         if self._frame_idx - last_event_frame < cooldown:
             return None
 
+        fast_event = self._check_fast_dual_polygon_transition(
+            track_id=track_id,
+            history=history,
+            frame_w=frame_w,
+            frame_h=frame_h,
+        )
+        if fast_event is not None:
+            return fast_event
+
+        if len(history) < max(4, self.zone_config.min_track_points):
+            return None
+
         polygon_entry = [(x * frame_w, y * frame_h) for x, y in entry_points]
         polygon_exit = [(x * frame_w, y * frame_h) for x, y in exit_points]
 
         curr = history[-1]
-        tolerance_px = max(8.0, self.zone_config.min_crossing_displacement_px * 0.35)
+        tolerance_px = max(5.0, self.zone_config.min_crossing_displacement_px * 0.22)
         current_zone = self._classify_dual_zone(curr, polygon_entry, polygon_exit, tolerance_px)
 
         if current_zone == "none":
@@ -248,30 +257,41 @@ class TrajectoryEntryAnalysisModule:
             return None
 
         last_seen_zone = self._last_seen_primary_zone_by_track.get(track_id)
-        self._last_seen_primary_zone_by_track[track_id] = stable_zone
+        if last_seen_zone is None:
+            self._last_seen_primary_zone_by_track[track_id] = stable_zone
+            return None
 
-        if last_seen_zone is None or last_seen_zone == stable_zone:
+        if last_seen_zone == stable_zone:
+            self._last_seen_primary_zone_by_track[track_id] = stable_zone
             return None
 
         if {last_seen_zone, stable_zone} != {"entry", "exit"}:
+            self._last_seen_primary_zone_by_track[track_id] = stable_zone
             return None
 
-        lookback = min(5, len(history) - 1)
+        lookback = min(10, len(history) - 1)
         start_point = history[-(lookback + 1)]
         move_vector = (curr[0] - start_point[0], curr[1] - start_point[1])
         move_length = (move_vector[0] ** 2 + move_vector[1] ** 2) ** 0.5
-        if move_length < self.zone_config.min_crossing_displacement_px * 0.15:
+        if move_length < self.zone_config.min_crossing_displacement_px * 0.20:
+            return None
+
+        crossed_line = self._has_crossed_dual_divider_line(history, frame_w, frame_h)
+        clear_zone_change = self._has_clear_dual_zone_change(history, polygon_entry, polygon_exit)
+        if not (crossed_line or clear_zone_change):
+            # Keep last_seen_zone unchanged until transition evidence is strong enough.
             return None
 
         if last_seen_zone == "exit" and stable_zone == "entry":
             event_type = "entry"
-            reason = "dual_polygon_transition_exit_to_entry"
+            reason = "dual_polygon_line_cross_exit_to_entry" if crossed_line else "dual_polygon_clear_transition_exit_to_entry"
         elif last_seen_zone == "entry" and stable_zone == "exit":
             event_type = "exit"
-            reason = "dual_polygon_transition_entry_to_exit"
+            reason = "dual_polygon_line_cross_entry_to_exit" if crossed_line else "dual_polygon_clear_transition_entry_to_exit"
         else:
             return None
 
+        self._last_seen_primary_zone_by_track[track_id] = stable_zone
         self._last_event_frame_by_track[track_id] = self._frame_idx
         return {
             "type": event_type,
@@ -280,6 +300,144 @@ class TrajectoryEntryAnalysisModule:
             "confidence": 1.0,
             "reason": reason,
         }
+
+    def _check_fast_dual_polygon_transition(
+        self,
+        track_id: int,
+        history: Deque[Tuple[float, float]],
+        frame_w: int,
+        frame_h: int,
+    ) -> Optional[Dict[str, Any]]:
+        # Fast movers can switch zones with only 2-3 valid detections.
+        if len(history) < 2:
+            return None
+        if len(history) >= max(4, self.zone_config.min_track_points):
+            return None
+
+        entry_points = self.zone_config.entry_polygon_points
+        exit_points = self.zone_config.exit_polygon_points
+        if len(entry_points) < 3 or len(exit_points) < 3:
+            return None
+
+        polygon_entry = [(x * frame_w, y * frame_h) for x, y in entry_points]
+        polygon_exit = [(x * frame_w, y * frame_h) for x, y in exit_points]
+
+        prev = history[-2]
+        curr = history[-1]
+        prev_in_entry = self._point_in_polygon(prev, polygon_entry)
+        prev_in_exit = self._point_in_polygon(prev, polygon_exit)
+        curr_in_entry = self._point_in_polygon(curr, polygon_entry)
+        curr_in_exit = self._point_in_polygon(curr, polygon_exit)
+
+        is_exit_to_entry = prev_in_exit and curr_in_entry
+        is_entry_to_exit = prev_in_entry and curr_in_exit
+        if not (is_exit_to_entry or is_entry_to_exit):
+            return None
+
+        dx = float(curr[0]) - float(prev[0])
+        dy = float(curr[1]) - float(prev[1])
+        step_dist = (dx * dx + dy * dy) ** 0.5
+        min_fast_step = max(6.0, self.zone_config.min_crossing_displacement_px * 0.45)
+        if step_dist < min_fast_step:
+            return None
+
+        p1, p2 = self._line_points(frame_w, frame_h)
+        prev_sign = self._signed_side(prev, p1, p2)
+        curr_sign = self._signed_side(curr, p1, p2)
+        crossed_line = prev_sign != 0 and curr_sign != 0 and prev_sign != curr_sign
+        if not crossed_line and len(history) >= 3:
+            crossed_line = self._has_crossed_dual_divider_line(history, frame_w, frame_h)
+        if not crossed_line:
+            return None
+
+        if is_exit_to_entry:
+            event_type = "entry"
+            reason = "dual_polygon_fast_cross_exit_to_entry"
+            self._last_seen_primary_zone_by_track[track_id] = "entry"
+        else:
+            event_type = "exit"
+            reason = "dual_polygon_fast_cross_entry_to_exit"
+            self._last_seen_primary_zone_by_track[track_id] = "exit"
+
+        self._last_event_frame_by_track[track_id] = self._frame_idx
+        return {
+            "type": event_type,
+            "track_id": track_id,
+            "trajectory": list(history),
+            "confidence": 0.85,
+            "reason": reason,
+        }
+
+    def _has_crossed_dual_divider_line(
+        self,
+        history: Deque[Tuple[float, float]],
+        frame_w: int,
+        frame_h: int,
+    ) -> bool:
+        if len(history) < 3:
+            return False
+
+        p1, p2 = self._line_points(frame_w, frame_h)
+        recent_points = list(history)[-8:]
+        signs = [self._signed_side(point, p1, p2) for point in recent_points]
+
+        crossed = False
+        prev_sign = signs[0]
+        for sign in signs[1:]:
+            if prev_sign != 0 and sign != 0 and prev_sign != sign:
+                crossed = True
+                break
+            if sign != 0:
+                prev_sign = sign
+
+        if not crossed:
+            return False
+
+        start = recent_points[0]
+        end = recent_points[-1]
+        displacement = abs(self._signed_distance(end, p1, p2) - self._signed_distance(start, p1, p2))
+        return displacement >= (self.zone_config.min_crossing_displacement_px * 0.18)
+
+    def _has_clear_dual_zone_change(
+        self,
+        history: Deque[Tuple[float, float]],
+        polygon_entry: List[Tuple[float, float]],
+        polygon_exit: List[Tuple[float, float]],
+    ) -> bool:
+        if len(history) < 6:
+            return False
+
+        recent_points = list(history)[-10:]
+        labels = [
+            self._classify_dual_zone(point, polygon_entry, polygon_exit, tolerance_px=2.0)
+            for point in recent_points
+        ]
+        if len(labels) < 6:
+            return False
+
+        split = len(labels) // 2
+        first_half = labels[:split]
+        second_half = labels[split:]
+        start_zone, start_votes = self._dominant_zone_and_votes(first_half)
+        end_zone, end_votes = self._dominant_zone_and_votes(second_half)
+
+        if start_zone not in {"entry", "exit"} or end_zone not in {"entry", "exit"}:
+            return False
+        if start_zone == end_zone:
+            return False
+
+        required_votes = max(2, split // 2)
+        return start_votes >= required_votes and end_votes >= required_votes
+
+    @staticmethod
+    def _dominant_zone_and_votes(labels: List[str]) -> Tuple[str, int]:
+        entry_votes = sum(1 for label in labels if label == "entry")
+        exit_votes = sum(1 for label in labels if label == "exit")
+        if entry_votes == 0 and exit_votes == 0:
+            return ("none", 0)
+        if entry_votes >= exit_votes:
+            return ("entry", entry_votes)
+        return ("exit", exit_votes)
 
     def _check_global_dual_polygon_transition(self, active_track_ids: set[int]) -> Optional[Dict[str, Any]]:
         if not active_track_ids:
@@ -333,7 +491,8 @@ class TrajectoryEntryAnalysisModule:
         }
 
     def _try_stitch_track_identity(self, track_id: int, center: Tuple[float, float]):
-        if track_id in self.track_history:
+        existing_history = self.track_history.get(track_id)
+        if existing_history is not None and len(existing_history) > 2:
             return
         if not self._recent_lost_tracks:
             return
@@ -358,7 +517,13 @@ class TrajectoryEntryAnalysisModule:
 
         previous_history = self.track_history.pop(best_old_id, None)
         if previous_history is not None:
-            self.track_history[track_id] = deque(previous_history, maxlen=self.max_history)
+            if existing_history is None:
+                self.track_history[track_id] = deque(previous_history, maxlen=self.max_history)
+            else:
+                merged = deque(previous_history, maxlen=self.max_history)
+                for point in existing_history:
+                    merged.append(point)
+                self.track_history[track_id] = merged
 
         if best_old_id in self._last_event_frame_by_track:
             self._last_event_frame_by_track[track_id] = self._last_event_frame_by_track.pop(best_old_id)
@@ -392,7 +557,7 @@ class TrajectoryEntryAnalysisModule:
             curr = history[-1]
             dy = float(curr[1]) - float(anchor[1])
             abs_dy = abs(dy)
-            min_vertical_motion = self.zone_config.min_crossing_displacement_px * 0.05
+            min_vertical_motion = self.zone_config.min_crossing_displacement_px * 0.14
             normalized_y = float(curr[1]) / max(1.0, float(frame_h))
 
             if dominant_zone == "exit":
@@ -430,10 +595,10 @@ class TrajectoryEntryAnalysisModule:
                 continue
             if known_id not in self._recent_lost_tracks:
                 newly_lost_track_ids.append(known_id)
-            self._recent_lost_tracks[known_id] = {
-                "center": history[-1],
-                "frame_idx": self._frame_idx,
-            }
+                self._recent_lost_tracks[known_id] = {
+                    "center": history[-1],
+                    "frame_idx": self._frame_idx,
+                }
 
         stale_ids = []
         for lost_id, payload in self._recent_lost_tracks.items():
@@ -442,6 +607,12 @@ class TrajectoryEntryAnalysisModule:
                 stale_ids.append(lost_id)
         for stale_id in stale_ids:
             self._recent_lost_tracks.pop(stale_id, None)
+            self.track_history.pop(stale_id, None)
+            self._last_event_frame_by_track.pop(stale_id, None)
+            self._last_seen_primary_zone_by_track.pop(stale_id, None)
+            self._zone_label_history_by_track.pop(stale_id, None)
+            self._last_inside_entry_by_track.pop(stale_id, None)
+            self._last_inside_exit_by_track.pop(stale_id, None)
 
         return newly_lost_track_ids
 

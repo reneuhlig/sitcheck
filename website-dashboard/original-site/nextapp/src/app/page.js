@@ -928,10 +928,10 @@ export default function HomePage() {
   return (
     <div className="flex flex-col gap-8">
       <section className="overflow-hidden rounded-[2rem] border border-white/70 bg-[linear-gradient(135deg,rgba(72,123,163,0.96),rgba(28,54,78,0.95))] p-6 text-white shadow-[0_30px_80px_rgba(39,72,102,0.22)] sm:p-8">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+	        <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl space-y-4">
             <span className="inline-flex w-fit items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-blue-100">
-              Eine Bibliothek, eine Live-Ansicht
+              Smarter finden, Besser lernen
             </span>
             <div className="space-y-2">
               <h2 className="text-3xl font-semibold sm:text-4xl">Live-Lagebild der Unibibliothek</h2>
@@ -939,17 +939,6 @@ export default function HomePage() {
                 Sitcheck bündelt Live-Auslastung, 60-Minuten-Prognose, Explainable AI und
                 Nutzerbuchungen für die gesamte Bibliothek in einer einzigen Oberfläche.
               </p>
-            </div>
-            <div className="flex flex-wrap gap-3 text-sm">
-              <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2">
-                Letztes Hub-Update: {formatDateTime(hubOverview?.generated_at ?? occupancy?.lastUpdated)}
-              </div>
-              <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2">
-                Forecast-Modell: {commandCenter?.forecast_latest?.model_version ?? hubOverview?.forecast?.model_version ?? "–"}
-              </div>
-              <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2">
-                Prognosehorizont: {commandCenter?.forecast_latest?.horizon ?? hubOverview?.forecast?.horizon ?? 60} Minuten
-              </div>
             </div>
           </div>
 

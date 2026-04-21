@@ -121,6 +121,9 @@ export const sitcheckApi = {
   async getBookings(signal) {
     return apiRequest("/api/v1/bookings", { signal });
   },
+  async getAdminBookings(signal) {
+    return apiRequest("/api/v1/admin/bookings", { signal });
+  },
   async createBooking(payload) {
     return apiRequest("/api/v1/bookings", {
       method: "POST",

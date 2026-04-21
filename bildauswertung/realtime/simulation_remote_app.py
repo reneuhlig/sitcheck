@@ -72,9 +72,10 @@ HTML_PAGE = """
         const option = document.createElement('option');
         option.value = String(clip.clip_id || '');
         const aliases = Number(clip.aliases_count || 0);
+        const displayPath = String(clip.display_relative_path || clip.relative_path || '');
         option.textContent = aliases > 0
-          ? `${clip.display_name || clip.clip_id} (${clip.relative_path}) [dup:${aliases}]`
-          : `${clip.display_name || clip.clip_id} (${clip.relative_path})`;
+          ? `${clip.display_name || clip.clip_id} (${displayPath}) [dup:${aliases}]`
+          : `${clip.display_name || clip.clip_id} (${displayPath})`;
         clipSelect.appendChild(option);
       }
 
@@ -116,7 +117,7 @@ HTML_PAGE = """
 
       const selected = payload.selected || {};
       const next = payload.next || {};
-      statusEl.textContent = `Play-once gestartet: ${selected.display_name || clipId} -> danach ${next.display_name || 'basic loop'}`;
+      statusEl.textContent = `Play-once gestartet: ${selected.display_name || clipId} -> danach ${next.display_name || 'Leerlauf'}`;
       await loadCatalog();
     }
 

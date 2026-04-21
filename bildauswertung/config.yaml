@@ -1,5 +1,5 @@
 video:
-  source: /sitcheck/bildauswertung/LiveFeed Simulation/DEMO/Demo.mp4
+  source: /sitcheck/bildauswertung/LiveFeed Simulation/Leerlauf.mov
   fallback_source: ''
   reconnect_delay: 1.0
   max_retries: 0
@@ -12,14 +12,22 @@ video:
   simulation:
     directory: LiveFeed Simulation
     control_mode: remote_control
-    default_clip_id: demo
+    default_clip_id: leerlauf
+    idle_loop: false
 tracking:
   api_url: https://predict-69c3e01f0ad4a9f263ed-dproatj77a-ey.a.run.app/predict
   api_key: ul_1464994a534bea3e58bd6539b980ba1e3deb6317
   api_timeout_seconds: 3.0
+  api_failure_cooldown_seconds: 2.0
+  max_api_fps: 8.0
+  api_jpeg_quality: 85
+  min_person_height_ratio: 0.1
+  min_person_area_ratio: 0.01
+  min_person_aspect_ratio: 1.0
+  allow_classless_person_detections: false
   device: auto
   tracker: bytetrack_entrance.yaml
-  confidence_threshold: 0.1
+  confidence_threshold: 0.2
   iou_threshold: 0.45
   imgsz: 640
   analysis_roi:
@@ -38,7 +46,7 @@ tracking:
   hold_confidence_decay: 0.88
   trail_length: 16
   motion_min_pixels: 1.8
-  process_every_n_frames: 1
+  process_every_n_frames: 3
 preprocess:
   enabled: false
   upscale: 1.0
@@ -53,9 +61,17 @@ dashboard:
   stream_max_width: 1280
   analysis_queue_frames: 128
   analysis_skip_threshold_frames: 24
-  dynamic_skip_enabled: false
+  dynamic_skip_enabled: true
   dynamic_skip_queue_threshold: 8
-  dynamic_skip_max_n: 2
+  dynamic_skip_max_n: 4
+  profile_simulation:
+    enabled: true
+    excel_path: /sitcheck/bildauswertung/KI_Projekt_Daten_einJahr.xlsx
+    tick_seconds: 60
+    profile_blend: 0.72
+    noise_sigma_scale: 0.85
+    max_step_per_tick: 2
+    rollback_minutes: 15
   dash:
     enabled: true
     output_dir: runtime/dash
@@ -104,24 +120,24 @@ zone:
       - 0.1699258691206544
   entry_polygon:
     points:
-    - - 0.34
-      - 0.51
-    - - 0.66
-      - 0.51
-    - - 0.75
-      - 0.84
-    - - 0.25
-      - 0.84
+    - - 0.008523830180038302
+      - 0.01634240057681785
+    - - 0.005240756250077212
+      - 0.987159521199386
+    - - 0.5174002893240072
+      - 0.9852139959075572
+    - - 0.5053623515808164
+      - 0.010505824701331469
   exit_polygon:
     points:
-    - - 0.34
-      - 0.26
-    - - 0.66
-      - 0.26
-    - - 0.64
-      - 0.56
-    - - 0.36
-      - 0.56
+    - - 0.51017287119906
+      - 0.0029920212765957447
+    - - 0.5281249988586344
+      - 0.985261524822695
+    - - 0.9998670201352302
+      - 0.9923537234042553
+    - - 0.9948803180075706
+      - 0
   min_crossing_displacement_px: 20.0
   min_track_points: 3
   min_event_cooldown_frames: 6

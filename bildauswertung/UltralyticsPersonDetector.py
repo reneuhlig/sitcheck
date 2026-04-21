@@ -1,9 +1,11 @@
 import time
 from typing import Dict, Any, List, Optional, Tuple
+import math
 
 import cv2
 import numpy as np
 import requests
+from requests.adapters import HTTPAdapter
 from BaseDetector import BaseDetector
 
 
@@ -17,7 +19,13 @@ class UltralyticsPersonDetector(BaseDetector):
         confidence_threshold: float = 0.5,
         device: str = "cpu",
         request_timeout_seconds: float = 10.0,
-        failure_cooldown_seconds: float = 8.0,
+        failure_cooldown_seconds: float = 2.0,
+        max_api_fps: float = 0.0,
+        jpeg_quality: int = 85,
+        min_person_height_ratio: float = 0.10,
+        min_person_area_ratio: float = 0.010,
+        min_person_aspect_ratio: float = 1.00,
+        allow_classless_person_detections: bool = False,
     ):
         """
         Initialisiert den Ultralytics Detektor
@@ -29,6 +37,12 @@ class UltralyticsPersonDetector(BaseDetector):
             device: Bleibt aus Kompatibilitaetsgruenden erhalten
             request_timeout_seconds: HTTP Timeout pro Request
             failure_cooldown_seconds: Fast-Fail-Fenster nach Requestfehlern
+            max_api_fps: Begrenzung der API-Request-Rate (0 = unbegrenzt)
+            jpeg_quality: JPEG-Qualitaet fuer API Upload (1-100)
+            min_person_height_ratio: Mindesthoehe der Person-Box relativ zur Framehoehe
+            min_person_area_ratio: Mindestflaeche der Person-Box relativ zur Frameflaeche
+            min_person_aspect_ratio: Mindestverhaeltnis Hoehe/Breite fuer Personenbox
+            allow_classless_person_detections: Akzeptiert classless Detections als Person
         """
         super().__init__("Ultralytics API", "v1")
         self.confidence_threshold = confidence_threshold
@@ -38,6 +52,13 @@ class UltralyticsPersonDetector(BaseDetector):
         self.api_key = str(api_key).strip()
         self.request_timeout_seconds = max(1.0, float(request_timeout_seconds))
         self.failure_cooldown_seconds = max(0.0, float(failure_cooldown_seconds))
+        self.max_api_fps = max(0.0, float(max_api_fps))
+        self._min_api_interval_seconds = (1.0 / self.max_api_fps) if self.max_api_fps > 0 else 0.0
+        self.jpeg_quality = max(60, min(95, int(jpeg_quality)))
+        self.min_person_height_ratio = max(0.0, min(1.0, float(min_person_height_ratio)))
+        self.min_person_area_ratio = max(0.0, min(1.0, float(min_person_area_ratio)))
+        self.min_person_aspect_ratio = max(0.0, float(min_person_aspect_ratio))
+        self.allow_classless_person_detections = bool(allow_classless_person_detections)
         if not self.api_url:
             raise ValueError("tracking.api_url darf nicht leer sein")
         if not self.api_key:
@@ -53,6 +74,13 @@ class UltralyticsPersonDetector(BaseDetector):
         self._max_lost_frames = 30
         self._frame_counter = 0
         self._failure_cooldown_until_ts = 0.0
+        self._last_api_request_ts = 0.0
+
+        # Keep-Alive Session reduziert TLS/Handshake-Overhead deutlich.
+        self._http = requests.Session()
+        adapter = HTTPAdapter(pool_connections=4, pool_maxsize=8, max_retries=0)
+        self._http.mount("http://", adapter)
+        self._http.mount("https://", adapter)
 
     @staticmethod
     def _xyxy_to_center(bbox: List[float]) -> Tuple[float, float]:
@@ -85,7 +113,13 @@ class UltralyticsPersonDetector(BaseDetector):
                 f"Inference API temporaer im Cooldown ({remaining:.1f}s verbleibend) nach vorherigem Fehler"
             )
 
-        ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        if self._min_api_interval_seconds > 0.0:
+            elapsed = now_ts - self._last_api_request_ts
+            sleep_for = self._min_api_interval_seconds - elapsed
+            if sleep_for > 0:
+                time.sleep(min(sleep_for, 0.25))
+
+        ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
         if not ok:
             raise RuntimeError("Frame konnte nicht als JPEG encodiert werden")
 
@@ -98,7 +132,8 @@ class UltralyticsPersonDetector(BaseDetector):
         files = {"file": ("frame.jpg", encoded.tobytes(), "image/jpeg")}
         timeout = (min(2.0, self.request_timeout_seconds), self.request_timeout_seconds)
         try:
-            response = requests.post(
+            self._last_api_request_ts = time.time()
+            response = self._http.post(
                 self.api_url,
                 headers=headers,
                 data=payload,
@@ -117,9 +152,10 @@ class UltralyticsPersonDetector(BaseDetector):
             raise RuntimeError(f"Inference API Fehler: {exc}") from exc
 
         self._failure_cooldown_until_ts = 0.0
-        return self._extract_person_detections(body)
+        frame_h, frame_w = image.shape[:2]
+        return self._extract_person_detections(body, frame_w=frame_w, frame_h=frame_h)
 
-    def _extract_person_detections(self, body: Any) -> List[Dict[str, Any]]:
+    def _extract_person_detections(self, body: Any, frame_w: int, frame_h: int) -> List[Dict[str, Any]]:
         if isinstance(body, dict) and isinstance(body.get("images"), list):
             candidates = []
             for image_item in body.get("images", []):
@@ -156,11 +192,12 @@ class UltralyticsPersonDetector(BaseDetector):
 
             class_id = item.get("class", item.get("class_id", item.get("cls", None)))
             class_name = str(item.get("name", item.get("class_name", ""))).strip().lower()
-            is_person = (
-                class_id is None
-                or str(class_id).strip() in {"0", "person"}
+            is_person_label = (
+                str(class_id).strip() in {"0", "person"}
                 or class_name == "person"
             )
+            is_classless = class_id is None and class_name == ""
+            is_person = is_person_label or (self.allow_classless_person_detections and is_classless)
             if not is_person:
                 continue
 
@@ -192,6 +229,21 @@ class UltralyticsPersonDetector(BaseDetector):
             if confidence < self.confidence_threshold:
                 continue
 
+            box_w = max(0.0, x2 - x1)
+            box_h = max(0.0, y2 - y1)
+            if box_w <= 1.0 or box_h <= 1.0:
+                continue
+
+            height_ratio = box_h / max(1.0, float(frame_h))
+            area_ratio = (box_w * box_h) / max(1.0, float(frame_w * frame_h))
+            aspect_ratio = box_h / max(1e-6, box_w)
+            if height_ratio < self.min_person_height_ratio:
+                continue
+            if area_ratio < self.min_person_area_ratio:
+                continue
+            if aspect_ratio < self.min_person_aspect_ratio:
+                continue
+
             detections.append(
                 {
                     "bbox": [x1, y1, x2, y2],
@@ -209,18 +261,38 @@ class UltralyticsPersonDetector(BaseDetector):
 
         for det in sorted(detections, key=lambda d: float(d.get("confidence", 0.0)), reverse=True):
             bbox = det["bbox"]
+            det_center = self._xyxy_to_center(bbox)
             best_track_id: Optional[int] = None
-            best_iou = 0.0
+            best_score = -1.0
 
             for track_id, state in self._active_tracks.items():
                 if track_id in used_track_ids:
                     continue
                 iou = self._bbox_iou(state["bbox"], bbox)
-                if iou > best_iou:
-                    best_iou = iou
+                prev_center = state.get("center")
+                if prev_center is None:
+                    continue
+
+                center_distance = math.hypot(
+                    float(det_center[0]) - float(prev_center[0]),
+                    float(det_center[1]) - float(prev_center[1]),
+                )
+                prev_bbox = state.get("bbox", [0.0, 0.0, 0.0, 0.0])
+                prev_w = max(1.0, float(prev_bbox[2]) - float(prev_bbox[0]))
+                prev_h = max(1.0, float(prev_bbox[3]) - float(prev_bbox[1]))
+                dynamic_max_dist = max(35.0, min(180.0, math.hypot(prev_w, prev_h) * 0.9))
+
+                if iou < min_iou and center_distance > dynamic_max_dist:
+                    continue
+
+                iou_score = max(0.0, min(1.0, float(iou)))
+                dist_score = max(0.0, 1.0 - (center_distance / max(1e-6, dynamic_max_dist)))
+                score = (0.7 * iou_score) + (0.3 * dist_score)
+                if score > best_score:
+                    best_score = score
                     best_track_id = track_id
 
-            if best_track_id is None or best_iou < min_iou:
+            if best_track_id is None:
                 best_track_id = self._next_track_id
                 self._next_track_id += 1
 

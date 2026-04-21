@@ -106,6 +106,13 @@ def main():
             confidence_threshold=float(config["tracking"]["confidence_threshold"]),
             device=str(config["tracking"].get("device", "cpu")),
             request_timeout_seconds=float(config["tracking"].get("api_timeout_seconds", 10.0)),
+            failure_cooldown_seconds=float(config["tracking"].get("api_failure_cooldown_seconds", 2.0)),
+            max_api_fps=float(config["tracking"].get("max_api_fps", 0.0)),
+            jpeg_quality=int(config["tracking"].get("api_jpeg_quality", 85)),
+            min_person_height_ratio=float(config["tracking"].get("min_person_height_ratio", 0.10)),
+            min_person_area_ratio=float(config["tracking"].get("min_person_area_ratio", 0.010)),
+            min_person_aspect_ratio=float(config["tracking"].get("min_person_aspect_ratio", 1.00)),
+            allow_classless_person_detections=bool(config["tracking"].get("allow_classless_person_detections", False)),
         )
 
         processor = LiveProcessor(

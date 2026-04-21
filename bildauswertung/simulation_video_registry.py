@@ -4,11 +4,13 @@ from dataclasses import dataclass
 import hashlib
 import os
 import re
+import unicodedata
 from typing import Any, Dict, List, Optional, Tuple
 
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".m4v", ".webm"}
 DEFAULT_SIMULATION_DIR = "LiveFeed Simulation"
+PREFERRED_IDLE_FILES = ("leerlauf.mov", "leerlauf.mp4", "basic loop.mp4")
 
 
 @dataclass
@@ -46,11 +48,36 @@ class SimulationVideoRegistry:
         return ext.lower() in VIDEO_EXTENSIONS
 
     @staticmethod
+    def _sanitize_display_text(value: str) -> str:
+        text = str(value or "")
+        # Fix common mojibake patterns observed in simulation file names.
+        text = (
+            text.replace("ΓÇ₧", "")
+            .replace("ΓÇ£", "")
+            .replace("╠", "")
+            .replace("├", "")
+            .replace("ƒ", "ss")
+            .replace("ä", "ae")
+            .replace("ö", "oe")
+            .replace("ü", "ue")
+            .replace("Ä", "Ae")
+            .replace("Ö", "Oe")
+            .replace("Ü", "Ue")
+            .replace("ß", "ss")
+        )
+        text = unicodedata.normalize("NFKD", text)
+        text = "".join(ch for ch in text if not unicodedata.combining(ch))
+        text = text.encode("ascii", "ignore").decode("ascii")
+        text = re.sub(r"[^A-Za-z0-9 ./_()\-+]+", "", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
+
+    @staticmethod
     def _normalized_name(path: str) -> str:
         name = os.path.basename(path)
         name = os.path.splitext(name)[0]
+        name = SimulationVideoRegistry._sanitize_display_text(name)
         lowered = name.lower()
-        lowered = lowered.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
         lowered = re.sub(r"\s+", " ", lowered)
         lowered = re.sub(r"[^a-z0-9]+", "-", lowered)
         lowered = re.sub(r"-+", "-", lowered).strip("-")
@@ -59,8 +86,9 @@ class SimulationVideoRegistry:
     @staticmethod
     def _path_priority(relative_path: str) -> Tuple[int, int]:
         folder = relative_path.replace("\\", "/").lower()
+        file_name = os.path.basename(folder)
         score = 50
-        if folder == "basic loop.mp4":
+        if file_name in PREFERRED_IDLE_FILES:
             score = 0
         elif folder.startswith("t ") or folder.startswith("t"):
             score = 10
@@ -122,7 +150,10 @@ class SimulationVideoRegistry:
                 clip_id=clip_id,
                 canonical_path=canonical_path,
                 relative_path=canonical_rel,
-                display_name=os.path.splitext(os.path.basename(canonical_path))[0].strip() or clip_id,
+                display_name=(
+                    self._sanitize_display_text(os.path.splitext(os.path.basename(canonical_path))[0]).strip()
+                    or clip_id
+                ),
                 file_size=file_size,
                 sha1=sha1_value,
                 aliases=aliases,
@@ -142,7 +173,13 @@ class SimulationVideoRegistry:
         }
 
     def list_clips(self) -> List[Dict[str, Any]]:
-        return [self._clips_by_id[clip_id].to_dict() for clip_id in self._sorted_ids]
+        clips: List[Dict[str, Any]] = []
+        for clip_id in self._sorted_ids:
+            item = self._clips_by_id[clip_id].to_dict()
+            item["display_name"] = self._sanitize_display_text(str(item.get("display_name", "")))
+            item["display_relative_path"] = self._sanitize_display_text(str(item.get("relative_path", "")))
+            clips.append(item)
+        return clips
 
     def get_clip(self, clip_id: str) -> Optional[SimulationClip]:
         return self._clips_by_id.get(str(clip_id or "").strip())
@@ -162,6 +199,6 @@ class SimulationVideoRegistry:
     def get_default_basic_loop(self) -> Optional[SimulationClip]:
         for clip_id in self._sorted_ids:
             clip = self._clips_by_id[clip_id]
-            if clip.relative_path.lower() == "basic loop.mp4":
+            if os.path.basename(clip.relative_path).lower() in PREFERRED_IDLE_FILES:
                 return clip
         return None

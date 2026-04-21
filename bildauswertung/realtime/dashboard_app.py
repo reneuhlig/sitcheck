@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 import argparse
 from collections import deque
+from datetime import datetime
 import os
 import shutil
 import subprocess
 import sys
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
@@ -22,6 +23,7 @@ if BILDAUSWERTUNG_DIR not in sys.path:
 
 from ConfigManager import ConfigManager
 from integration.prognose_db_writer import PrognoseDbWriter
+from integration.profile_occupancy_simulation import ProfileOccupancySimulation
 from OccupancyStateModule import OccupancyStateModule
 from TrajectoryEntryAnalysisModule import EntranceZoneConfig, TrajectoryEntryAnalysisModule
 from UltralyticsPersonDetector import UltralyticsPersonDetector
@@ -39,40 +41,257 @@ HTML_PAGE = """
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sitcheck Dashboard</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; }
-    .wrap { max-width: 1760px; margin: 0 auto; padding: 16px; }
-    .grid { display: grid; grid-template-columns: minmax(0, 3.6fr) minmax(320px, 420px); gap: 16px; align-items: start; }
-    .panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 12px; }
-    .controls-panel { max-height: calc(100vh - 90px); overflow: auto; }
-    .title { margin: 0 0 10px; font-size: 16px; }
-    .feed-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 420px; background: #000; overflow: hidden; border-radius: 8px; }
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap');
+
+    :root {
+      --bg-0: #06120f;
+      --bg-1: #0b1f1a;
+      --bg-2: #102720;
+      --panel: rgba(12, 28, 24, 0.76);
+      --panel-border: rgba(119, 193, 169, 0.24);
+      --text-0: #e7fff6;
+      --text-1: #bbddd1;
+      --accent: #5ae4b8;
+      --accent-2: #e3ff6a;
+      --warn: #ffd166;
+      --danger: #ff6b6b;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      font-family: 'Sora', 'Segoe UI', sans-serif;
+      color: var(--text-0);
+      margin: 0;
+      background:
+        radial-gradient(1200px 580px at 10% -10%, #1f5948 0%, rgba(31, 89, 72, 0.1) 55%, transparent 72%),
+        radial-gradient(900px 520px at 100% 0%, #5b7b1e 0%, rgba(91, 123, 30, 0.08) 45%, transparent 70%),
+        linear-gradient(135deg, var(--bg-0), var(--bg-1) 48%, var(--bg-2));
+      padding: 18px;
+    }
+
+    .wrap {
+      width: min(1820px, 100%);
+      margin: 0 auto;
+      padding: 8px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-end;
+      margin-bottom: 14px;
+    }
+    .header h2 {
+      margin: 0;
+      font-size: clamp(22px, 2.4vw, 34px);
+      letter-spacing: 0.02em;
+      font-weight: 800;
+    }
+    .subtitle {
+      margin-top: 5px;
+      color: var(--text-1);
+      font-size: 13px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.9fr) minmax(330px, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+    }
+
+    .controls-panel { max-height: calc(100vh - 70px); overflow: auto; }
+    .controls-panel::-webkit-scrollbar { width: 10px; }
+    .controls-panel::-webkit-scrollbar-thumb { background: #2a5f50; border-radius: 10px; }
+
+    .title {
+      margin: 0 0 10px;
+      font-size: 13px;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--text-1);
+      font-weight: 700;
+    }
+
+    .feed-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      min-height: 420px;
+      background: #040906;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid rgba(114, 200, 173, 0.4);
+      box-shadow: inset 0 0 0 1px rgba(90, 228, 184, 0.2), 0 16px 36px rgba(0, 0, 0, 0.5);
+    }
+
     #dashFeed { width: 100%; height: 100%; object-fit: contain; display: block; }
     #dashFeed { background: #000; }
     #overlay { position: absolute; inset: 0; pointer-events: auto; }
+
     .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-    .stat { background: #0b1220; border: 1px solid #1f2937; border-radius: 8px; padding: 7px; flex: 1 1 96px; min-width: 90px; }
-    button, select, input { background: #1f2937; color: #e5e7eb; border: 1px solid #374151; border-radius: 6px; padding: 8px 10px; }
+
+    .stat {
+      background: rgba(8, 23, 18, 0.88);
+      border: 1px solid rgba(123, 200, 174, 0.24);
+      border-radius: 12px;
+      padding: 9px;
+      flex: 1 1 96px;
+      min-width: 94px;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9ec9bc;
+      margin-bottom: 6px;
+    }
+
+    .stat > div {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px;
+      font-weight: 600;
+      color: #f4fff9;
+    }
+
+    button, select, input {
+      background: #17362d;
+      color: #ecfff9;
+      border: 1px solid #3f7a68;
+      border-radius: 10px;
+      padding: 9px 11px;
+      font-family: inherit;
+      transition: 160ms ease;
+    }
     button, select { cursor: pointer; }
-    button:hover, select:hover { background: #374151; }
-    .navlink { display: inline-block; background: #1f2937; color: #e5e7eb; border: 1px solid #374151; border-radius: 6px; padding: 8px 10px; text-decoration: none; }
-    .navlink:hover { background: #374151; }
-    .muted { color: #9ca3af; font-size: 13px; }
-    .ok { color: #22c55e; }
-    .warn { color: #f59e0b; }
+    button:hover, select:hover { background: #21473c; transform: translateY(-1px); }
+    input:focus, select:focus, button:focus { outline: 2px solid rgba(90, 228, 184, 0.46); outline-offset: 1px; }
+
+    #toggle_analysis {
+      background: linear-gradient(110deg, #4ec89f, #3dad86);
+      border-color: rgba(192, 255, 231, 0.4);
+      color: #062117;
+      font-weight: 700;
+      box-shadow: 0 8px 16px rgba(32, 86, 69, 0.5);
+    }
+
+    .navlink {
+      display: inline-block;
+      background: #153328;
+      color: #dcfff3;
+      border: 1px solid #3e7f69;
+      border-radius: 10px;
+      padding: 8px 11px;
+      text-decoration: none;
+      transition: 160ms ease;
+      font-size: 13px;
+    }
+    .navlink:hover { background: #1e4638; transform: translateY(-1px); }
+
+    .muted { color: #9ec6ba; font-size: 13px; }
+    .ok { color: var(--accent); }
+    .warn { color: var(--warn); }
+
+    #status {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(8, 25, 20, 0.7);
+      border: 1px solid rgba(98, 177, 151, 0.2);
+    }
+
+    #stream_status {
+      margin-top: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .sim-queue {
+      margin-top: 12px;
+      border: 1px solid rgba(123, 200, 174, 0.24);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(7, 19, 16, 0.72);
+    }
+
+    .queue-board {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+      min-height: 34px;
+      align-items: center;
+    }
+
+    .queue-pill {
+      padding: 5px 8px;
+      border-radius: 999px;
+      border: 1px solid #3f7a68;
+      background: #17362d;
+      color: #ddfff5;
+      font-size: 12px;
+      line-height: 1.2;
+      white-space: nowrap;
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .queue-pill.active {
+      background: linear-gradient(110deg, #4ec89f, #2f8f6f);
+      color: #062117;
+      border-color: rgba(199, 255, 235, 0.4);
+      font-weight: 700;
+    }
+
+    .queue-pill.basic {
+      border-style: dashed;
+      opacity: 0.88;
+    }
+
+    .sim-select {
+      flex: 1 1 100%;
+      min-width: 240px;
+    }
 
     @media (max-width: 1280px) {
       .grid { grid-template-columns: minmax(0, 1fr); }
       .controls-panel { max-height: none; overflow: visible; }
       .feed-wrap { min-height: 320px; }
     }
+
+    @media (max-width: 720px) {
+      body { padding: 10px; }
+      .panel { padding: 11px; border-radius: 13px; }
+      .header { flex-direction: column; align-items: flex-start; }
+      .stat > div { font-size: 16px; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h2 style="margin-top: 0;">Sitcheck YOLO26 Dashboard</h2>
+    <div class="header">
+      <div>
+        <h2>Sitcheck Control Deck</h2>
+        <div class="subtitle">Livefeed, Dual-Polygon-Auswertung und Simulations-Fernsteuerung in einer Oberfläche</div>
+      </div>
+    </div>
     <div class="grid">
       <div class="panel controls-panel">
-        <h3 class="title">Live Feed + Tracking</h3>
+        <h3 class="title">Live Feed + Tracking Overlay</h3>
         <div class="feed-wrap">
           <video id="dashFeed" muted autoplay playsinline></video>
           <canvas id="overlay"></canvas>
@@ -103,9 +322,7 @@ HTML_PAGE = """
           <a class="navlink" id="main_link">Zur Hauptseite</a>
           <a class="navlink" id="analytics_link" target="_blank" rel="noopener">Analytics öffnen</a>
           <a class="navlink" id="api_link" target="_blank" rel="noopener">API/Command Center</a>
-          <a class="navlink" id="remote_link" target="_blank" rel="noopener">Fernbedienung öffnen</a>
         </div>
-        <div id="remote_link_info" class="muted">Fernbedienung: wird gesetzt...</div>
 
         <h3 class="title" style="margin-top:16px;">Video Source</h3>
         <div class="row">
@@ -124,6 +341,62 @@ HTML_PAGE = """
           <button id="reload_source">Reload Source</button>
         </div>
         <div id="video_source_status" class="muted">Source wird geladen...</div>
+
+        <h3 class="title" style="margin-top:16px;">Simulation Queue</h3>
+        <div class="sim-queue">
+          <div class="row">
+            <label>Control</label>
+            <select id="sim_control_mode">
+              <option value="remote_control">remote_control</option>
+              <option value="auto_rules">auto_rules</option>
+            </select>
+            <label><input id="sim_idle_loop" type="checkbox"> Leerlauf loopen</label>
+            <button id="sim_reload_catalog">Reload Clips</button>
+          </div>
+          <div class="row">
+            <label>Clip</label>
+            <select id="sim_clip_select" class="sim-select"></select>
+          </div>
+          <div class="row">
+            <button id="sim_play_now">Play Now</button>
+            <button id="sim_play_next">Play Next</button>
+            <button id="sim_enqueue">Enqueue</button>
+            <button id="sim_clear_queue">Queue leeren</button>
+          </div>
+          <div id="sim_catalog_info" class="muted">Catalog lädt...</div>
+          <div id="sim_active_info" class="muted">Aktiver Clip: -</div>
+          <div id="sim_queue_board" class="queue-board">
+            <span class="queue-pill basic">Queue leer</span>
+          </div>
+        </div>
+
+        <h3 class="title" style="margin-top:16px;">Jahresprofil-Simulation</h3>
+        <div class="sim-queue">
+          <div class="row">
+            <label><input id="profile_sim_enabled" type="checkbox"> Profilroutine aktiv</label>
+            <button id="profile_sim_reload">Laden</button>
+            <button id="profile_sim_save">Speichern</button>
+          </div>
+          <div class="row">
+            <label>Excel-Pfad</label>
+            <input id="profile_sim_excel" type="text" style="flex: 1 1 340px;" placeholder="KI_Projekt_Daten_einJahr.xlsx" />
+          </div>
+          <div class="row">
+            <label>Tick (s)</label>
+            <input id="profile_sim_tick" type="number" min="60" max="600" step="1" value="60" style="width:95px;" />
+            <label>Rollback (min)</label>
+            <input id="profile_sim_rollback" type="number" min="1" max="240" step="1" value="15" style="width:95px;" />
+          </div>
+          <div class="row">
+            <label>Profil-Bindung</label>
+            <input id="profile_sim_blend" type="number" min="0.05" max="1" step="0.01" value="0.72" style="width:95px;" />
+            <label>Rauschfaktor</label>
+            <input id="profile_sim_noise" type="number" min="0" max="4" step="0.05" value="0.85" style="width:95px;" />
+            <label>Max Schritt/Tick</label>
+            <input id="profile_sim_step" type="number" min="0.2" max="20" step="0.1" value="2" style="width:95px;" />
+          </div>
+          <div id="profile_sim_info" class="muted">Profilroutine lädt...</div>
+        </div>
 
         <div class="row" style="margin-top:10px;">
           <label>Mode</label>
@@ -211,11 +484,23 @@ HTML_PAGE = """
     const mainLinkEl = document.getElementById('main_link');
     const analyticsLinkEl = document.getElementById('analytics_link');
     const apiLinkEl = document.getElementById('api_link');
-    const remoteLinkEl = document.getElementById('remote_link');
-    const remoteLinkInfoEl = document.getElementById('remote_link_info');
     const videoModeEl = document.getElementById('video_mode');
     const videoSourceEl = document.getElementById('video_source');
     const videoSourceStatusEl = document.getElementById('video_source_status');
+    const simControlModeEl = document.getElementById('sim_control_mode');
+    const simIdleLoopEl = document.getElementById('sim_idle_loop');
+    const simClipSelectEl = document.getElementById('sim_clip_select');
+    const simCatalogInfoEl = document.getElementById('sim_catalog_info');
+    const simActiveInfoEl = document.getElementById('sim_active_info');
+    const simQueueBoardEl = document.getElementById('sim_queue_board');
+    const profileSimEnabledEl = document.getElementById('profile_sim_enabled');
+    const profileSimExcelEl = document.getElementById('profile_sim_excel');
+    const profileSimTickEl = document.getElementById('profile_sim_tick');
+    const profileSimRollbackEl = document.getElementById('profile_sim_rollback');
+    const profileSimBlendEl = document.getElementById('profile_sim_blend');
+    const profileSimNoiseEl = document.getElementById('profile_sim_noise');
+    const profileSimStepEl = document.getElementById('profile_sim_step');
+    const profileSimInfoEl = document.getElementById('profile_sim_info');
     const activePolySel = document.getElementById('activePoly');
     const roiEnabledEl = document.getElementById('roi_enabled');
     const roiModeEl = document.getElementById('roi_mode');
@@ -226,6 +511,7 @@ HTML_PAGE = """
     const roiYMaxEl = document.getElementById('roi_ymax');
     const DASH_ENABLED = {{ dash_enabled|tojson }};
     const HOST = window.location.hostname || '127.0.0.1';
+    const ACCESS_HOST = HOST === '0.0.0.0' ? '127.0.0.1' : HOST;
     const PATHNAME = window.location.pathname || '/';
     const IN_PORTAL_PREFIX = PATHNAME === '/realtime' || PATHNAME.startsWith('/realtime/');
     const URL_PREFIX = IN_PORTAL_PREFIX ? '/realtime' : '';
@@ -245,6 +531,7 @@ HTML_PAGE = """
     let analysisRoi = { enabled: false, mode: 'rect', x_min: 0.0, y_min: 0.0, x_max: 1.0, y_max: 1.0, polygon_points: [] };
     let analysisEnabled = true;
     let dashController = null;
+    let simulationCatalog = [];
 
     function setAnalysisUi(enabled) {
       analysisEnabled = !!enabled;
@@ -460,7 +747,13 @@ HTML_PAGE = """
       return [clamp01(nx), clamp01(ny)];
     }
 
-    async function loadVideoSource() {
+    function hasSimulationOption(clipId) {
+      const normalized = String(clipId || '').trim();
+      if (!normalized) return false;
+      return Array.from(simClipSelectEl.options).some((opt) => opt.value === normalized);
+    }
+
+    async function loadVideoSource(preferActiveSelection = false) {
       const res = await fetch(withPrefix('/api/video-source'));
       const payload = await res.json();
       const mode = String(payload.mode || 'youtube');
@@ -468,6 +761,208 @@ HTML_PAGE = """
       videoSourceEl.value = String(payload.source || '');
       const active = String(payload.active_source || '');
       videoSourceStatusEl.textContent = active ? `Aktiv: ${active}` : 'Keine aktive Source';
+      updateSimulationPanelFromPayload(payload, preferActiveSelection);
+    }
+
+    function renderSimulationQueue(payload) {
+      const active = payload?.simulation_active_clip || {};
+      const basic = payload?.simulation_basic_clip || {};
+      const queue = Array.isArray(payload?.simulation_pending_queue) ? payload.simulation_pending_queue : [];
+      const activeKind = String(payload?.simulation_active_kind || 'basic');
+      const idleLoop = !!payload?.simulation_idle_loop;
+
+      const html = [];
+      if (active.clip_id) {
+        html.push(`<span class="queue-pill active">NOW: ${active.display_name || active.clip_id} (${activeKind})</span>`);
+      }
+      for (const item of queue) {
+        html.push(`<span class="queue-pill">NEXT: ${item.display_name || item.clip_id}</span>`);
+      }
+      if (basic.clip_id) {
+        const basicMode = idleLoop ? 'LOOP' : 'HOLD';
+        html.push(`<span class="queue-pill basic">${basicMode}: ${basic.display_name || basic.clip_id}</span>`);
+      }
+
+      simQueueBoardEl.innerHTML = html.length ? html.join('') : '<span class="queue-pill basic">Queue leer</span>';
+    }
+
+    function updateSimulationPanelFromPayload(payload, forceClipSelection = false) {
+      const controlMode = String(payload?.simulation_control_mode || 'remote_control');
+      simControlModeEl.value = controlMode === 'auto_rules' ? 'auto_rules' : 'remote_control';
+      const idleLoop = !!payload?.simulation_idle_loop;
+      simIdleLoopEl.checked = idleLoop;
+
+      const active = payload?.simulation_active_clip || {};
+      const basic = payload?.simulation_basic_clip || {};
+      const pendingCount = Number(payload?.simulation_pending_count || 0);
+      const activeLabel = active.display_name || active.clip_id || '-';
+      const basicLabel = basic.display_name || basic.clip_id || '-';
+      simActiveInfoEl.textContent = `Aktiv: ${activeLabel} | Basic: ${basicLabel} | Queue: ${pendingCount} | Idle: ${idleLoop ? 'Loop' : 'Standbild'}`;
+
+      const selectedId = String(payload?.simulation_clip_id || payload?.simulation_active_clip_id || '');
+      const currentSelection = String(simClipSelectEl.value || '').trim();
+      const shouldSyncSelection = forceClipSelection || !hasSimulationOption(currentSelection);
+      if (shouldSyncSelection && hasSimulationOption(selectedId)) {
+        simClipSelectEl.value = selectedId;
+      }
+
+      renderSimulationQueue(payload);
+    }
+
+    function updateProfileSimulationPanelFromPayload(payload) {
+      const sim = payload?.profile_simulation || {};
+      profileSimEnabledEl.checked = !!sim.enabled;
+      profileSimExcelEl.value = String(sim.excel_path || profileSimExcelEl.value || '');
+      profileSimTickEl.value = Number(sim.tick_seconds ?? 60).toFixed(0);
+      profileSimRollbackEl.value = Number(sim.rollback_minutes ?? 15).toFixed(0);
+      profileSimBlendEl.value = Number(sim.profile_blend ?? 0.72).toFixed(2);
+      profileSimNoiseEl.value = Number(sim.noise_sigma_scale ?? 0.85).toFixed(2);
+      profileSimStepEl.value = Number(sim.max_step_per_tick ?? 2).toFixed(1);
+
+      const occ = Number(sim.simulated_occupancy ?? 0);
+      const loaded = !!sim.profile_loaded;
+      const err = String(sim.profile_error || '').trim();
+      const buckets = Number(sim.profile_bucket_count || 0);
+      if (err) {
+        profileSimInfoEl.textContent = `Status: Fehler (${err}) | Occ: ${occ}`;
+      } else {
+        profileSimInfoEl.textContent = `Status: ${loaded ? 'Profil geladen' : 'Profil ausstehend'} | Buckets: ${buckets} | Sim Occ: ${occ}`;
+      }
+    }
+
+    async function loadProfileSimulationControl() {
+      const res = await fetch(withPrefix('/api/profile-simulation'));
+      const payload = await res.json();
+      if (!payload.ok) {
+        profileSimInfoEl.textContent = `Laden fehlgeschlagen: ${payload.error || 'unknown'}`;
+        return;
+      }
+      updateProfileSimulationPanelFromPayload(payload);
+    }
+
+    async function saveProfileSimulationControl() {
+      const profileSimulation = {
+        enabled: !!profileSimEnabledEl.checked,
+        excel_path: String(profileSimExcelEl.value || '').trim(),
+        tick_seconds: Number(profileSimTickEl.value || 60),
+        rollback_minutes: Number(profileSimRollbackEl.value || 15),
+        profile_blend: Number(profileSimBlendEl.value || 0.72),
+        noise_sigma_scale: Number(profileSimNoiseEl.value || 0.85),
+        max_step_per_tick: Number(profileSimStepEl.value || 2),
+      };
+
+      const res = await fetch(withPrefix('/api/profile-simulation'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_simulation: profileSimulation }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        statusEl.textContent = `Profilsimulation Fehler: ${data.error || 'unknown'}`;
+        statusEl.className = 'warn';
+        return;
+      }
+      updateProfileSimulationPanelFromPayload(data);
+      statusEl.textContent = 'Profilsimulation aktualisiert.';
+      statusEl.className = 'ok';
+    }
+
+    async function loadSimulationCatalog() {
+      const res = await fetch(withPrefix('/api/simulation/catalog'));
+      const payload = await res.json();
+      if (!payload.ok) {
+        simCatalogInfoEl.textContent = `Catalog Fehler: ${payload.error || 'unknown'}`;
+        return;
+      }
+
+      const previousSelection = String(simClipSelectEl.value || '').trim();
+      simulationCatalog = Array.isArray(payload.clips) ? payload.clips : [];
+      simClipSelectEl.innerHTML = '';
+      for (const clip of simulationCatalog) {
+        const option = document.createElement('option');
+        option.value = String(clip.clip_id || '');
+        const displayPath = String(clip.display_relative_path || clip.relative_path || '');
+        const aliases = Number(clip.aliases_count || 0);
+        option.textContent = aliases > 0
+          ? `${clip.display_name || clip.clip_id} (${displayPath}) [dup:${aliases}]`
+          : `${clip.display_name || clip.clip_id} (${displayPath})`;
+        simClipSelectEl.appendChild(option);
+      }
+
+      if (hasSimulationOption(previousSelection)) {
+        simClipSelectEl.value = previousSelection;
+      }
+
+      const summary = payload.summary || {};
+      simCatalogInfoEl.textContent = `Clips: ${summary.clips || simulationCatalog.length || 0} | Duplikate: ${summary.duplicates || 0}`;
+
+      await loadVideoSource(true);
+    }
+
+    async function simulationAction(action) {
+      const payload = {
+        action,
+        control_mode: simControlModeEl.value === 'auto_rules' ? 'auto_rules' : 'remote_control',
+        idle_loop: !!simIdleLoopEl.checked,
+      };
+      if (action !== 'clear_queue') {
+        const clipId = String(simClipSelectEl.value || '').trim();
+        if (!clipId) {
+          statusEl.textContent = 'Kein Clip ausgewählt.';
+          statusEl.className = 'warn';
+          return;
+        }
+        payload.clip_id = clipId;
+      }
+
+      const res = await fetch(withPrefix('/api/simulation/select'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        statusEl.textContent = `Simulation Fehler: ${data.error || 'unknown'}`;
+        statusEl.className = 'warn';
+        return;
+      }
+
+      const selected = data.selected?.display_name || data.selected?.clip_id || '-';
+      if (action === 'enqueue') {
+        statusEl.textContent = `In Queue: ${selected}`;
+      } else if (action === 'play_next') {
+        statusEl.textContent = `Als Nächstes: ${selected}`;
+      } else if (action === 'clear_queue') {
+        statusEl.textContent = 'Queue geleert.';
+      } else {
+        statusEl.textContent = `Spiele jetzt: ${selected}`;
+      }
+      statusEl.className = 'ok';
+
+      await loadVideoSource();
+    }
+
+    async function saveSimulationControl() {
+      const payload = {
+        control_mode: simControlModeEl.value === 'auto_rules' ? 'auto_rules' : 'remote_control',
+        idle_loop: !!simIdleLoopEl.checked,
+      };
+
+      const res = await fetch(withPrefix('/api/simulation/control'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        statusEl.textContent = `Simulation-Control Fehler: ${data.error || 'unknown'}`;
+        statusEl.className = 'warn';
+        return;
+      }
+
+      updateSimulationPanelFromPayload(data.video_source || data);
+      statusEl.textContent = 'Simulation-Control gespeichert.';
+      statusEl.className = 'ok';
     }
 
     async function saveVideoSource() {
@@ -476,7 +971,12 @@ HTML_PAGE = """
       const res = await fetch(withPrefix('/api/video-source'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, source }),
+        body: JSON.stringify({
+          mode,
+          source,
+          simulation_control_mode: simControlModeEl.value === 'auto_rules' ? 'auto_rules' : 'remote_control',
+          simulation_idle_loop: !!simIdleLoopEl.checked,
+        }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -525,6 +1025,8 @@ HTML_PAGE = """
         inferFpsEl.textContent = st.inference_fps;
         eventsEl.textContent = `+${st.entries_frame} / -${st.exits_frame}`;
         setAnalysisUi(st.analysis_enabled !== false);
+        updateSimulationPanelFromPayload(st);
+        updateProfileSimulationPanelFromPayload(st);
       } catch (e) {}
     }
 
@@ -629,6 +1131,16 @@ HTML_PAGE = """
     toggleAnalysisBtn.addEventListener('click', toggleAnalysis);
     document.getElementById('save_source').addEventListener('click', saveVideoSource);
     document.getElementById('reload_source').addEventListener('click', loadVideoSource);
+    document.getElementById('sim_reload_catalog').addEventListener('click', loadSimulationCatalog);
+    document.getElementById('sim_play_now').addEventListener('click', () => simulationAction('play_now'));
+    document.getElementById('sim_play_next').addEventListener('click', () => simulationAction('play_next'));
+    document.getElementById('sim_enqueue').addEventListener('click', () => simulationAction('enqueue'));
+    document.getElementById('sim_clear_queue').addEventListener('click', () => simulationAction('clear_queue'));
+    simControlModeEl.addEventListener('change', saveSimulationControl);
+    simIdleLoopEl.addEventListener('change', saveSimulationControl);
+    document.getElementById('profile_sim_reload').addEventListener('click', loadProfileSimulationControl);
+    document.getElementById('profile_sim_save').addEventListener('click', saveProfileSimulationControl);
+    profileSimEnabledEl.addEventListener('change', saveProfileSimulationControl);
     document.getElementById('save_roi').addEventListener('click', saveRoi);
     document.getElementById('reload_roi').addEventListener('click', loadRoi);
     document.getElementById('undo_roi').addEventListener('click', () => {
@@ -657,21 +1169,17 @@ HTML_PAGE = """
       mainLinkEl.href = '/';
       analyticsLinkEl.href = '/analytics';
       apiLinkEl.href = '/api/v1/dashboard/command-center?zone_id=default-zone&horizon=60&history_minutes=180';
-      remoteLinkEl.href = `http://${HOST}:8091`;
-      remoteLinkEl.textContent = `Fernbedienung (:8091)`;
-      remoteLinkInfoEl.textContent = `Fernbedienung URL: http://${HOST}:8091`;
     } else {
-      mainLinkEl.href = `http://${HOST}:8090`;
-      analyticsLinkEl.href = `http://${HOST}:8501`;
-      apiLinkEl.href = `http://${HOST}:8000/api/v1/dashboard/command-center?zone_id=default-zone&horizon=60&history_minutes=180`;
-      remoteLinkEl.href = `http://${HOST}:8091`;
-      remoteLinkEl.textContent = `Fernbedienung (:8091)`;
-      remoteLinkInfoEl.textContent = `Fernbedienung URL: http://${HOST}:8091`;
+      mainLinkEl.href = `http://${ACCESS_HOST}:8090`;
+      analyticsLinkEl.href = `http://${ACCESS_HOST}:8501`;
+      apiLinkEl.href = `http://${ACCESS_HOST}:8000/api/v1/dashboard/command-center?zone_id=default-zone&horizon=60&history_minutes=180`;
     }
 
     reloadZone();
     loadRoi();
     loadVideoSource();
+    loadSimulationCatalog();
+    loadProfileSimulationControl();
     initDashPlayer();
     setInterval(pollState, 1000);
     setInterval(drawZone, 1000);
@@ -980,10 +1488,20 @@ class TrackingEngine:
             confidence_threshold=float(tracking_cfg["confidence_threshold"]),
             device=str(tracking_cfg.get("device", "cpu")),
           request_timeout_seconds=float(tracking_cfg.get("api_timeout_seconds", 10.0)),
+          failure_cooldown_seconds=float(tracking_cfg.get("api_failure_cooldown_seconds", 2.0)),
+          max_api_fps=float(tracking_cfg.get("max_api_fps", 0.0)),
+          jpeg_quality=int(tracking_cfg.get("api_jpeg_quality", 85)),
+          min_person_height_ratio=float(tracking_cfg.get("min_person_height_ratio", 0.10)),
+          min_person_area_ratio=float(tracking_cfg.get("min_person_area_ratio", 0.010)),
+          min_person_aspect_ratio=float(tracking_cfg.get("min_person_aspect_ratio", 1.00)),
+          allow_classless_person_detections=bool(tracking_cfg.get("allow_classless_person_detections", False)),
         )
         self.video_mode = self._sanitize_video_mode(self.config.get("video", {}).get("input_mode", "youtube"))
         self.simulation_control_mode = self._sanitize_simulation_control_mode(
           self.config.get("video", {}).get("simulation", {}).get("control_mode", "remote_control")
+        )
+        self.simulation_idle_loop = self._sanitize_simulation_idle_loop(
+          self.config.get("video", {}).get("simulation", {}).get("idle_loop", False)
         )
         simulation_dir = str(
           self.config.get("video", {}).get("simulation", {}).get("directory", DEFAULT_SIMULATION_DIR)
@@ -1130,6 +1648,20 @@ class TrackingEngine:
         self._video_input_lock = threading.Lock()
         self.analysis_enabled = True
 
+        profile_cfg = dict(dashboard_cfg.get("profile_simulation", {}) or {})
+        excel_path = str(profile_cfg.get("excel_path", "KI_Projekt_Daten_einJahr.xlsx")).strip() or "KI_Projekt_Daten_einJahr.xlsx"
+        if not os.path.isabs(excel_path):
+          excel_path = self._resolve_config_relative_path(excel_path)
+        self.profile_simulation = ProfileOccupancySimulation(
+          excel_path=excel_path,
+          enabled=bool(profile_cfg.get("enabled", False)),
+          tick_seconds=float(profile_cfg.get("tick_seconds", 60.0)),
+          profile_blend=float(profile_cfg.get("profile_blend", 0.72)),
+          noise_sigma_scale=float(profile_cfg.get("noise_sigma_scale", 0.85)),
+          max_step_per_tick=float(profile_cfg.get("max_step_per_tick", 2.0)),
+          rollback_minutes=float(profile_cfg.get("rollback_minutes", 15.0)),
+        )
+
     def start(self):
       if self._running:
         return
@@ -1139,6 +1671,7 @@ class TrackingEngine:
         print("[WARN] Videoquelle beim Start nicht geöffnet; reconnect läuft im Hintergrund weiter.")
       self.dash_streamer.start()
       self._running = True
+      self.profile_simulation.start()
       self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
       self._inference_thread = threading.Thread(target=self._inference_loop, daemon=True)
       self._packetizer_thread = threading.Thread(target=self._packetizer_loop, daemon=True)
@@ -1148,6 +1681,7 @@ class TrackingEngine:
 
     def stop(self):
       self._running = False
+      self.profile_simulation.stop()
       if self._capture_thread:
         self._capture_thread.join(timeout=2)
       if self._inference_thread:
@@ -1175,6 +1709,19 @@ class TrackingEngine:
       return mode
 
     @staticmethod
+    def _sanitize_simulation_idle_loop(value: Any) -> bool:
+      if isinstance(value, bool):
+        return value
+      if isinstance(value, (int, float)):
+        return bool(value)
+      normalized = str(value or "").strip().lower()
+      if normalized in {"1", "true", "yes", "on"}:
+        return True
+      if normalized in {"0", "false", "no", "off"}:
+        return False
+      return False
+
+    @staticmethod
     def _count_active_tracks(tracks: list[dict[str, Any]] | None) -> int:
       if not isinstance(tracks, list):
         return 0
@@ -1188,17 +1735,44 @@ class TrackingEngine:
       return active_count
 
     def _resolve_live_occupancy(self, tracks: list[dict[str, Any]] | None = None) -> int:
+      if self.profile_simulation.is_enabled():
+        return int(self.profile_simulation.current_occupancy())
       if self.integration_write_mode == "frame_near":
         if tracks is not None:
           return self._count_active_tracks(tracks)
         return int(self.current_frame_occupancy)
       return int(self.occupancy_state.occupancy)
 
+    def _accept_temporal_detection_event(self, event: Dict[str, Any]) -> bool:
+      event_type = str(event.get("type", "entry")).lower()
+      if event_type not in {"entry", "exit"}:
+        return False
+
+      track_id = event.get("track_id")
+      if track_id is None:
+        return False
+
+      try:
+        normalized_track_id = int(track_id)
+      except (TypeError, ValueError):
+        return False
+
+      last_type = self.occupancy_state.last_event_type_by_track.get(normalized_track_id)
+      if last_type == event_type:
+        return False
+
+      self.occupancy_state.last_event_type_by_track[normalized_track_id] = event_type
+      self.occupancy_state.last_event_time = datetime.now()
+      return True
+
     def _ensure_simulation_defaults(self, video_cfg: Dict[str, Any]) -> Dict[str, Any]:
       merged = dict(video_cfg or {})
       simulation_cfg = dict(merged.get("simulation", {}) or {})
       simulation_cfg["control_mode"] = self._sanitize_simulation_control_mode(
         simulation_cfg.get("control_mode", self.simulation_control_mode)
+      )
+      simulation_cfg["idle_loop"] = self._sanitize_simulation_idle_loop(
+        simulation_cfg.get("idle_loop", self.simulation_idle_loop)
       )
       simulation_cfg["directory"] = str(simulation_cfg.get("directory", DEFAULT_SIMULATION_DIR)).strip() or DEFAULT_SIMULATION_DIR
       simulation_cfg["default_clip_id"] = str(simulation_cfg.get("default_clip_id", "")).strip()
@@ -1238,6 +1812,7 @@ class TrackingEngine:
     def _resolve_simulation_source(self, video_cfg: Dict[str, Any]) -> str:
       simulation_cfg = dict(video_cfg.get("simulation", {}) or {})
       self.simulation_control_mode = self._sanitize_simulation_control_mode(simulation_cfg.get("control_mode", "remote_control"))
+      self.simulation_idle_loop = self._sanitize_simulation_idle_loop(simulation_cfg.get("idle_loop", self.simulation_idle_loop))
       self.simulation_registry.refresh()
 
       with self._simulation_lock:
@@ -1288,31 +1863,68 @@ class TrackingEngine:
       if not clip:
         return False
 
-      opened = self._set_video_input_source(clip.canonical_path, loop_file_source=False)
+      loop_file_source = bool(kind == "basic" and self.simulation_idle_loop)
+      opened = self._set_video_input_source(clip.canonical_path, loop_file_source=loop_file_source)
       if opened:
         with self._simulation_lock:
           self._simulation_active_clip_id = clip.clip_id
           self._simulation_active_kind = kind
       return opened
 
-    def _simulation_switch_after_eof(self):
+    def _simulation_switch_after_eof(self) -> bool:
       with self._simulation_lock:
         next_clip_id = self._simulation_pending_clip_ids.popleft() if self._simulation_pending_clip_ids else ""
         active_kind = self._simulation_active_kind
         basic_clip_id = self._simulation_basic_clip_id
+        idle_loop = bool(self.simulation_idle_loop)
 
       if next_clip_id:
         switched = self._switch_to_simulation_clip_id(next_clip_id, kind="scheduled")
         if switched:
-          return
+          return True
 
       if active_kind == "scheduled" and basic_clip_id:
         switched = self._switch_to_simulation_clip_id(basic_clip_id, kind="basic")
         if switched:
-          return
+          return True
+
+      if active_kind == "basic":
+        if idle_loop and basic_clip_id:
+          return bool(self._switch_to_simulation_clip_id(basic_clip_id, kind="basic"))
+        return False
 
       if basic_clip_id:
-        self._switch_to_simulation_clip_id(basic_clip_id, kind="basic")
+        return bool(self._switch_to_simulation_clip_id(basic_clip_id, kind="basic"))
+      return False
+
+    def _simulation_clip_brief(self, clip_id: str) -> Dict[str, Any]:
+      normalized_id = str(clip_id or "").strip()
+      if not normalized_id:
+        return {"clip_id": "", "display_name": "-", "relative_path": ""}
+
+      clip = self.simulation_registry.get_clip(normalized_id)
+      if not clip:
+        self.simulation_registry.refresh()
+        clip = self.simulation_registry.get_clip(normalized_id)
+
+      if not clip:
+        return {
+          "clip_id": normalized_id,
+          "display_name": normalized_id,
+          "relative_path": "",
+        }
+
+      return {
+        "clip_id": clip.clip_id,
+        "display_name": clip.display_name,
+        "relative_path": clip.relative_path,
+      }
+
+    def _simulation_queue_snapshot_locked(self) -> List[Dict[str, Any]]:
+      return [
+        self._simulation_clip_brief(clip_id)
+        for clip_id in list(self._simulation_pending_clip_ids)
+      ]
 
     def _create_video_input(self, video_cfg: Dict[str, Any]) -> VideoInputModule:
       prepared_cfg = self._ensure_simulation_defaults(video_cfg)
@@ -1376,7 +1988,10 @@ class TrackingEngine:
           ok, frame = self.video_input.read()
         if not ok or frame is None:
           if self.video_mode == "livefeed_simulation":
-            self._simulation_switch_after_eof()
+            switched = self._simulation_switch_after_eof()
+            if not switched:
+              time.sleep(0.12)
+              continue
           time.sleep(0.02)
           continue
 
@@ -1489,12 +2104,22 @@ class TrackingEngine:
         self.current_frame_occupancy = frame_occupancy
         live_occupancy = self._resolve_live_occupancy(tracks)
 
+        sim_tick_events = self.profile_simulation.consume_tick_events()
+        sim_entries = int(sim_tick_events.get("entries", 0))
+        sim_exits = int(sim_tick_events.get("exits", 0))
+        if sim_entries > 0:
+          self.entries_total += sim_entries
+        if sim_exits > 0:
+          self.exits_total += sim_exits
+
         events = self.entry_analysis.update(tracks=tracks, frame_shape=frame.shape) if run_tracking_now else []
-        frame_entries = 0
-        frame_exits = 0
+        frame_entries = sim_entries
+        frame_exits = sim_exits
         now_overlay = time.monotonic()
+        profile_enabled = self.profile_simulation.is_enabled()
         for event in events:
-          if self.occupancy_state.handle_event(event):
+          accepted = self._accept_temporal_detection_event(event) if profile_enabled else self.occupancy_state.handle_event(event)
+          if accepted:
             event_track_id = event.get("track_id")
             if event_track_id is not None:
               try:
@@ -1505,9 +2130,13 @@ class TrackingEngine:
               except (TypeError, ValueError):
                 pass
             if str(event.get("type", "entry")).lower() == "entry":
+              if profile_enabled:
+                self.profile_simulation.register_detection_event("entry")
               self.entries_total += 1
               frame_entries += 1
             elif str(event.get("type", "entry")).lower() == "exit":
+              if profile_enabled:
+                self.profile_simulation.register_detection_event("exit")
               self.exits_total += 1
               frame_exits += 1
 
@@ -1589,16 +2218,15 @@ class TrackingEngine:
           visual_valid = self._latest_visual_jpeg is not None and visual_age <= max(0.1, self.visual_stale_fallback_sec * 3.0)
           raw_valid = self._latest_raw_jpeg is not None and raw_age <= max(0.1, self.visual_stale_fallback_sec * 3.0)
 
-          if visual_valid and raw_valid:
-            encoded_frame = self._latest_visual_jpeg
-          elif visual_valid:
-            encoded_frame = self._latest_visual_jpeg
-          elif self._latest_visual_jpeg is not None:
+          if visual_valid:
             encoded_frame = self._latest_visual_jpeg
           elif raw_valid:
             encoded_frame = self._latest_raw_jpeg
           elif self._latest_raw_jpeg is not None:
             encoded_frame = self._latest_raw_jpeg
+          elif self._latest_visual_jpeg is not None:
+            # Last-resort fallback when no fresh raw frame exists.
+            encoded_frame = self._latest_visual_jpeg
 
         if encoded_frame is not None:
           self._dash_frame_counter += 1
@@ -1644,6 +2272,8 @@ class TrackingEngine:
           "analysis_enabled": bool(self.analysis_enabled),
           "video_mode": self.video_mode,
           "simulation_control_mode": self.simulation_control_mode,
+          "simulation_idle_loop": bool(self.simulation_idle_loop),
+          "profile_simulation": self.profile_simulation.get_status(),
         }
       with self._video_input_lock:
         state["video_source"] = str(self.video_input.raw_source)
@@ -1654,6 +2284,9 @@ class TrackingEngine:
         state["simulation_active_kind"] = self._simulation_active_kind
         state["simulation_basic_clip_id"] = self._simulation_basic_clip_id
         state["simulation_pending_count"] = len(self._simulation_pending_clip_ids)
+        state["simulation_active_clip"] = self._simulation_clip_brief(self._simulation_active_clip_id)
+        state["simulation_basic_clip"] = self._simulation_clip_brief(self._simulation_basic_clip_id)
+        state["simulation_pending_queue"] = self._simulation_queue_snapshot_locked()
       return state
 
     def get_video_source(self) -> Dict[str, Any]:
@@ -1663,6 +2296,7 @@ class TrackingEngine:
         active_clip_id = self._simulation_active_clip_id
         active_kind = self._simulation_active_kind
         basic_clip_id = self._simulation_basic_clip_id
+        pending_queue = self._simulation_queue_snapshot_locked()
       with self._video_input_lock:
         return {
           "mode": self.video_mode,
@@ -1670,11 +2304,15 @@ class TrackingEngine:
           "active_source": str(getattr(self.video_input, "active_source", getattr(self.video_input, "source", ""))),
           "opened": bool(self.video_input.capture and self.video_input.capture.isOpened()),
           "simulation_control_mode": self.simulation_control_mode,
+          "simulation_idle_loop": bool(self.simulation_idle_loop),
           "simulation_clip_id": simulation_clip_id,
           "simulation_active_clip_id": active_clip_id,
           "simulation_active_kind": active_kind,
           "simulation_basic_clip_id": basic_clip_id,
           "simulation_pending_count": pending_count,
+          "simulation_active_clip": self._simulation_clip_brief(active_clip_id),
+          "simulation_basic_clip": self._simulation_clip_brief(basic_clip_id),
+          "simulation_pending_queue": pending_queue,
         }
 
     def get_simulation_catalog(self) -> Dict[str, Any]:
@@ -1687,21 +2325,29 @@ class TrackingEngine:
       return {"ok": True, "summary": summary, "clips": clips}
 
     def select_simulation_clip(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-      clip_id = str((payload or {}).get("clip_id", "")).strip()
-      if not clip_id:
-        raise ValueError("clip_id fehlt")
+      payload = dict(payload or {})
+      action = str(payload.get("action", "play_now")).strip().lower() or "play_now"
+      if action not in {"play_now", "enqueue", "play_next", "clear_queue"}:
+        raise ValueError(f"action unbekannt: {action}")
 
-      clip = self.simulation_registry.get_clip(clip_id)
-      if not clip:
-        self.simulation_registry.refresh()
+      clip_id = str(payload.get("clip_id", "")).strip()
+      clip = None
+      if action != "clear_queue":
+        if not clip_id:
+          raise ValueError("clip_id fehlt")
+
         clip = self.simulation_registry.get_clip(clip_id)
-      if not clip:
-        raise ValueError(f"clip_id unbekannt: {clip_id}")
+        if not clip:
+          self.simulation_registry.refresh()
+          clip = self.simulation_registry.get_clip(clip_id)
+        if not clip:
+          raise ValueError(f"clip_id unbekannt: {clip_id}")
 
       cfg = self.config_manager.load()
       video_cfg = self._ensure_simulation_defaults(dict(cfg.get("video", {}) or {}))
       sim_cfg = dict(video_cfg.get("simulation", {}) or {})
       sim_cfg["control_mode"] = self._sanitize_simulation_control_mode(payload.get("control_mode", sim_cfg.get("control_mode", "remote_control")))
+      sim_cfg["idle_loop"] = self._sanitize_simulation_idle_loop(payload.get("idle_loop", sim_cfg.get("idle_loop", self.simulation_idle_loop)))
       video_cfg["simulation"] = sim_cfg
       video_cfg["input_mode"] = "livefeed_simulation"
 
@@ -1717,29 +2363,89 @@ class TrackingEngine:
       self.config = cfg
       self.video_mode = "livefeed_simulation"
       self.simulation_control_mode = str(sim_cfg.get("control_mode", "remote_control"))
+      self.simulation_idle_loop = self._sanitize_simulation_idle_loop(sim_cfg.get("idle_loop", self.simulation_idle_loop))
 
       with self._simulation_lock:
         self._simulation_basic_clip_id = basic_clip.clip_id
-        self._simulation_pending_clip_ids.clear()
+        if action == "clear_queue":
+          self._simulation_pending_clip_ids.clear()
+        elif action == "enqueue" and clip is not None:
+          self._simulation_pending_clip_ids.append(clip.clip_id)
+        elif action == "play_next" and clip is not None:
+          self._simulation_pending_clip_ids.appendleft(clip.clip_id)
+        elif action == "play_now" and clip is not None:
+          self._simulation_pending_clip_ids.clear()
 
-      opened = self._switch_to_simulation_clip_id(clip.clip_id, kind="scheduled")
-      if not opened:
-        opened = self._switch_to_simulation_clip_id(basic_clip.clip_id, kind="basic")
+      opened = True
+      if action == "play_now" and clip is not None:
+        opened = self._switch_to_simulation_clip_id(clip.clip_id, kind="scheduled")
+        if not opened:
+          opened = self._switch_to_simulation_clip_id(basic_clip.clip_id, kind="basic")
+      elif action in {"enqueue", "play_next", "clear_queue"}:
+        with self._simulation_lock:
+          active_clip_id = str(self._simulation_active_clip_id or "").strip()
+        if not active_clip_id:
+          opened = self._switch_to_simulation_clip_id(basic_clip.clip_id, kind="basic")
+
+      with self._simulation_lock:
+        pending_queue = self._simulation_queue_snapshot_locked()
+        active_clip_id = self._simulation_active_clip_id
+        active_kind = self._simulation_active_kind
 
       return {
         "ok": True,
+        "action": action,
         "opened": bool(opened),
-        "selected": {
-          "clip_id": clip.clip_id,
-          "display_name": clip.display_name,
-          "canonical_path": clip.canonical_path,
-          "relative_path": clip.relative_path,
-        },
+        "selected": (
+          {
+            "clip_id": clip.clip_id,
+            "display_name": clip.display_name,
+            "canonical_path": clip.canonical_path,
+            "relative_path": clip.relative_path,
+          }
+          if clip is not None
+          else None
+        ),
         "next": {
           "clip_id": basic_clip.clip_id,
           "display_name": basic_clip.display_name,
         },
+        "active": self._simulation_clip_brief(active_clip_id),
+        "active_kind": active_kind,
+        "simulation_idle_loop": bool(self.simulation_idle_loop),
+        "queue": pending_queue,
       }
+
+    def update_simulation_control(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+      payload = dict(payload or {})
+      control_mode = self._sanitize_simulation_control_mode(
+        payload.get("control_mode", self.simulation_control_mode)
+      )
+      idle_loop = self._sanitize_simulation_idle_loop(
+        payload.get("idle_loop", self.simulation_idle_loop)
+      )
+
+      cfg = self.config_manager.load()
+      video_cfg = self._ensure_simulation_defaults(dict(cfg.get("video", {}) or {}))
+      sim_cfg = dict(video_cfg.get("simulation", {}) or {})
+      sim_cfg["control_mode"] = control_mode
+      sim_cfg["idle_loop"] = idle_loop
+      video_cfg["simulation"] = sim_cfg
+      cfg["video"] = video_cfg
+      self.config_manager.save(cfg)
+
+      self.config = cfg
+      self.simulation_control_mode = control_mode
+      self.simulation_idle_loop = idle_loop
+
+      if self.video_mode == "livefeed_simulation":
+        with self._simulation_lock:
+          active_clip_id = str(self._simulation_active_clip_id or "").strip()
+          active_kind = str(self._simulation_active_kind or "basic")
+        if active_clip_id:
+          self._switch_to_simulation_clip_id(active_clip_id, kind=active_kind)
+
+      return {"ok": True, "video_source": self.get_video_source()}
 
     def update_video_source(self, payload: Dict[str, Any]) -> Dict[str, Any]:
       payload = dict(payload or {})
@@ -1752,17 +2458,25 @@ class TrackingEngine:
           self.config.get("video", {}).get("simulation", {}).get("control_mode", self.simulation_control_mode),
         )
       )
+      simulation_idle_loop = self._sanitize_simulation_idle_loop(
+        payload.get(
+          "simulation_idle_loop",
+          self.config.get("video", {}).get("simulation", {}).get("idle_loop", self.simulation_idle_loop),
+        )
+      )
 
       cfg = self.config_manager.load()
       video_cfg = self._ensure_simulation_defaults(dict(cfg.get("video", {}) or {}))
       video_cfg["input_mode"] = mode
       video_cfg["source"] = source
       video_cfg.setdefault("simulation", {})["control_mode"] = simulation_control_mode
+      video_cfg.setdefault("simulation", {})["idle_loop"] = simulation_idle_loop
       cfg["video"] = video_cfg
       self.config_manager.save(cfg)
       self.config = cfg
       self.video_mode = mode
       self.simulation_control_mode = simulation_control_mode
+      self.simulation_idle_loop = simulation_idle_loop
       if self.video_mode == "livefeed_simulation":
         self._initialize_simulation_state(video_cfg)
 
@@ -1784,6 +2498,7 @@ class TrackingEngine:
         "active_source": str(getattr(self.video_input, "active_source", self.video_input.source)),
         "opened": bool(opened),
         "simulation_control_mode": self.simulation_control_mode,
+        "simulation_idle_loop": bool(self.simulation_idle_loop),
       }
 
     def get_zone(self) -> Dict[str, Any]:
@@ -1926,11 +2641,54 @@ class TrackingEngine:
         if not self.analysis_enabled:
           self._analysis_queue.clear()
           self._last_tracks_cache = []
+          # Ensure packetizer switches immediately to capture frames.
+          self._latest_visual_jpeg = None
+          self._latest_visual_ts = 0.0
       return {"ok": True, "analysis_enabled": bool(self.analysis_enabled)}
 
     def get_analysis_control(self) -> Dict[str, Any]:
       with self._lock:
         return {"ok": True, "analysis_enabled": bool(self.analysis_enabled)}
+
+    def get_profile_simulation_control(self) -> Dict[str, Any]:
+      return {"ok": True, "profile_simulation": self.profile_simulation.get_status()}
+
+    def update_profile_simulation_control(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+      payload = dict(payload or {})
+      raw_cfg = payload.get("profile_simulation", payload)
+      if not isinstance(raw_cfg, dict):
+        raw_cfg = {}
+      cfg_update = dict(raw_cfg)
+
+      if "excel_path" in cfg_update:
+        excel_path = str(cfg_update.get("excel_path", "")).strip()
+        if excel_path and not os.path.isabs(excel_path):
+          excel_path = self._resolve_config_relative_path(excel_path)
+        cfg_update["excel_path"] = excel_path
+
+      self.profile_simulation.update_settings(cfg_update)
+
+      config = self.config_manager.load()
+      dashboard_cfg = dict(config.get("dashboard", {}) or {})
+      stored_cfg = dict(dashboard_cfg.get("profile_simulation", {}) or {})
+      allowed_keys = {
+        "enabled",
+        "excel_path",
+        "tick_seconds",
+        "profile_blend",
+        "noise_sigma_scale",
+        "max_step_per_tick",
+        "rollback_minutes",
+      }
+      for key in allowed_keys:
+        if key in cfg_update:
+          stored_cfg[key] = cfg_update[key]
+      dashboard_cfg["profile_simulation"] = stored_cfg
+      config["dashboard"] = dashboard_cfg
+      self.config_manager.save(config)
+      self.config = config
+
+      return {"ok": True, "profile_simulation": self.profile_simulation.get_status()}
 
 
 def create_app(config_path: str) -> Flask:
@@ -2017,6 +2775,25 @@ def create_app(config_path: str) -> Flask:
       payload = request.get_json(silent=True) or {}
       try:
         return jsonify(engine.select_simulation_clip(payload))
+      except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    @app.route("/api/simulation/control", methods=["POST"])
+    def api_simulation_control():
+      payload = request.get_json(silent=True) or {}
+      try:
+        return jsonify(engine.update_simulation_control(payload))
+      except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    @app.route("/api/profile-simulation", methods=["GET", "POST"])
+    def api_profile_simulation():
+      if request.method == "GET":
+        return jsonify(engine.get_profile_simulation_control())
+
+      payload = request.get_json(silent=True) or {}
+      try:
+        return jsonify(engine.update_profile_simulation_control(payload))
       except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 

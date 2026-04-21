@@ -18,14 +18,15 @@ const APP_NAV_ITEMS = [
 ];
 
 const PORTAL_NAV_ITEMS = [
-  { href: "/realtime", label: "Realtime" },
-  { href: "/analytics", label: "Analytics" },
+  { href: "/realtime", label: "Videomonitor" },
+  { href: "/admin-bookings", label: "Buchungsmonitor", adminOnly: true },
 ];
 
 function Header() {
   const pathname = usePathname();
   const { authenticated, user, logout, sessionLoading } = useAppData();
   const [logoutPending, setLogoutPending] = useState(false);
+  const [adminNoticeOpen, setAdminNoticeOpen] = useState(false);
 
   async function handleLogout() {
     setLogoutPending(true);
@@ -34,6 +35,10 @@ function Header() {
     } finally {
       setLogoutPending(false);
     }
+  }
+
+  function openAdminNotice() {
+    setAdminNoticeOpen(true);
   }
 
   return (
@@ -48,7 +53,7 @@ function Header() {
                 width={80}
                 height={80}
                 priority
-                className="h-16 w-16 scale-[1.45] -translate-y-[3px] rounded-[1.35rem] object-cover sm:h-20 sm:w-20"
+                className="h-16 w-16 scale-[1.55] -translate-y-[5px] rounded-[1.35rem] object-cover sm:h-20 sm:w-20"
               />
             </div>
             <div>
@@ -58,9 +63,6 @@ function Header() {
               <h1 className="text-xl font-semibold text-[color:var(--ink-strong)] sm:text-2xl">
                 Sitcheck
               </h1>
-              <p className="text-sm text-[color:var(--ink-soft)]">
-                Live-Auslastung, 60-Minuten-Prognose und nachvollziehbare Begründung an einem Ort.
-              </p>
             </div>
           </div>
 
@@ -132,18 +134,81 @@ function Header() {
           </nav>
 
           <div className="flex flex-wrap gap-2">
-            {PORTAL_NAV_ITEMS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-full border border-[color:var(--stroke-strong)] bg-[color:var(--surface-raised)] px-4 py-2 text-sm font-semibold text-[color:var(--ink-strong)] transition hover:border-[color:var(--accent-soft)] hover:text-[color:var(--accent-strong)]"
-              >
-                {item.label}
-              </Link>
-            ))}
+            {PORTAL_NAV_ITEMS.map((item) => {
+              const active = pathname === item.href;
+              const adminBlocked = item.adminOnly && user?.role !== "admin";
+              const classes = `rounded-full px-4 py-2 text-sm font-semibold transition ${
+                active && !adminBlocked
+                  ? "bg-[color:var(--accent)] text-white shadow-[0_12px_28px_rgba(139,198,236,0.38)]"
+                  : "border border-[color:var(--stroke-strong)] bg-[color:var(--surface-raised)] text-[color:var(--ink-strong)] hover:border-[color:var(--accent-soft)] hover:text-[color:var(--accent-strong)]"
+              }`;
+
+              if (adminBlocked) {
+                return (
+                  <button
+                    key={item.href}
+                    type="button"
+                    onClick={openAdminNotice}
+                    className={classes}
+                  >
+                    {item.label}
+                  </button>
+                );
+              }
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={classes}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>
+      {adminNoticeOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex min-h-dvh items-center justify-center overflow-y-auto bg-slate-950/35 px-4 py-6 sm:px-6"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="my-auto w-full max-w-md rounded-[2rem] border border-white/70 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink-muted)]">
+              Zugriff eingeschränkt
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-[color:var(--ink-strong)]">
+              Buchungsmonitor ist nur für Admins verfügbar
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-[color:var(--ink-soft)]">
+              {authenticated
+                ? "Dein aktueller Account hat keine Admin-Rechte. Melde dich mit einem Admin-Konto an, um die Buchungen aller Nutzer zu sehen."
+                : "Melde dich mit einem Admin-Konto an, um die Buchungen aller Nutzer zu sehen."}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              {!authenticated && (
+                <Link
+                  href="/login"
+                  onClick={() => setAdminNoticeOpen(false)}
+                  className="inline-flex items-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[color:var(--accent-strong)]"
+                >
+                  Zum Login
+                  <span aria-hidden="true">→</span>
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => setAdminNoticeOpen(false)}
+                className="rounded-full border border-[color:var(--stroke-strong)] px-4 py-2 text-sm font-semibold text-[color:var(--ink-strong)] transition hover:border-[color:var(--accent-soft)] hover:text-[color:var(--accent-strong)]"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
@@ -158,7 +223,6 @@ function AppChrome({ children }) {
       </main>
       <footer className="relative z-10 border-t border-white/60 bg-white/55 px-4 py-6 backdrop-blur sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 text-sm text-[color:var(--ink-soft)] sm:flex-row sm:items-center sm:justify-between">
-          <p>Portal-First Zugriff über dieselbe Domain: Dashboard, Auth, Buchungen, Realtime und Analytics.</p>
           <p className="font-medium text-[color:var(--ink-muted)]">DHBW Mannheim · Sitcheck Portal</p>
         </div>
       </footer>
