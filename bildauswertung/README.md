@@ -73,11 +73,11 @@ Die Bildauswertung ist die KI-Kernkomponente des SitCheck-Systems. Sie verarbeit
 ║  │   │                                                        │    │   ║
 ║  │   │   ┌──────────────────┐    ┌───────────────────────┐   │    │   ║
 ║  │   │   │  Cloud-API       │    │  Lokales YOLO-Modell   │   │    │   ║
-║  │   │   │  (async Thread)  │    │  (yolo28n.pt, CPU)    │   │    │   ║
-║  │   │   │  10 fps max      │    │  10 fps max           │   │    │   ║
+║  │   │   │  (Fallback)      │    │  (yolo26n.pt, CPU)    │   │    │   ║
+║  │   │   │  ~16 fps max     │    │  ~16 fps (primär)     │   │    │   ║
 ║  │   │   └────────┬─────────┘    └──────────┬────────────┘   │    │   ║
 ║  │   │            └──────────────────────────┘                │    │   ║
-║  │   │                   Cache-Fallback (<4 Frames)           │    │   ║
+║  │   │                   Cache-Fallback (<10 Frames)          │    │   ║
 ║  │   └────────────────────────────────────────────────────────┘    │   ║
 ║  │                                                                  │   ║
 ║  │   Stabilisierung: EMA-Glättung, Stale-Tracks, Bewegungsvektoren │   ║
@@ -392,7 +392,7 @@ aspect_ratio = bbox_height / bbox_width    ≥ 1.00  # Höher als breit (Person 
 
 **Datei:** `HybridPersonDetector.py`
 
-Intelligente Kombination aus API und lokalem Modell. Details im Abschnitt [Hybrid-Detektor-Strategie](#8-hybrid-detektor-strategie).
+**Local-first** Kombination aus lokalem Modell und Cloud-API. Lokales YOLO läuft auf jedem Frame als primäre Quelle (konsistente Track-IDs). Die API wird nur als Fallback aktiviert, wenn das lokale Modell mehrfach hintereinander fehlschlägt (≥3 Failures). Über das Dashboard kann zur Laufzeit zwischen den Modi `local`, `api` und `hybrid` gewechselt werden. Details im Abschnitt [Hybrid-Detektor-Strategie](#8-hybrid-detektor-strategie).
 
 #### DetectorFactory
 
@@ -597,10 +597,23 @@ Thread 2: Analysis-Loop
 
 Thread 3: Flask-Server
   GET /stream  → MJPEG-Video-Stream (Endlos-Multipart)
-  GET /api/status → JSON-Statistiken
+  GET /api/state → JSON-Statistiken (inkl. detector_mode)
+  GET/POST /api/detector/mode → Detektor-Modus live umschalten
   POST /api/zone  → Zone aktualisieren
   POST /api/clip  → Simulationsclip wechseln
 ```
+
+**Detektor-Modus-Umschaltung (Hot-Swap):**
+
+Über drei Buttons im Dashboard oder per API kann zur Laufzeit zwischen den Modi gewechselt werden:
+
+| Modus | `POST /api/detector/mode` | Verhalten |
+|---|---|---|
+| **Local** | `{"mode": "local"}` | Nur lokales YOLO (yolo26n.pt, imgsz=480), konsistente Track-IDs |
+| **API** | `{"mode": "api"}` | Nur Cloud-API (imgsz=640, max_api_fps=20), beste Erkennungsqualität |
+| **Hybrid** | `{"mode": "hybrid"}` | Local-first + API-Fallback bei Local-Failure |
+
+Beim Umschalten wird der Detektor live neu gebaut, die EMA-Track-Memory geleert und die Konfiguration persistent in `config.yaml` gespeichert.
 
 **Dynamic-Skip-Logik:**
 
@@ -866,50 +879,38 @@ Wenn Track verschwindet in exit-Zone:
 
 ## 8. Hybrid-Detektor-Strategie
 
-Das Kernprinzip: **Cloud-API für Qualität, lokales Modell für Verfügbarkeit, Cache als Sicherheitsnetz.**
+Das Kernprinzip: **Lokales YOLO als primäre Quelle für konsistente Track-IDs, Cloud-API nur als Fallback bei Local-Failure.**
 
-### Ablaufdiagramm pro Frame
+### Design-Entscheidung: Warum Local-first?
+
+Ein früherer API-first-Ansatz (API und Local alternierend) führte zu **Track-ID-Konflikten**: Beide Detektoren vergeben unabhängige IDs. Beim Wechsel zwischen den Quellen sah der Stabilizer (EMA) ständig "neue" und "verschwindende" Tracks — Bounding-Boxes flackerten und Entry/Exit-Events wurden falsch zugeordnet.
+
+Die Local-first-Architektur löst dies, indem **nur eine ID-Quelle** (das lokale Modell) den Normalfall abdeckt. Die API liefert Track-IDs nur im Ausfall-Szenario.
+
+### Ablaufdiagramm pro Frame (Local-first)
 
 ```
 track(frame):
     frame_counter++
 
     ┌─────────────────────────────────────────────┐
-    │ Schritt 1: API-Ergebnis abholen             │
-    │   Falls async Future fertig:                │
-    │   → API-Ergebnis zurückgeben (sofort)       │
-    │   → Future auf None setzen                  │
+    │ Schritt 1: LOKALES YOLO (primär)            │
+    │   → Immer ausführen wenn Budget erlaubt     │
+    │   → Synchron (~60ms bei imgsz=480)          │
+    │   → Bei Erfolg: sofort zurückgeben          │
+    │   → local_fail_streak zurücksetzen          │
     └─────────────────┬───────────────────────────┘
-                      │ (kein Ergebnis)
+                      │ (Local fehlgeschlagen)
     ┌─────────────────▼───────────────────────────┐
-    │ Schritt 2: Neuen API-Request starten?       │
-    │   Bedingungen (ALLE müssen erfüllt sein):   │
-    │   ✓ api_detector vorhanden                  │
-    │   ✓ frame_counter - last_api_frame ≥ 2      │
-    │   ✓ Kein aktiver Future                     │
-    │   ✓ Nicht in Fehler-Cooldown               │
-    │   ✓ Zeit seit letztem Request ≥ 100ms      │
-    │                                             │
-    │   → ThreadPoolExecutor.submit(api_call)     │
-    │   → Sofort weiter (non-blocking)            │
+    │ Schritt 2: API-Fallback prüfen              │
+    │   → API-Future abholen (wenn fertig)        │
+    │   → Nur wenn local_fail_streak ≥ 3:         │
+    │     → Neuen API-Request starten (async)     │
     └─────────────────┬───────────────────────────┘
-                      │
+                      │ (kein API-Ergebnis)
     ┌─────────────────▼───────────────────────────┐
-    │ Schritt 3: Lokales YOLO ausführen?          │
-    │   Bedingungen:                              │
-    │   ✓ local_fill_enabled                      │
-    │   ✓ frame_counter - last_local_frame ≥ 2    │
-    │   ✓ Zeit seit letztem Local-Run ≥ 100ms    │
-    │                                             │
-    │   (ODER: force_local wenn Cache zu alt)     │
-    │                                             │
-    │   → Synchron ausführen (~100ms auf CPU)     │
-    │   → Ergebnis zurückgeben                    │
-    └─────────────────┬───────────────────────────┘
-                      │ (kein lokales Ergebnis)
-    ┌─────────────────▼───────────────────────────┐
-    │ Schritt 4: Cache zurückgeben                │
-    │   Falls cache_age ≤ 4 Frames:              │
+    │ Schritt 3: Cache zurückgeben                │
+    │   Falls cache_age ≤ 10 Frames:             │
     │   → Gecachten Track-Stand zurückgeben       │
     │                                             │
     │   Sonst:                                    │
@@ -917,26 +918,40 @@ track(frame):
     └─────────────────────────────────────────────┘
 ```
 
-### Frame-Timing-Analyse (20fps, API 60ms)
+### Typischer Betrieb (Local funktioniert)
 
 ```
-Zeit →  0ms    50ms   100ms  150ms  200ms  250ms  300ms
-Frame →  1      2      3      4      5      6      7
-
-API:  [=submit=|====60ms====|done]
-      Frame 1 gesendet           Frame 3: Ergebnis abgeholt
-                                 Frame 4: neuer Request
-
-Local: [100ms] ← Frame 1
-                     [100ms] ← Frame 4
-                                      [100ms] ← Frame 7
-
-Result: Local  Cache  API    Local  Cache  API    Local
-              (1Fr.)        (1Fr.)        (1Fr.)
+Frame 1: Local YOLO (~60ms) → Tracks mit IDs 1,2,3 → zurück
+Frame 2: Local YOLO (~60ms) → Tracks mit IDs 1,2,3 → zurück
+Frame 3: Local YOLO (~60ms) → Tracks mit IDs 1,2,4 → zurück
+...
+→ API wird nie aufgerufen (local_fail_streak = 0 < 3)
+→ Stabile IDs, stabile EMA-Glättung, stabile Entry/Exit-Erkennung
 ```
 
-→ **Jeder Frame erhält ein Ergebnis** (API, Local oder maximal 1 Frame Cache)  
-→ **Keine Überlastung:** API alle 100ms, Local alle 100ms, nie gleichzeitig dominant
+### Fallback-Betrieb (Local versagt)
+
+```
+Frame N:   Local fehlgeschlagen (fail_streak=1) → Cache
+Frame N+1: Local fehlgeschlagen (fail_streak=2) → Cache
+Frame N+2: Local fehlgeschlagen (fail_streak=3) → API-Request gestartet
+Frame N+3: Local fehlgeschlagen → API-Ergebnis da → zurück
+...
+→ API liefert bis Local wieder funktioniert
+→ Bei Recovery: Local übernimmt wieder, fail_streak=0
+```
+
+### Live-Modus-Umschaltung
+
+Per Dashboard-Button oder API-Call (`POST /api/detector/mode`):
+
+| Aktion | Effekt |
+|---|---|
+| **→ Local** | Nur yolo26n.pt (imgsz=480), max_api_fps=5 (Fallback), schnellste Reaktion |
+| **→ API** | Nur Cloud-API (imgsz=640), max_api_fps=20, beste Erkennungsqualität |
+| **→ Hybrid** | Local-first + API-Fallback (Standard) |
+
+Beim Wechsel werden Detektor + Config persistent aktualisiert, EMA-State geleert.
 
 ---
 
@@ -1021,34 +1036,34 @@ tracking:
   api_key: "ul_..."
   api_timeout_seconds: 3.0
   api_failure_cooldown_seconds: 2.0
-  max_api_fps: 10.0            # Max. API-Requests pro Sekunde
+  max_api_fps: 5.0             # Im Hybrid: nur Fallback (5/s); im API-Modus: 20/s
   api_jpeg_quality: 85         # JPEG-Kompression für Upload (60-95)
-  api_refresh_every_n_frames: 2  # API jeden N-ten Frame anfragen
+  api_refresh_every_n_frames: 10  # API nur alle N Frames (Fallback-Kadenz)
 
   # Lokales Modell
   model_path: models/yolo26n.pt
   device: auto                 # auto | cpu | cuda
   local_preload_enabled: true  # Warmup beim Start
-  local_fill_enabled: true     # Lokales Modell als Lückenfüller
-  local_fill_max_fps: 10.0     # Max. lokale Inferenzen pro Sekunde
-  local_refresh_every_n_frames: 2  # Lokales Modell jeden N-ten Frame
+  local_fill_enabled: true     # Lokales Modell aktiv
+  local_fill_max_fps: 20.0    # Keine FPS-Begrenzung für Local
+  local_refresh_every_n_frames: 1  # Local auf jedem Frame
 
   # Hybrid-Parameter
   hybrid_target_fps: 20.0      # Ziel-FPS für Kadenz-Berechnung
-  cache_fallback_max_age_frames: 4  # Cache max. N Frames alt
+  cache_fallback_max_age_frames: 10  # Cache max. N Frames alt
   api_result_max_age_frames: 6  # API-Ergebnis max. N Frames alt verwerfen
-  max_cache_only_frames: 2     # Force Local nach N Cache-only Frames
+  max_cache_only_frames: 5     # Force Local nach N Cache-only Frames
 
-  # Detektions-Filter
-  confidence_threshold: 0.2    # Mindest-Konfidenz
+  # Detektions-Filter (aggressiv für Nano-Modell)
+  confidence_threshold: 0.05   # Sehr niedrig für Seiten-/Rückansichten
   iou_threshold: 0.45          # IOU für NMS
-  min_person_height_ratio: 0.1   # Mindesthöhe (10% Bildhöhe)
-  min_person_area_ratio: 0.01    # Mindestfläche (1% Bildfläche)
-  min_person_aspect_ratio: 1.0   # Höher als breit
+  min_person_height_ratio: 0.04  # 4% Bildhöhe (Personen weit hinten)
+  min_person_area_ratio: 0.002   # 0.2% Bildfläche
+  min_person_aspect_ratio: 0.25  # Erlaubt breite/gebückte Personen
 
   # Inferenz-Parameter
   tracker: bytetrack_entrance.yaml
-  imgsz: 640                   # YOLO-Eingabegröße
+  imgsz: 480                   # Reduziert für schnellere CPU-Inferenz (~60ms statt ~100ms)
   max_detections: 300
 
   # Stabilisierung
@@ -1174,26 +1189,26 @@ Verfügbare Zeit pro Frame: 1000ms / 20fps = 50ms
 ├─────────────────────────────────────────────────────────────────┤
 │ VideoInput.read()      │  <5ms      │ Capture  │ Ja (kurz)      │
 │ JPEG-Encode (API)      │  2-5ms     │ Analysis │ Ja             │
-│ HTTP POST (API)        │  ~60ms     │ Async    │ Nein (Future)  │
-│ YOLO lokal (CPU)       │  ~100ms    │ Analysis │ Ja             │
+│ HTTP POST (API)        │  ~60ms     │ Sync     │ Ja (API-Modus) │
+│ YOLO lokal (CPU 480)   │  ~60ms     │ Analysis │ Ja             │
 │ EMA-Stabilisierung     │  <1ms      │ Analysis │ Ja             │
 │ Geometrie-Analyse      │  <2ms      │ Analysis │ Ja             │
 │ JPEG-Encode (Stream)   │  5-15ms    │ Analysis │ Ja             │
 │ DB-Write (async)       │  <10ms     │ Writer   │ Nein           │
 └─────────────────────────────────────────────────────────────────┘
 
-Analysis-Thread-Auslastung pro Frame:
-  → Wenn Local YOLO:   ~107ms  (überschreitet 50ms → Dynamic Skip greift)
-  → Wenn API-Cache:     ~7ms   (weit unter 50ms)
-  → Durchschnitt:     ~57ms   (≈ 17-19fps effektiv)
+Analysis-Thread-Auslastung (Local-Modus, imgsz=480):
+  → Pro Frame: ~68ms (YOLO + Stabilisierung + Render)
+  → Durchsatz: ~14-16fps effektiv
+  → Visual wird auf jedem Frame gerendert (should_update_visual=True)
 ```
 
 ### Ressourcennutzung
 
 | Ressource | Wert | Konfiguriert durch |
 |---|---|---|
-| CPU (YOLO lokal) | ~100ms/Frame | `device: cpu`, Modellgröße |
-| CPU (Gesamt) | 20-40% (1 Kern) | abhängig von detection_mode |
+| CPU (YOLO lokal) | ~60ms/Frame | `imgsz: 480`, Modellgröße |
+| CPU (Gesamt) | 20-40% (1 Kern) | abhängig von detector_mode |
 | RAM | ~500MB–1GB | YOLO-Modell im Speicher |
 | GPU (optional) | ~5-20ms/Frame | `device: cuda` |
 | Netzwerk (API) | ~50-200 KB/Request | `api_jpeg_quality: 85` |
@@ -1202,30 +1217,32 @@ Analysis-Thread-Auslastung pro Frame:
 ### Skalierungsverhalten
 
 ```
-detector_mode: local
+detector_mode: local (Standard)
   + Keine Netzwerkabhängigkeit
-  + Kein API-Kosten
-  - Langsamer (CPU ~100ms/Frame)
-  
+  + Keine API-Kosten
+  + Konsistente Track-IDs (eine Quelle)
+  + ~16fps bei imgsz=480
+  - Schwächer bei Seitenansicht/Rückansicht (Nano-Modell)
+
 detector_mode: api
-  + Schnell (~60ms, GPU in Cloud)
-  + Kein lokaler GPU nötig
-  - Netzwerkabhängigkeit
+  + Beste Erkennungsqualität (GPU in Cloud, größeres Modell)
+  + imgsz=640, ~16fps
+  - Netzwerkabhängigkeit, ~60ms Latenz
   - API-Kosten
 
-detector_mode: hybrid (Standard)
-  + Ausfallsicher (API-Fehler → Local → Cache)
-  + Beste Abdeckung aller Frames
-  + Optimale CPU-Auslastung (API und Local wechselnd)
-  - Komplexestes Timing
+detector_mode: hybrid (Local-first + API-Fallback)
+  + Ausfallsicher (Local versagt → API springt ein)
+  + Konsistente IDs im Normalbetrieb (nur Local)
+  + API wird erst nach 3× Local-Failure aktiviert
+  - API-IDs weichen von Local-IDs ab (Wechsel sichtbar)
 ```
 
 ### Fehlertoleranz-Matrix
 
 | Ausfall | Verhalten |
 |---|---|
-| API nicht erreichbar | Cooldown 2s, dann Local-only |
-| Lokales Modell langsam | Cache bis 4 Frames, dann erzwungener Local-Lauf |
+| API nicht erreichbar | Im Hybrid: kein Effekt (Local ist primär). Im API-Modus: Cooldown 2s, leere Tracks |
+| Lokales Modell langsam | Cache bis 10 Frames, dann erzwungener Local-Lauf |
 | Kamera-Verbindungsabbruch | Reconnect-Loop mit konfigurierbarer Retry-Verzögerung |
 | Datenbankausfall | JSONL-Spool, Nachlieferung beim nächsten erfolgreichen Write |
 | Queue-Überlauf | Älteste Frames verworfen, Dynamic-Skip reduziert Analyse-Rate |

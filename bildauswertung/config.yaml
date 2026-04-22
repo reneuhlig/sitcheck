@@ -36,7 +36,7 @@ tracking:
   allow_classless_person_detections: false
   device: auto
   tracker: bytetrack_entrance.yaml
-  confidence_threshold: 0.10
+  confidence_threshold: 0.05
   iou_threshold: 0.45
   imgsz: 480
   analysis_roi:

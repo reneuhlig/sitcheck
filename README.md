@@ -86,13 +86,29 @@ Ordner: `bildauswertung/`
 
 Kernmodule:
 
-- `VideoInputModule.py`: Quelle oeffnen/lesen (Datei, Stream, etc.).
-- `UltralyticsPersonDetector.py`: YOLO-Inferenzadapter.
-- `YOLOTrackingModule.py`: Tracking-Layer inkl. Stabilisierung.
-- `TrajectoryEntryAnalysisModule.py`: Richtung/Zonen-Crossing erkennen.
-- `OccupancyStateModule.py`: Zustandsautomat fuer Belegung.
-- `VisualizationOutputModule.py`: Overlay-Rendering + Interaktion.
+- `VideoInputModule.py`: Quelle oeffnen/lesen (Datei, Stream, YouTube via yt-dlp).
+- `LocalYoloPersonDetector.py`: Lokale YOLO-Inferenz (yolo26n.pt, Ultralytics, imgsz=480).
+- `UltralyticsPersonDetector.py`: Cloud-Inference-API als Fallback oder eigenstaendiger Modus.
+- `HybridPersonDetector.py`: Local-first Detektor, API nur bei wiederholtem Local-Failure (≥3).
+- `DetectorFactory.py`: Instanziiert den richtigen Detektor per `detector_mode` (local/api/hybrid).
+- `YOLOTrackingModule.py`: Tracking-Layer inkl. EMA-Stabilisierung und Stale-Track-Holding.
+- `TrajectoryEntryAnalysisModule.py`: Richtung/Zonen-Crossing erkennen (Line/Polygon/Dual-Polygon).
+- `OccupancyStateModule.py`: Zustandsautomat fuer Belegung mit Deduplizierung.
+- `VisualizationOutputModule.py`: Overlay-Rendering (Boxes, Trails, Pfeile) + Interaktion.
 - `LiveProcessor.py`: orchestriert den Pipeline-Lauf.
+
+Detektor-Architektur (Local-first):
+
+- **Primaer:** Lokales YOLO-Nano-Modell (yolo26n.pt) auf jedem Frame (~60ms bei imgsz=480 auf CPU).
+- **Fallback:** Cloud-API wird erst nach 3 aufeinanderfolgenden Local-Failures aktiviert.
+- **Vorteil:** Eine einzige Track-ID-Quelle → stabile Bounding-Boxes, zuverlaessige Entry/Exit-Erkennung.
+- **Live-Umschaltung:** Per Dashboard-Button zwischen Local, API und Hybrid wechselbar (`POST /api/detector/mode`).
+
+Detektions-Filter (optimiert fuer Nano-Modell):
+
+- `confidence_threshold: 0.05` (sehr niedrig, um Seiten-/Rueckansichten zu erkennen)
+- `min_person_height_ratio: 0.04` (4% Bildhoehe, erkennt Personen weit hinten)
+- `min_person_aspect_ratio: 0.25` (erlaubt breite/gebueckte Personen)
 
 Funktionskette pro Frame:
 
@@ -147,10 +163,12 @@ Occupancy-Quellen:
 Dieser Abschnitt beschreibt die Entscheidungslogik auf Implementierungsebene.
 
 1. Frame-Sampling und Laststeuerung
-- Capture liefert bis `capture_max_fps` Frames in die Analyse-Queue.
-- `detector_mode=hybrid` nutzt die API nur im konfigurierten Budget (`max_api_fps`), ergaenzt mit lokalem `model_path` und gibt dazwischen gecachte Tracks zurueck.
-- Lokale Füll-Inferenz ist ueber `local_fill_max_fps` begrenzt, damit der 30-fps-Auswertungsloop nicht CPU-gebunden wird.
-- `process_every_n_frames=1` laesst den Loop jeden Capture-Frame auswerten; die teuren Detector-Refreshes werden intern getaktet.
+- Capture liefert bis `capture_max_fps` (20fps) Frames in die Analyse-Queue.
+- `detector_mode=hybrid` (Local-first): Lokales YOLO laeuft primaer auf jedem Frame, API wird erst nach 3 aufeinanderfolgenden Local-Failures als Fallback aktiviert.
+- Lokale Inferenz bei imgsz=480 dauert ~60ms auf CPU → ~16fps effektiver Durchsatz.
+- Per Dashboard-Button kann zur Laufzeit zwischen `local`, `api` und `hybrid` gewechselt werden (`POST /api/detector/mode`), wobei der Detektor live neu gebaut wird.
+- `process_every_n_frames=1` laesst den Loop jeden Capture-Frame auswerten.
+- Visual-Rendering (`should_update_visual=True`) laeuft auf jedem Frame, auch bei gecachten Tracks.
 - Unter Queue-Druck wird `n` dynamisch bis `dynamic_skip_max_n` angehoben.
 - Effekt: stabile Latenz statt wachsender Verzugszeit.
 
@@ -231,9 +249,11 @@ Aufgabe:
 Wesentliche Endpunkte:
 
 - `GET /health`
-- `GET /api/state`
+- `GET /api/state` (inkl. `detector_mode`, `detector_source`)
+- `GET/POST /api/detector/mode` (Live-Umschaltung Local/API/Hybrid)
 - `GET/POST /api/zone`
 - `GET/POST /api/tracking-roi`
+- `GET/POST /api/analysis-control`
 - `GET/POST /api/video-source`
 - `GET /dash/*`
 
