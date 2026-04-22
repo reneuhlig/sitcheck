@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 import cv2
+import math
 
 
 class YOLOTrackingModule:
@@ -49,6 +50,7 @@ class YOLOTrackingModule:
         )
         self._frame_index = 0
         self._track_memory: Dict[int, Dict[str, Any]] = {}
+        self._next_stable_id = 1
 
     def _preprocess_frame(self, frame):
         processed = frame
@@ -92,20 +94,21 @@ class YOLOTrackingModule:
         return self._stabilize_tracks(raw_tracks)
 
     def _stabilize_tracks(self, tracks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        visible_track_ids = set()
+        visible_stable_ids = set()
         stable_tracks: List[Dict[str, Any]] = []
+        remapped = self._assign_stable_ids(tracks)
 
-        for track in tracks:
-            track_id = track.get("track_id")
+        for track in remapped:
+            stable_id = track["track_id"]
             bbox = track.get("bbox")
             center = track.get("center")
             confidence = float(track.get("confidence", 0.0))
 
-            if track_id is None or bbox is None or center is None:
+            if bbox is None or center is None:
                 continue
 
-            visible_track_ids.add(track_id)
-            prev = self._track_memory.get(track_id)
+            visible_stable_ids.add(stable_id)
+            prev = self._track_memory.get(stable_id)
 
             if prev:
                 bbox = self._blend_bbox(prev["bbox"], bbox, self.box_ema_alpha)
@@ -127,7 +130,7 @@ class YOLOTrackingModule:
             if len(trail) > self.trail_length:
                 trail = trail[-self.trail_length :]
 
-            self._track_memory[track_id] = {
+            self._track_memory[stable_id] = {
                 "bbox": bbox,
                 "center": center,
                 "confidence": confidence,
@@ -141,6 +144,7 @@ class YOLOTrackingModule:
             stable_tracks.append(
                 {
                     **track,
+                    "track_id": stable_id,
                     "bbox": bbox,
                     "center": center,
                     "confidence": confidence,
@@ -154,7 +158,7 @@ class YOLOTrackingModule:
 
         min_hold_confidence = max(0.03, self.confidence_threshold * 0.4)
         for track_id, state in list(self._track_memory.items()):
-            if track_id in visible_track_ids:
+            if track_id in visible_stable_ids:
                 continue
 
             missed_frames = self._frame_index - int(state["last_seen"])
@@ -183,6 +187,65 @@ class YOLOTrackingModule:
 
         stable_tracks.sort(key=lambda item: int(item.get("track_id", -1)))
         return stable_tracks
+
+    def _assign_stable_ids(self, tracks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Ordnet eingehende Tracks per IOU+Distanz stabilen IDs zu (quellenunabhängig)."""
+        if not tracks:
+            return []
+        result: List[Dict[str, Any]] = []
+        used_stable_ids: set = set()
+
+        for track in sorted(tracks, key=lambda t: float(t.get("confidence", 0.0)), reverse=True):
+            bbox = track.get("bbox")
+            center = track.get("center")
+            if bbox is None or center is None:
+                continue
+
+            best_sid = None
+            best_score = -1.0
+
+            for sid, mem in self._track_memory.items():
+                if sid in used_stable_ids:
+                    continue
+                missed = self._frame_index - int(mem["last_seen"])
+                if missed > self.track_hold_frames + 4:
+                    continue
+                iou = self._bbox_iou(mem["bbox"], bbox)
+                dist = math.hypot(
+                    float(center[0]) - float(mem["center"][0]),
+                    float(center[1]) - float(mem["center"][1]),
+                )
+                mb = mem["bbox"]
+                diag = math.hypot(
+                    max(1.0, float(mb[2]) - float(mb[0])),
+                    max(1.0, float(mb[3]) - float(mb[1])),
+                )
+                max_dist = max(40.0, diag * 1.2)
+                if iou < 0.05 and dist > max_dist:
+                    continue
+                score = 0.55 * max(0.0, min(1.0, iou)) + 0.45 * max(0.0, 1.0 - dist / max_dist)
+                if score > best_score:
+                    best_score = score
+                    best_sid = sid
+
+            if best_sid is None:
+                best_sid = self._next_stable_id
+                self._next_stable_id += 1
+
+            used_stable_ids.add(best_sid)
+            result.append({**track, "track_id": best_sid})
+
+        return result
+
+    @staticmethod
+    def _bbox_iou(a, b) -> float:
+        ax1, ay1, ax2, ay2 = [float(v) for v in a[:4]]
+        bx1, by1, bx2, by2 = [float(v) for v in b[:4]]
+        ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+        ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+        inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+        union = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1) + max(0.0, bx2 - bx1) * max(0.0, by2 - by1) - inter
+        return inter / union if union > 0 else 0.0
 
     @staticmethod
     def _blend_bbox(previous_bbox, current_bbox, alpha: float):
