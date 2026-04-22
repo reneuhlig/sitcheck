@@ -15,7 +15,7 @@ PROGNOSE_PY="${PROGNOSE_VENV}/bin/python"
 FORECAST_MODEL_BACKEND="${SITCHECK_FORECAST_MODEL_BACKEND:-tf_mlp}"
 TF_MIN_TRAIN_POINTS="${SITCHECK_TF_MIN_TRAIN_POINTS:-1000}"
 FORECAST_TRAINING_MODE="${SITCHECK_FORECAST_TRAINING_MODE:-locked}"
-FORECAST_SNAPSHOT_HORIZONS="${SITCHECK_FORECAST_SNAPSHOT_HORIZONS:-60}"
+FORECAST_SNAPSHOT_HORIZONS="${SITCHECK_FORECAST_SNAPSHOT_HORIZONS:-210}"
 FORECAST_TRAINER_ENABLED_RAW="${SITCHECK_FORECAST_TRAINER_ENABLED:-0}"
 if [[ "${FORECAST_TRAINER_ENABLED_RAW,,}" =~ ^(1|true|yes|on)$ ]]; then
     FORECAST_TRAINER_ENABLED=1
@@ -616,7 +616,7 @@ case "${1:-}" in
         echo "Optional env: SITCHECK_ORCH_MODE=local|docker (default: local)"
         echo "Optional env: SITCHECK_FORECAST_MODEL_BACKEND=baseline|tf_mlp (default: tf_mlp)"
         echo "Optional env: SITCHECK_FORECAST_TRAINING_MODE=locked|maintenance (default: locked)"
-        echo "Optional env: SITCHECK_FORECAST_SNAPSHOT_HORIZONS=60[,1440,...] (default: 60)"
+        echo "Optional env: SITCHECK_FORECAST_SNAPSHOT_HORIZONS=210[,1440,...] (default: 210)"
         echo "Optional env: SITCHECK_FORECAST_TRAINER_ENABLED=0|1 (default: 0)"
         echo "Optional env: SITCHECK_TF_MIN_TRAIN_POINTS=<int> (default: 1000)"
         echo "Optional env: SITCHECK_RECLAIM_PORTS=0|1 (default: 1)"

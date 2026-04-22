@@ -68,9 +68,9 @@ def main():
 
     # Verzögert Importe von schweren/optionalen Abhängigkeiten, damit
     # `--help` ohne komplette Runtime-Dependencies funktioniert.
+    from DetectorFactory import build_person_detector
     from LiveProcessor import LiveProcessor
     from TrajectoryEntryAnalysisModule import EntranceZoneConfig
-    from UltralyticsPersonDetector import UltralyticsPersonDetector
 
     resolved_config_path = _resolve_config_path(args.config)
     config_manager = ConfigManager(config_path=resolved_config_path)
@@ -100,19 +100,9 @@ def main():
         config_manager.update_zone(updated_zone.to_dict())
 
     try:
-        detector = UltralyticsPersonDetector(
-            api_url=str(config["tracking"].get("api_url", "")),
-            api_key=str(config["tracking"].get("api_key", "")),
-            confidence_threshold=float(config["tracking"]["confidence_threshold"]),
-            device=str(config["tracking"].get("device", "cpu")),
-            request_timeout_seconds=float(config["tracking"].get("api_timeout_seconds", 10.0)),
-            failure_cooldown_seconds=float(config["tracking"].get("api_failure_cooldown_seconds", 2.0)),
-            max_api_fps=float(config["tracking"].get("max_api_fps", 0.0)),
-            jpeg_quality=int(config["tracking"].get("api_jpeg_quality", 85)),
-            min_person_height_ratio=float(config["tracking"].get("min_person_height_ratio", 0.10)),
-            min_person_area_ratio=float(config["tracking"].get("min_person_area_ratio", 0.010)),
-            min_person_aspect_ratio=float(config["tracking"].get("min_person_aspect_ratio", 1.00)),
-            allow_classless_person_detections=bool(config["tracking"].get("allow_classless_person_detections", False)),
+        detector = build_person_detector(
+            tracking_cfg=config["tracking"],
+            config_dir=os.path.dirname(resolved_config_path),
         )
 
         processor = LiveProcessor(

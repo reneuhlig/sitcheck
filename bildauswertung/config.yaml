@@ -15,12 +15,21 @@ video:
     default_clip_id: leerlauf
     idle_loop: false
 tracking:
+  detector_mode: hybrid
   api_url: https://predict-69c3e01f0ad4a9f263ed-dproatj77a-ey.a.run.app/predict
   api_key: ul_1464994a534bea3e58bd6539b980ba1e3deb6317
   api_timeout_seconds: 3.0
   api_failure_cooldown_seconds: 2.0
-  max_api_fps: 8.0
+  max_api_fps: 10.0
   api_jpeg_quality: 85
+  model_path: models/yolo26n.pt
+  hybrid_target_fps: 30.0
+  api_refresh_every_n_frames: 3
+  local_preload_enabled: true
+  local_fill_enabled: true
+  local_fill_max_fps: 12.0
+  local_refresh_every_n_frames: 2
+  cache_fallback_max_age_frames: 8
   min_person_height_ratio: 0.1
   min_person_area_ratio: 0.01
   min_person_aspect_ratio: 1.0
@@ -46,7 +55,9 @@ tracking:
   hold_confidence_decay: 0.9
   trail_length: 16
   motion_min_pixels: 1.2
-  process_every_n_frames: 2
+  process_every_n_frames: 1
+  api_result_max_age_frames: 6
+  max_cache_only_frames: 2
   reid_max_gap_frames: 24
   reid_max_distance_px: 150.0
   reid_ambiguity_ratio: 0.87

@@ -148,7 +148,9 @@ Dieser Abschnitt beschreibt die Entscheidungslogik auf Implementierungsebene.
 
 1. Frame-Sampling und Laststeuerung
 - Capture liefert bis `capture_max_fps` Frames in die Analyse-Queue.
-- Inferenz verarbeitet nur jeden n-ten Frame (`process_every_n_frames`).
+- `detector_mode=hybrid` nutzt die API nur im konfigurierten Budget (`max_api_fps`), ergaenzt mit lokalem `model_path` und gibt dazwischen gecachte Tracks zurueck.
+- Lokale Füll-Inferenz ist ueber `local_fill_max_fps` begrenzt, damit der 30-fps-Auswertungsloop nicht CPU-gebunden wird.
+- `process_every_n_frames=1` laesst den Loop jeden Capture-Frame auswerten; die teuren Detector-Refreshes werden intern getaktet.
 - Unter Queue-Druck wird `n` dynamisch bis `dynamic_skip_max_n` angehoben.
 - Effekt: stabile Latenz statt wachsender Verzugszeit.
 

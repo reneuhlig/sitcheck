@@ -22,11 +22,11 @@ if BILDAUSWERTUNG_DIR not in sys.path:
     sys.path.insert(0, BILDAUSWERTUNG_DIR)
 
 from ConfigManager import ConfigManager
+from DetectorFactory import build_person_detector
 from integration.prognose_db_writer import PrognoseDbWriter
 from integration.profile_occupancy_simulation import ProfileOccupancySimulation
 from OccupancyStateModule import OccupancyStateModule
 from TrajectoryEntryAnalysisModule import EntranceZoneConfig, TrajectoryEntryAnalysisModule
-from UltralyticsPersonDetector import UltralyticsPersonDetector
 from VideoInputModule import VideoInputModule
 from VisualizationOutputModule import VisualizationOutputModule
 from YOLOTrackingModule import YOLOTrackingModule
@@ -313,6 +313,7 @@ HTML_PAGE = """
           <div class="stat"><b>Tracks</b><div id="tracks">-</div></div>
           <div class="stat"><b>FPS</b><div id="fps">-</div></div>
           <div class="stat"><b>Infer FPS</b><div id="infer_fps">-</div></div>
+          <div class="stat"><b>Detector</b><div id="detector_source">-</div></div>
           <div class="stat"><b>Frame Ev.</b><div id="events">-</div></div>
         </div>
         <div id="status" class="muted">Loading...</div>
@@ -480,6 +481,7 @@ HTML_PAGE = """
     const tracksEl = document.getElementById('tracks');
     const fpsEl = document.getElementById('fps');
     const inferFpsEl = document.getElementById('infer_fps');
+    const detectorSourceEl = document.getElementById('detector_source');
     const eventsEl = document.getElementById('events');
     const statusEl = document.getElementById('status');
     const toggleAnalysisBtn = document.getElementById('toggle_analysis');
@@ -1034,6 +1036,7 @@ HTML_PAGE = """
         tracksEl.textContent = st.tracks;
         fpsEl.textContent = st.fps;
         inferFpsEl.textContent = st.inference_fps;
+        detectorSourceEl.textContent = st.detector_source ?? '-';
         eventsEl.textContent = `+${st.entries_frame} / -${st.exits_frame}`;
         setAnalysisUi(st.analysis_enabled !== false);
         updateSimulationPanelFromPayload(st);
@@ -1493,19 +1496,9 @@ class TrackingEngine:
         tracking_cfg = self.config["tracking"]
         tracker_path = self._resolve_config_relative_path(str(tracking_cfg["tracker"]))
 
-        self.detector = UltralyticsPersonDetector(
-          api_url=str(tracking_cfg.get("api_url", "")),
-          api_key=str(tracking_cfg.get("api_key", "")),
-            confidence_threshold=float(tracking_cfg["confidence_threshold"]),
-            device=str(tracking_cfg.get("device", "cpu")),
-          request_timeout_seconds=float(tracking_cfg.get("api_timeout_seconds", 10.0)),
-          failure_cooldown_seconds=float(tracking_cfg.get("api_failure_cooldown_seconds", 2.0)),
-          max_api_fps=float(tracking_cfg.get("max_api_fps", 0.0)),
-          jpeg_quality=int(tracking_cfg.get("api_jpeg_quality", 85)),
-          min_person_height_ratio=float(tracking_cfg.get("min_person_height_ratio", 0.10)),
-          min_person_area_ratio=float(tracking_cfg.get("min_person_area_ratio", 0.010)),
-          min_person_aspect_ratio=float(tracking_cfg.get("min_person_aspect_ratio", 1.00)),
-          allow_classless_person_detections=bool(tracking_cfg.get("allow_classless_person_detections", False)),
+        self.detector = build_person_detector(
+          tracking_cfg=tracking_cfg,
+          config_dir=self.config_dir,
         )
         self.video_mode = self._sanitize_video_mode(self.config.get("video", {}).get("input_mode", "youtube"))
         self.simulation_control_mode = self._sanitize_simulation_control_mode(
@@ -2329,6 +2322,7 @@ class TrackingEngine:
           "dash_output_dir": self.dash_output_dir,
           "track_ok": self.last_track_ok,
           "track_error": self.last_track_error,
+          "detector_source": str(getattr(self.detector, "last_detector_source", "api")),
           "zone": self.zone_config.to_dict(),
           "analysis_roi": self.analysis_roi,
           "integration_writer": (
