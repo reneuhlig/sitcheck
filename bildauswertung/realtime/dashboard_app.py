@@ -1196,11 +1196,11 @@ HTML_PAGE = """
     if (IN_PORTAL_PREFIX) {
       mainLinkEl.href = '/';
       analyticsLinkEl.href = '/analytics';
-      apiLinkEl.href = '/api/v1/dashboard/command-center?zone_id=default-zone&horizon=60&history_minutes=180';
+      apiLinkEl.href = '/api/v1/dashboard/command-center?zone_id=default-zone&horizon=210&history_minutes=180';
     } else {
       mainLinkEl.href = `http://${ACCESS_HOST}:8090`;
       analyticsLinkEl.href = `http://${ACCESS_HOST}:8501`;
-      apiLinkEl.href = `http://${ACCESS_HOST}:8000/api/v1/dashboard/command-center?zone_id=default-zone&horizon=60&history_minutes=180`;
+      apiLinkEl.href = `http://${ACCESS_HOST}:8000/api/v1/dashboard/command-center?zone_id=default-zone&horizon=210&history_minutes=180`;
     }
 
     reloadZone();

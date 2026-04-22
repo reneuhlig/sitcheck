@@ -4,10 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Area,
-  AreaChart,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,11 +16,12 @@ import { sitcheckApi } from "@/lib/api";
 import { useAppData } from "@/context/AppDataContext";
 
 const NARRATIVE_TIMEOUT_MS = 120000;
-const FORECAST_START_OFFSET_MINUTES = 30;
-const FORECAST_DURATION_MINUTES = 180;
-const FORECAST_END_OFFSET_MINUTES = FORECAST_START_OFFSET_MINUTES + FORECAST_DURATION_MINUTES;
-const FORECAST_BUCKET_MINUTES = 10;
-const FORECAST_WINDOW_LABEL = "ab +30 Minuten für 3 Stunden";
+const FORECAST_START_OFFSET_MINUTES = 0;
+const HISTORY_CHART_POINT_LIMIT = 120;
+const FORECAST_WINDOW_LABEL =
+  FORECAST_START_OFFSET_MINUTES > 0
+    ? `ab +${FORECAST_START_OFFSET_MINUTES} Minuten`
+    : "ab dem ersten API-Punkt";
 
 function formatWholeNumber(value) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "–";
@@ -57,53 +57,88 @@ function asNumber(value) {
   return value;
 }
 
-function averageForecastValue(points, key) {
-  const values = points
-    .map((point) => asNumber(point?.[key]))
-    .filter((value) => typeof value === "number");
-
-  if (values.length === 0) {
-    return null;
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    const numeric = asNumber(value);
+    if (numeric !== null) {
+      return numeric;
+    }
   }
-
-  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+  return null;
 }
 
 function buildForecastChartData(forecastPoints) {
   const points = Array.isArray(forecastPoints) ? forecastPoints : [];
-  const nowMs = Math.floor(Date.now() / 60000) * 60000;
-  const startMs = nowMs + FORECAST_START_OFFSET_MINUTES * 60 * 1000;
-  const endMs = nowMs + FORECAST_END_OFFSET_MINUTES * 60 * 1000;
-  const bucketMs = FORECAST_BUCKET_MINUTES * 60 * 1000;
-  const buckets = new Map();
+  const startMs =
+    FORECAST_START_OFFSET_MINUTES > 0
+      ? Math.floor(Date.now() / 60000) * 60000 + FORECAST_START_OFFSET_MINUTES * 60 * 1000
+      : null;
 
-  points.forEach((point) => {
-    const timestampMs = new Date(point?.timestamp).getTime();
-    if (!Number.isFinite(timestampMs) || timestampMs < startMs || timestampMs > endMs) {
-      return;
-    }
+  return points
+    .map((point) => {
+      const timestampMs = new Date(point?.timestamp).getTime();
+      if (!Number.isFinite(timestampMs) || (startMs !== null && timestampMs < startMs)) {
+        return null;
+      }
 
-    const bucketIndex = Math.floor((timestampMs - startMs) / bucketMs);
-    const bucketStartMs = startMs + bucketIndex * bucketMs;
+      return {
+        timestamp: timestampMs,
+        label: formatTime(point.timestamp),
+        forecast: asNumber(point?.yhat),
+        lower: asNumber(point?.pi_low),
+        upper: asNumber(point?.pi_high),
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.timestamp - right.timestamp);
+}
 
-    if (!buckets.has(bucketIndex)) {
-      buckets.set(bucketIndex, {
-        timestamp: bucketStartMs,
-        points: [],
-      });
-    }
+function occupancyValue(point) {
+  return firstFiniteNumber(point?.occupancy, point?.persons);
+}
 
-    buckets.get(bucketIndex).points.push(point);
+function buildOccupancyChartData(historyPoints, forecastPoints) {
+  const rowsByTimestamp = new Map();
+  const historyRows = (Array.isArray(historyPoints) ? historyPoints : [])
+    .slice(-HISTORY_CHART_POINT_LIMIT)
+    .map((point) => {
+      const timestampMs = new Date(point?.timestamp).getTime();
+      if (!Number.isFinite(timestampMs)) {
+        return null;
+      }
+
+      return {
+        timestamp: timestampMs,
+        label: formatTime(point.timestamp),
+        occupancy: occupancyValue(point),
+        forecast: null,
+        lower: null,
+        upper: null,
+      };
+    })
+    .filter(Boolean);
+
+  [...historyRows, ...buildForecastChartData(forecastPoints)].forEach((row) => {
+    const existing = rowsByTimestamp.get(row.timestamp) ?? {
+      timestamp: row.timestamp,
+      label: row.label,
+      occupancy: null,
+      forecast: null,
+      lower: null,
+      upper: null,
+    };
+
+    rowsByTimestamp.set(row.timestamp, {
+      ...existing,
+      ...row,
+      occupancy: row.occupancy ?? existing.occupancy,
+      forecast: row.forecast ?? existing.forecast,
+      lower: row.lower ?? existing.lower,
+      upper: row.upper ?? existing.upper,
+    });
   });
 
-  return Array.from(buckets.values())
-    .sort((left, right) => left.timestamp - right.timestamp)
-    .map((bucket) => ({
-      label: formatTime(bucket.timestamp),
-      forecast: averageForecastValue(bucket.points, "yhat"),
-      lower: averageForecastValue(bucket.points, "pi_low"),
-      upper: averageForecastValue(bucket.points, "pi_high"),
-    }));
+  return Array.from(rowsByTimestamp.values()).sort((left, right) => left.timestamp - right.timestamp);
 }
 
 function formatCountPhrase(count, singular, plural) {
@@ -333,7 +368,7 @@ function buildRecommendationNarrative({
     return "Für Besucher bedeutet das konkret: Weil Live-Trend und Buchungen beide nach oben zeigen, dürfte es in der nächsten Stunde eher schwieriger werden, spontan einen ruhigen Platz zu finden.";
   }
 
-  return "Für Besucher bedeutet das konkret: Die 3 Stunden ab +30 Minuten wirken aktuell gut planbar, auch wenn kleinere Ausschläge im laufenden Betrieb normal bleiben.";
+  return "Für Besucher bedeutet das konkret: Der Prognosezeitraum wirkt aktuell gut planbar, auch wenn kleinere Ausschläge im laufenden Betrieb normal bleiben.";
 }
 
 function buildLiveExplainabilitySnapshot({
@@ -368,7 +403,7 @@ function buildLiveExplainabilitySnapshot({
   }
 
   if (forecastValue !== null) {
-    parts.push(`zum Start des Prognosebands in +30 Minuten liegt die Erwartung bei etwa ${formatWholeNumber(forecastValue)} Personen`);
+    parts.push(`zum Start des Prognosebands liegt die Erwartung bei etwa ${formatWholeNumber(forecastValue)} Personen`);
   }
 
   if (peakValue !== null && peakValue !== forecastValue) {
@@ -527,7 +562,7 @@ function buildFallbackNarrative({
       intro += " Für den kurzfristigen Ausblick ist deshalb eher keine zusätzliche Nachfrage bis zur Wiederöffnung zu erwarten.";
     }
   } else if (libraryHours?.closes_within_horizon && typeof libraryHours?.today_close === "string") {
-    intro = `Kurz gesagt: Aktuell sind ungefähr ${formatWholeNumber(currentPersons)} Personen in der Bibliothek. Die Bibliothek schließt heute um ${libraryHours.today_close} Uhr und damit innerhalb des 3-Stunden-Prognosefensters ab +30 Minuten.`;
+    intro = `Kurz gesagt: Aktuell sind ungefähr ${formatWholeNumber(currentPersons)} Personen in der Bibliothek. Die Bibliothek schließt heute um ${libraryHours.today_close} Uhr und damit innerhalb des Prognosefensters.`;
     if (typeof forecastCurrent === "number" || typeof forecastPeak === "number") {
       intro += ` Selbst wenn das Rohmodell rechnerisch noch etwa ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen sieht${zoneCapacity ? `, bei insgesamt ${formatWholeNumber(zoneCapacity)} verfügbaren Plätzen` : ""}, begrenzt die anstehende Schließung spätere Nachfrage deutlich.`;
     }
@@ -535,14 +570,14 @@ function buildFallbackNarrative({
     intro = `Kurz gesagt: Aktuell sind ungefähr ${formatWholeNumber(currentPersons)} Personen in der Bibliothek.`;
     if (typeof occupancyDelta === "number") {
       if (occupancyDelta > 10) {
-        intro += ` Im 3-Stunden-Fenster ab +30 Minuten rechne ich damit, dass es deutlich voller wird und sich die Auslastung in Richtung ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen bewegt${zoneCapacity ? `, bei insgesamt ${formatWholeNumber(zoneCapacity)} verfügbaren Plätzen` : ""}.`;
+        intro += ` Im Prognosefenster rechne ich damit, dass es deutlich voller wird und sich die Auslastung in Richtung ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen bewegt${zoneCapacity ? `, bei insgesamt ${formatWholeNumber(zoneCapacity)} verfügbaren Plätzen` : ""}.`;
       } else if (occupancyDelta < -10) {
-        intro += ` Im 3-Stunden-Fenster ab +30 Minuten erwarte ich eher eine Entspannung und damit weniger Belegung als im aktuellen Moment. Der wahrscheinliche Bereich liegt bei etwa ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
+        intro += ` Im Prognosefenster erwarte ich eher eine Entspannung und damit weniger Belegung als im aktuellen Moment. Der wahrscheinliche Bereich liegt bei etwa ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
       } else {
-        intro += ` Für das 3-Stunden-Fenster ab +30 Minuten erwarte ich keine extreme Verschiebung, sondern eher einen Bereich um ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
+        intro += ` Für das Prognosefenster erwarte ich keine extreme Verschiebung, sondern eher einen Bereich um ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
       }
     } else {
-      intro += ` Für das 3-Stunden-Fenster ab +30 Minuten liegt die erwartete Auslastung ungefähr im Bereich von ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
+      intro += ` Für das Prognosefenster liegt die erwartete Auslastung ungefähr im Bereich von ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
     }
   }
 
@@ -587,7 +622,7 @@ function buildNarrativePrompt({
   historyPoints,
 }) {
   const parts = [
-    "Erkläre für Studierende in einfacher Sprache, warum die Bibliothek ab 30 Minuten nach der aktuellen Uhrzeit für die folgenden 3 Stunden so prognostiziert wird.",
+    "Erkläre für Studierende in einfacher Sprache, warum die Bibliothek im Forecast-Zeitraum so prognostiziert wird.",
   ];
   const current = asNumber(currentPersons);
   const capacity = asNumber(zoneCapacity);
@@ -610,7 +645,7 @@ function buildNarrativePrompt({
   }
 
   if (forecastValue !== null) {
-    parts.push(`Der erste Prognosepunkt in +30 Minuten liegt bei etwa ${Math.round(forecastValue)} Personen.`);
+    parts.push(`Der erste Prognosepunkt liegt bei etwa ${Math.round(forecastValue)} Personen.`);
   }
 
   if (peakValue !== null) {
@@ -648,7 +683,7 @@ function buildNarrativePrompt({
     parts.push(`Außerdem gibt es ${eventCount} relevante Campus-Termine.`);
   }
 
-  parts.push("Wenn die Bibliothek vor Ablauf des 3-Stunden-Prognosefensters ab +30 Minuten schließt, behandle das als dominanten begrenzenden Faktor.");
+  parts.push("Wenn die Bibliothek vor Ablauf des Prognosefensters schließt, behandle das als dominanten begrenzenden Faktor.");
   parts.push("Nenne die zwei bis drei wichtigsten Treiber, die Unsicherheit und was das konkret für Besucher bedeutet.");
   return parts.join(" ");
 }
@@ -700,7 +735,7 @@ export default function HomePage() {
   const commandCenterFailureCountRef = useRef(0);
   const narrativeInFlightRef = useRef(false);
   const narrativePromptRef = useRef(
-    "Erkläre für Studierende in einfacher Sprache, warum die Bibliothek ab 30 Minuten nach der aktuellen Uhrzeit für die folgenden 3 Stunden so prognostiziert wird.",
+    "Erkläre für Studierende in einfacher Sprache, warum die Bibliothek im Forecast-Zeitraum so prognostiziert wird.",
   );
 
   useEffect(() => {
@@ -849,27 +884,28 @@ export default function HomePage() {
     };
   }, [bookingRevision]);
 
-  const occupancy = hubOverview?.occupancy ?? {};
-  const currentPersons = typeof occupancy.currentPersons === "number" ? occupancy.currentPersons : 0;
-  const averagePersons = typeof occupancy.averagePersons === "number" ? occupancy.averagePersons : null;
-  const utilization = zoneCapacity ? Math.round((currentPersons / zoneCapacity) * 100) : null;
-  const freeSeats = zoneCapacity ? Math.max(zoneCapacity - currentPersons, 0) : null;
-
   const commandCenterHistoryPoints = Array.isArray(commandCenter?.history?.points)
     ? commandCenter.history.points
     : [];
+  const commandCenterLatestHistoryPoint = commandCenterHistoryPoints.at(-1) ?? {};
+  const occupancy = hubOverview?.occupancy ?? {};
   const hubHistoryPoints = Array.isArray(occupancy?.history) ? occupancy.history : [];
+  const hubLatestHistoryPoint = hubHistoryPoints.at(-1) ?? {};
+  const currentPersons = firstFiniteNumber(
+    occupancy.currentPersons,
+    commandCenter?.live?.occupancy,
+    commandCenterLatestHistoryPoint.occupancy,
+    commandCenterLatestHistoryPoint.persons,
+    hubLatestHistoryPoint.occupancy,
+    hubLatestHistoryPoint.persons,
+  );
+  const averagePersons = firstFiniteNumber(occupancy.averagePersons);
+  const utilization =
+    zoneCapacity && currentPersons !== null ? Math.round((currentPersons / zoneCapacity) * 100) : null;
+  const freeSeats =
+    zoneCapacity && currentPersons !== null ? Math.max(zoneCapacity - currentPersons, 0) : null;
   const resolvedHistoryPoints =
     commandCenterHistoryPoints.length > 0 ? commandCenterHistoryPoints : hubHistoryPoints;
-  const historyChartData = resolvedHistoryPoints.slice(-24).map((point) => ({
-    label: formatTime(point.timestamp),
-    occupancy:
-      typeof point.occupancy === "number"
-        ? point.occupancy
-        : typeof point.persons === "number"
-          ? point.persons
-          : 0,
-  }));
   const historySourceLabel =
     commandCenterHistoryPoints.length > 0
       ? "Command Center"
@@ -886,6 +922,8 @@ export default function HomePage() {
   const forecastPoints =
     commandCenterForecastPoints.length > 0 ? commandCenterForecastPoints : hubForecastPoints;
   const forecastChartData = buildForecastChartData(forecastPoints);
+  const occupancyChartData = buildOccupancyChartData(resolvedHistoryPoints, forecastPoints);
+  const displayedHistoryPointCount = Math.min(resolvedHistoryPoints.length, HISTORY_CHART_POINT_LIMIT);
 
   const forecastPeak = forecastChartData.length > 0
     ? forecastChartData.reduce((peak, point) => {
@@ -966,11 +1004,11 @@ export default function HomePage() {
       : "";
 
   const liveCards = [
-    { label: "Personen live", value: currentPersons, hint: "aktueller Zählerstand" },
+    { label: "Personen live", value: currentPersons !== null ? currentPersons : "Lädt …", hint: "aktueller Zählerstand" },
     { label: "Kapazität", value: zoneCapacity ?? "–", hint: "aktive Bibliotheksentität" },
     { label: "Freie Plätze", value: freeSeats ?? "–", hint: "rein rechnerisch verfügbar" },
     { label: "Auslastung", value: utilization !== null ? `${utilization}%` : "–", hint: "bezogen auf die Bibliothekskapazität" },
-    { label: "3h Peak", value: forecastPeak !== null ? Math.round(forecastPeak) : "–", hint: "Spitze ab +30 min inkl. Buchungs-Overlay" },
+    { label: "Forecast Peak", value: forecastPeak !== null ? Math.round(forecastPeak) : "–", hint: "Spitze aus den API-Punkten inkl. Buchungs-Overlay" },
     { label: "Durchschnitt", value: averagePersons !== null ? averagePersons.toFixed(1) : "–", hint: "historischer Mittelwert im Hub" },
   ];
 
@@ -985,7 +1023,7 @@ export default function HomePage() {
             <div className="space-y-2">
               <h2 className="text-3xl font-semibold sm:text-4xl">Live-Lagebild des Learning Centers DHBW</h2>
               <p className="max-w-2xl text-sm leading-6 text-slate-200 sm:text-base">
-                Sitcheck bündelt Live-Auslastung, 3-Stunden-Prognose ab +30 Minuten, Explainable AI und
+                Sitcheck bündelt Live-Auslastung, Kurzfristprognose, Explainable AI und
                 Nutzerbuchungen für die gesamte Bibliothek in einer einzigen Oberfläche.
               </p>
             </div>
@@ -1055,9 +1093,9 @@ export default function HomePage() {
         {liveCards.map((card) => (
           <article
             key={card.label}
-            className="rounded-[1.75rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-5 shadow-[0_24px_54px_rgba(15,23,42,0.08)]"
+            className="rounded-[1.25rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-5 shadow-[0_18px_42px_rgba(15,23,42,0.07)]"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--ink-muted)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--ink-muted)]">
               {card.label}
             </p>
             <p className="mt-3 text-3xl font-semibold text-[color:var(--ink-strong)]">
@@ -1068,43 +1106,80 @@ export default function HomePage() {
         ))}
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <article className="rounded-[2rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-6 shadow-[0_24px_54px_rgba(15,23,42,0.08)]">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <section className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
+        <article className="rounded-[1.5rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-6 shadow-[0_22px_48px_rgba(15,23,42,0.08)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink-muted)]">
-                3-Stunden-Prognose
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
+                Belegung und Forecast
               </p>
               <h3 className="mt-1 text-2xl font-semibold text-[color:var(--ink-strong)]">
-                Prognoseband inkl. Buchungs-Overlay
+                Live-Verlauf mit Prognoseband
               </h3>
-              <p className="mt-2 text-sm leading-6 text-[color:var(--ink-soft)]">
-                Die Darstellung startet {FORECAST_WINDOW_LABEL}, aggregiert die Messpunkte im
-                10-Minuten-Takt und zeigt die Prognose inkl. Buchungs-Overlay.
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--ink-soft)]">
+                Die Ansicht kombiniert die letzten {displayedHistoryPointCount} History-Punkte mit
+                den Forecast-Punkten aus der API. Der Forecast startet {FORECAST_WINDOW_LABEL}.
               </p>
             </div>
-            <div className="rounded-2xl bg-[color:var(--surface-muted)] px-4 py-3 text-sm text-[color:var(--ink-strong)]">
-              <p>Erster Wert (+30 min): {forecastCurrent ?? "–"}</p>
-              <p>Peak: {forecastPeak !== null ? Math.round(forecastPeak) : "–"}</p>
+            <div className="grid gap-2 text-sm text-[color:var(--ink-strong)] sm:grid-cols-3 lg:min-w-[20rem]">
+              <div className="rounded-[1rem] bg-[color:var(--surface-muted)] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">History</p>
+                <p className="mt-1 font-semibold">{displayedHistoryPointCount}</p>
+              </div>
+              <div className="rounded-[1rem] bg-[color:var(--surface-muted)] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">Forecast</p>
+                <p className="mt-1 font-semibold">{forecastChartData.length}</p>
+              </div>
+              <div className="rounded-[1rem] bg-[color:var(--surface-muted)] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">Peak</p>
+                <p className="mt-1 font-semibold">{forecastPeak !== null ? Math.round(forecastPeak) : "–"}</p>
+              </div>
             </div>
           </div>
-
-          <div className="mt-6 h-80">
-            {forecastChartData.length > 0 ? (
+          <div className="mt-5 flex flex-wrap gap-4 text-sm text-[color:var(--ink-soft)]">
+            <span className="inline-flex items-center gap-2">
+              <span className="h-0.5 w-6 rounded-full bg-[#334155]" />
+              History
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-0.5 w-6 rounded-full bg-[#2563eb]" />
+              Forecast
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3 w-6 rounded-sm bg-[#8bc6ec]/40" />
+              Band
+            </span>
+            <span>
+              Letztes Live-Update: {formatDateTime(commandCenter?.live?.timestamp ?? occupancy?.lastUpdated)}
+              {historySourceLabel ? ` • Quelle: ${historySourceLabel}` : ""}
+            </span>
+          </div>
+          <div className="mt-6 h-[26rem]">
+            {occupancyChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={forecastChartData} margin={{ top: 12, right: 20, left: 0, bottom: 0 }}>
+                <ComposedChart data={occupancyChartData} margin={{ top: 12, right: 20, left: -4, bottom: 4 }}>
                   <defs>
                     <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#8bc6ec" stopOpacity={0.38} />
                       <stop offset="95%" stopColor="#8bc6ec" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#d8e3e1" />
-                  <XAxis dataKey="label" stroke="#6e8381" />
-                  <YAxis allowDecimals={false} stroke="#6e8381" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#d8e3e1" vertical={false} />
+                  <XAxis dataKey="label" minTickGap={30} tickLine={false} stroke="#6e8381" />
+                  <YAxis
+                    allowDecimals={false}
+                    tickLine={false}
+                    stroke="#6e8381"
+                    width={42}
+                    domain={[
+                      (dataMin) => Math.max(0, Math.floor(dataMin - 5)),
+                      (dataMax) => Math.ceil(dataMax + 5),
+                    ]}
+                  />
                   <Tooltip
                     formatter={(value, name) => {
                       const labels = {
+                        occupancy: "History",
                         forecast: "Forecast",
                         lower: "Unteres Band",
                         upper: "Oberes Band",
@@ -1112,24 +1187,34 @@ export default function HomePage() {
                       return [`${value} Personen`, labels[name] ?? name];
                     }}
                   />
-                  <Area type="monotone" dataKey="upper" stroke="#9fd3f2" fill="url(#forecastFill)" />
-                  <Area type="monotone" dataKey="lower" stroke="#d9edf9" fillOpacity={0} />
-                  <Line type="monotone" dataKey="forecast" stroke="#487ba3" strokeWidth={3} dot={{ r: 3 }} />
-                </AreaChart>
+                  <Area type="monotone" dataKey="upper" stroke="none" fill="url(#forecastFill)" connectNulls={false} />
+                  <Area type="monotone" dataKey="lower" stroke="none" fill="white" fillOpacity={1} connectNulls={false} />
+                  <Line type="monotone" dataKey="occupancy" stroke="#334155" strokeWidth={2.5} dot={false} name="History" />
+                  <Line
+                    type="monotone"
+                    dataKey="forecast"
+                    stroke="#2563eb"
+                    strokeWidth={3}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                    name="Forecast"
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex h-full items-center justify-center rounded-[1.5rem] border border-dashed border-[color:var(--stroke-strong)] bg-[color:var(--surface-muted)] px-6 text-center text-sm text-[color:var(--ink-soft)]">
-                Noch keine Forecast-Punkte verfügbar.
+              <div className="flex h-full items-center justify-center rounded-[1.25rem] border border-dashed border-[color:var(--stroke-strong)] bg-[color:var(--surface-muted)] px-6 text-center text-sm text-[color:var(--ink-soft)]">
+                Noch keine History- oder Forecast-Punkte verfügbar.
               </div>
             )}
           </div>
         </article>
 
-        <article className="rounded-[2rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-6 shadow-[0_24px_54px_rgba(15,23,42,0.08)]">
-          <h3 className="text-2xl font-semibold text-[color:var(--ink-strong)]">
+        <article className="rounded-[1.5rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-6 shadow-[0_22px_48px_rgba(15,23,42,0.08)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
             Explainable AI
-          </h3>
-          <div className="mt-3 rounded-[1.5rem] border border-[color:var(--stroke-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(241,247,246,0.96))] px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+          </p>
+          <h3 className="mt-1 text-2xl font-semibold text-[color:var(--ink-strong)]">Warum diese Prognose?</h3>
+          <div className="mt-4 rounded-[1.25rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-muted)] px-5 py-5">
             <p className="whitespace-pre-line text-[15px] leading-8 text-[color:var(--ink-strong)]">
               {readableNarrative}
             </p>
@@ -1148,57 +1233,16 @@ export default function HomePage() {
       </section>
 
       <section className="grid gap-6">
-        <article className="rounded-[2rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-6 shadow-[0_24px_54px_rgba(15,23,42,0.08)]">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink-muted)]">
-                Live-Historie
-              </p>
-              <h3 className="mt-1 text-2xl font-semibold text-[color:var(--ink-strong)]">
-                Verlauf der letzten Messpunkte
-              </h3>
-            </div>
-            <p className="text-sm text-[color:var(--ink-soft)]">
-              Letztes Live-Update: {formatDateTime(commandCenter?.live?.timestamp ?? occupancy?.lastUpdated)}
-              {historySourceLabel ? ` • Quelle: ${historySourceLabel}` : ""}
-            </p>
-          </div>
-
-          <div className="mt-6 h-72">
-            {historyChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={historyChartData} margin={{ top: 12, right: 20, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#d8e3e1" />
-                  <XAxis dataKey="label" stroke="#6e8381" />
-                  <YAxis allowDecimals={false} stroke="#6e8381" />
-                  <Tooltip formatter={(value) => [`${value} Personen`, "Live-Wert"]} />
-                  <Line type="monotone" dataKey="occupancy" stroke="#5a96c0" strokeWidth={3} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded-[1.5rem] border border-dashed border-[color:var(--stroke-strong)] bg-[color:var(--surface-muted)] px-6 text-center text-sm text-[color:var(--ink-soft)]">
-                Noch keine historischen Datenpunkte vorhanden.
-              </div>
-            )}
-          </div>
-        </article>
-      </section>
-
-      <section className="grid gap-6">
-        <article className="rounded-[2rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-6 shadow-[0_24px_54px_rgba(15,23,42,0.08)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink-muted)]">
-            Buchungsstatus
-          </p>
-          <h3 className="mt-1 text-2xl font-semibold text-[color:var(--ink-strong)]">
-            Einfluss deiner Reservierungen
-          </h3>
+        <article className="rounded-[1.5rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-6 shadow-[0_22px_48px_rgba(15,23,42,0.08)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink-muted)]">Buchungsstatus</p>
+          <h3 className="mt-1 text-2xl font-semibold text-[color:var(--ink-strong)]">Einfluss deiner Reservierungen</h3>
           {sessionLoading ? (
             <p className="mt-4 text-sm text-[color:var(--ink-soft)]">Sitzung wird geladen …</p>
           ) : authenticated ? (
             <div className="mt-4 space-y-4">
               <p className="text-sm leading-6 text-[color:var(--ink-soft)]">
                 Alle bestätigten Bibliotheks-Buchungen aller Nutzer zählen im MVP als bekannte
-                Nachfrage und fließen gemeinsam in die 3-Stunden-Prognose ab +30 Minuten ein. Deine Buchungen
+                Nachfrage und fließen gemeinsam in die Kurzfristprognose ein. Deine Buchungen
                 sind also nur ein Teil des globalen Effekts.
               </p>
               <div className="rounded-[1.5rem] bg-[color:var(--surface-muted)] px-4 py-4">
@@ -1222,8 +1266,7 @@ export default function HomePage() {
                 href="/bookings"
                 className="inline-flex items-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[color:var(--accent-strong)]"
               >
-                Buchungen öffnen
-                <span aria-hidden="true">→</span>
+                Buchungen öffnen <span aria-hidden="true">→</span>
               </Link>
             </div>
           ) : (
@@ -1236,8 +1279,7 @@ export default function HomePage() {
                 href="/login"
                 className="inline-flex items-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[color:var(--accent-strong)]"
               >
-                Login oder Registrierung
-                <span aria-hidden="true">→</span>
+                Login oder Registrierung <span aria-hidden="true">→</span>
               </Link>
             </div>
           )}
