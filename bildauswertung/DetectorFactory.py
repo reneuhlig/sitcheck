@@ -56,8 +56,15 @@ def build_person_detector(tracking_cfg: Dict[str, Any], config_dir: Optional[str
                 **common,
             )
             if bool(tracking_cfg.get("local_preload_enabled", True)):
-                local_detector.warmup(imgsz=int(tracking_cfg.get("imgsz", 640)))
-        elif mode == "local":
+                try:
+                    local_detector.warmup(imgsz=int(tracking_cfg.get("imgsz", 640)))
+                    print(f"[INFO] Lokales YOLO-Modell geladen: {model_path}")
+                except Exception as exc:
+                    print(f"[WARN] Lokales YOLO-Modell warmup fehlgeschlagen: {exc}")
+                    local_detector = None
+        else:
+            print(f"[WARN] Lokales Modell nicht gefunden: {model_path}")
+        if mode == "local" and local_detector is None:
             raise ValueError(f"tracking.detector_mode=local braucht ein lokales Modell: {model_path}")
 
     if mode == "api":
@@ -77,6 +84,10 @@ def build_person_detector(tracking_cfg: Dict[str, Any], config_dir: Optional[str
         # Never allow configured refresh cadence to be sparser than the effective API/local FPS budgets.
         api_refresh_every_n_frames = max(1, min(configured_api_refresh_every_n, default_api_refresh_every_n))
         local_refresh_every_n_frames = max(1, min(configured_local_refresh_every_n, default_local_refresh_every_n))
+        print(
+            f"[INFO] HybridDetector: API jeder {api_refresh_every_n_frames}. Frame, "
+            f"Local jeder {local_refresh_every_n_frames}. Frame, target {target_fps}fps"
+        )
         return HybridPersonDetector(
             api_detector=api_detector,
             local_detector=local_detector,
@@ -91,4 +102,8 @@ def build_person_detector(tracking_cfg: Dict[str, Any], config_dir: Optional[str
     detector = api_detector or local_detector
     if detector is None:
         raise ValueError("Kein Detector verfügbar: API-Konfiguration fehlt und lokales Modell wurde nicht gefunden")
+    if api_detector and not local_detector:
+        print("[WARN] Nur API-Detektor aktiv – kein lokales Modell verfügbar!")
+    elif local_detector and not api_detector:
+        print("[WARN] Nur lokaler Detektor aktiv – keine API konfiguriert!")
     return detector

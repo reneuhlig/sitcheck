@@ -45,6 +45,8 @@ class HybridPersonDetector(BaseDetector):
         self._cached_frame_counter = 0
         self._frame_counter = 0
         self._cache_only_streak = 0
+        self._local_fail_streak = 0
+        self._local_fail_logged = False
 
     def _api_ready(self, now_ts: float) -> bool:
         if self.api_detector is None:
@@ -218,8 +220,16 @@ class HybridPersonDetector(BaseDetector):
                 self.last_track_error = ""
                 self._cache_tracks(tracks, "local")
                 self._cache_only_streak = 0
+                self._local_fail_streak = 0
                 return tracks
             errors.append(str(getattr(self.local_detector, "last_track_error", "") or "local_failed"))
+            self._local_fail_streak += 1
+            if self._local_fail_streak >= 10 and not self._local_fail_logged:
+                self._local_fail_logged = True
+                print(
+                    f"[WARN] Lokaler Detektor {self._local_fail_streak}× hintereinander fehlgeschlagen: "
+                    f"{getattr(self.local_detector, 'last_track_error', '?')}"
+                )
 
         if self._cached_tracks_still_valid():
             return self._return_cached_tracks()
