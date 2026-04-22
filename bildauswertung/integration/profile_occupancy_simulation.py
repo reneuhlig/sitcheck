@@ -48,8 +48,11 @@ class ProfileOccupancySimulation:
         self._base_occupancy = 0.0
         self._base_occupancy_rounded = 0
         self._effective_occupancy = 0
+        self._displayed_occupancy_hint: Optional[float] = None
+        self._display_feedback_alpha = 0.18
         self._tick_entries_buffer = 0
         self._tick_exits_buffer = 0
+        self._last_temp_offset_rounded = 0
 
         self._sim_entries_total = 0
         self._sim_exits_total = 0
@@ -104,6 +107,17 @@ class ProfileOccupancySimulation:
         with self._lock:
             self._detection_impacts.append({"delta": delta, "ts": time.monotonic()})
 
+    def observe_displayed_occupancy(self, value: Any):
+        try:
+            numeric = float(value)
+        except Exception:
+            return
+        if numeric < 0:
+            numeric = 0.0
+
+        with self._lock:
+            self._displayed_occupancy_hint = min(self._max_reasonable, numeric)
+
     def consume_tick_events(self) -> Dict[str, int]:
         with self._lock:
             values = {
@@ -140,6 +154,9 @@ class ProfileOccupancySimulation:
                 "simulated_occupancy": int(self._effective_occupancy),
                 "sim_entries_total": int(self._sim_entries_total),
                 "sim_exits_total": int(self._sim_exits_total),
+                "displayed_occupancy_hint": (
+                    int(round(self._displayed_occupancy_hint)) if self._displayed_occupancy_hint is not None else None
+                ),
                 "pending_detection_impacts": int(len(self._detection_impacts)),
                 "last_profile_timestamp": self._last_profile_timestamp,
             }
@@ -186,6 +203,7 @@ class ProfileOccupancySimulation:
             noise_scale = self.noise_sigma_scale
             max_step = self.max_step_per_tick * max(0.5, elapsed / max(0.5, self.tick_seconds))
             rollback_sec = self.rollback_minutes * 60.0
+            displayed_hint = self._displayed_occupancy_hint
 
             noisy_target = target_mean + random.gauss(0.0, max(0.5, target_std) * noise_scale)
             noisy_target = max(0.0, min(self._max_reasonable, noisy_target))
@@ -197,6 +215,18 @@ class ProfileOccupancySimulation:
             elif delta < -max_step:
                 delta = -max_step
             self._base_occupancy = max(0.0, self._base_occupancy + delta)
+
+            # Keep simulation anchored to what the dashboard actually displays,
+            # so transitions between video-driven and profile-driven modes stay stable.
+            if displayed_hint is not None:
+                display_gap = displayed_hint - self._base_occupancy
+                display_feedback_step = max_step * 0.6
+                display_feedback = display_gap * self._display_feedback_alpha
+                if display_feedback > display_feedback_step:
+                    display_feedback = display_feedback_step
+                elif display_feedback < -display_feedback_step:
+                    display_feedback = -display_feedback_step
+                self._base_occupancy = max(0.0, self._base_occupancy + display_feedback)
 
             new_base = int(round(self._base_occupancy))
             base_delta = new_base - self._base_occupancy_rounded
@@ -220,7 +250,18 @@ class ProfileOccupancySimulation:
                 active_impacts.append(item)
             self._detection_impacts = active_impacts
 
-            self._effective_occupancy = max(0, new_base + int(round(temp_offset)))
+            temp_offset_rounded = int(round(temp_offset))
+            temp_delta = temp_offset_rounded - self._last_temp_offset_rounded
+            if temp_delta > 0:
+                self._sim_entries_total += temp_delta
+                self._tick_entries_buffer += temp_delta
+            elif temp_delta < 0:
+                exits = abs(temp_delta)
+                self._sim_exits_total += exits
+                self._tick_exits_buffer += exits
+            self._last_temp_offset_rounded = temp_offset_rounded
+
+            self._effective_occupancy = max(0, new_base + temp_offset_rounded)
             self._last_profile_timestamp = now_dt.isoformat(timespec="seconds")
 
     def _target_for_datetime(self, when: datetime) -> Tuple[float, float]:
@@ -325,6 +366,7 @@ class ProfileOccupancySimulation:
                 self._max_reasonable = max(10.0, max(all_values) * 1.2)
             self._base_occupancy = max(0.0, self._global_mean)
             self._base_occupancy_rounded = int(round(self._base_occupancy))
+            self._last_temp_offset_rounded = 0
             self._effective_occupancy = int(self._base_occupancy_rounded)
             self._profile_bucket_count = len(self._profile_by_weekday_slot)
             self._profile_loaded = True

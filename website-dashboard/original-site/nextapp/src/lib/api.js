@@ -1,7 +1,7 @@
 "use client";
 
 const DEFAULT_ZONE_ID = "default-zone";
-const DEFAULT_HORIZON = 60;
+const DEFAULT_HORIZON = 210;
 const DEFAULT_HISTORY_MINUTES = 180;
 const DEFAULT_EXPLAIN_OLLAMA_MODEL = "qwen2.5:0.5b";
 
@@ -93,7 +93,7 @@ export const sitcheckApi = {
         query:
           typeof query === "string" && query.trim()
             ? query.trim()
-            : "Erkläre in einfacher deutscher Sprache, warum die Bibliothek in den nächsten 60 Minuten so prognostiziert wird.",
+            : "Erkläre in einfacher deutscher Sprache, warum die Bibliothek ab 30 Minuten nach der aktuellen Uhrzeit für die folgenden 3 Stunden so prognostiziert wird.",
         response_mode: "free",
         ollama_model: ollamaModel,
       },

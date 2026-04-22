@@ -303,7 +303,9 @@ HTML_PAGE = """
       <div class="panel">
         <h3 class="title">Controls</h3>
         <div class="row">
-          <div class="stat"><b>Occupancy</b><div id="occupancy">-</div></div>
+          <div class="stat"><b>Display Occ</b><div id="occupancy">-</div></div>
+          <div class="stat"><b>Video Occ</b><div id="video_occupancy">-</div></div>
+          <div class="stat"><b>Sim Occ</b><div id="sim_occupancy">-</div></div>
           <div class="stat"><b>Entries</b><div id="entries">-</div></div>
           <div class="stat"><b>Exits</b><div id="exits">-</div></div>
         </div>
@@ -471,6 +473,8 @@ HTML_PAGE = """
     const lineStageEl = document.getElementById('line_stage');
 
     const occupancyEl = document.getElementById('occupancy');
+    const videoOccupancyEl = document.getElementById('video_occupancy');
+    const simOccupancyEl = document.getElementById('sim_occupancy');
     const entriesEl = document.getElementById('entries');
     const exitsEl = document.getElementById('exits');
     const tracksEl = document.getElementById('tracks');
@@ -1023,6 +1027,8 @@ HTML_PAGE = """
         const res = await fetch(withPrefix('/api/state'));
         const st = await res.json();
         occupancyEl.textContent = st.occupancy;
+        videoOccupancyEl.textContent = st.video_occupancy ?? st.frame_occupancy ?? 0;
+        simOccupancyEl.textContent = st.simulated_occupancy ?? 0;
         entriesEl.textContent = st.entries_total;
         exitsEl.textContent = st.exits_total;
         tracksEl.textContent = st.tracks;
@@ -1544,7 +1550,12 @@ class TrackingEngine:
         self.analysis_roi = self._normalize_analysis_roi(tracking_cfg.get("analysis_roi", {}))
 
         self.zone_config = EntranceZoneConfig.from_dict(self.config["zone"])
-        self.entry_analysis = TrajectoryEntryAnalysisModule(zone_config=self.zone_config)
+        self.entry_analysis = TrajectoryEntryAnalysisModule(
+          zone_config=self.zone_config,
+          reid_max_gap_frames=int(tracking_cfg.get("reid_max_gap_frames", 24)),
+          reid_max_distance_px=float(tracking_cfg.get("reid_max_distance_px", 150.0)),
+          reid_ambiguity_ratio=float(tracking_cfg.get("reid_ambiguity_ratio", 0.87)),
+        )
         self.occupancy_state = OccupancyStateModule(db=None)
         self.visualizer = VisualizationOutputModule(show_window=False, enable_zone_editor=False)
         self.integration_writer: Optional[PrognoseDbWriter] = None
@@ -2290,9 +2301,15 @@ class TrackingEngine:
         if sim_exits > 0:
           self.exits_total += sim_exits
 
+        video_occupancy = int(self.current_frame_occupancy)
+        simulated_occupancy = int(self.profile_simulation.current_occupancy())
         live_occupancy = self._resolve_live_occupancy()
+        self.profile_simulation.observe_displayed_occupancy(live_occupancy)
         state = {
           "occupancy": live_occupancy,
+          "displayed_occupancy": live_occupancy,
+          "video_occupancy": video_occupancy,
+          "simulated_occupancy": simulated_occupancy,
           "frame_occupancy": int(self.current_frame_occupancy),
           "session_occupancy": int(self.occupancy_state.occupancy),
           "occupancy_mode": self.integration_write_mode,

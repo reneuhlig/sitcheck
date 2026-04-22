@@ -123,7 +123,7 @@ export default function BookingsPage() {
         <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--ink-soft)]">
           Für Reservierungen benötigt Sitcheck ein Konto. Nach dem Login kannst du Bibliotheks-Slots
           anlegen, einsehen und stornieren. Jede bestätigte Buchung zählt im MVP als +1 geplanter Platz
-          in der 60-Minuten-Prognose.
+          in der 3-Stunden-Prognose ab +30 Minuten.
         </p>
         <Link
           href="/login"

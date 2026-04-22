@@ -66,13 +66,24 @@ class EntranceZoneConfig:
 class TrajectoryEntryAnalysisModule:
     """Analysiert Track-Trajektorien und erkennt valide Entry-Events."""
 
-    def __init__(self, zone_config: EntranceZoneConfig, max_history: int = 40):
+    def __init__(
+        self,
+        zone_config: EntranceZoneConfig,
+        max_history: int = 40,
+        reid_max_gap_frames: int = 20,
+        reid_max_distance_px: float = 120.0,
+        reid_ambiguity_ratio: float = 0.87,
+    ):
         self.zone_config = zone_config
         self.max_history = max_history
         self.track_history: Dict[int, Deque[Tuple[float, float]]] = {}
         self._recent_lost_tracks: Dict[int, Dict[str, Any]] = {}
-        self.reid_max_gap_frames = 20
-        self.reid_max_distance_px = 120.0
+        self.base_reid_max_gap_frames = max(8, int(reid_max_gap_frames))
+        self.base_reid_max_distance_px = max(30.0, float(reid_max_distance_px))
+        self.reid_ambiguity_ratio = max(0.55, min(0.98, float(reid_ambiguity_ratio)))
+        self.reid_max_gap_frames = self.base_reid_max_gap_frames
+        self.reid_max_distance_px = self.base_reid_max_distance_px
+        self._active_track_count = 0
         self._frame_idx = 0
         self._last_event_frame_by_track: Dict[int, int] = {}
         self._last_inside_entry_by_track: Dict[int, bool] = {}
@@ -94,11 +105,11 @@ class TrajectoryEntryAnalysisModule:
         valid_tracks: List[Dict[str, Any]] = []
 
         self.reid_max_gap_frames = max(
-            14,
+            self.base_reid_max_gap_frames,
             self.zone_config.min_event_cooldown_frames * 3,
         )
         self.reid_max_distance_px = max(
-            120.0,
+            self.base_reid_max_distance_px,
             min(260.0, self.zone_config.min_crossing_displacement_px * 7.0),
         )
 
@@ -142,6 +153,8 @@ class TrajectoryEntryAnalysisModule:
 
             if event is not None:
                 events.append(event)
+
+        self._active_track_count = len(active_track_ids)
 
         return events
 
@@ -324,20 +337,33 @@ class TrajectoryEntryAnalysisModule:
 
         prev = history[-2]
         curr = history[-1]
-        prev_in_entry = self._point_in_polygon(prev, polygon_entry)
-        prev_in_exit = self._point_in_polygon(prev, polygon_exit)
-        curr_in_entry = self._point_in_polygon(curr, polygon_entry)
-        curr_in_exit = self._point_in_polygon(curr, polygon_exit)
+        tolerance_px = max(6.0, self.zone_config.min_crossing_displacement_px * 0.30)
+        prev_zone = self._classify_dual_zone(prev, polygon_entry, polygon_exit, tolerance_px)
+        curr_zone = self._classify_dual_zone(curr, polygon_entry, polygon_exit, tolerance_px)
 
-        is_exit_to_entry = prev_in_exit and curr_in_entry
-        is_entry_to_exit = prev_in_entry and curr_in_exit
+        is_exit_to_entry = prev_zone == "exit" and curr_zone == "entry"
+        is_entry_to_exit = prev_zone == "entry" and curr_zone == "exit"
+
+        if not (is_exit_to_entry or is_entry_to_exit):
+            recent = list(history)[-4:]
+            labels = [
+                self._classify_dual_zone(point, polygon_entry, polygon_exit, tolerance_px)
+                for point in recent
+            ]
+            filtered = [label for label in labels if label in {"entry", "exit"}]
+            if len(filtered) >= 2:
+                start_label = filtered[0]
+                end_label = filtered[-1]
+                is_exit_to_entry = start_label == "exit" and end_label == "entry"
+                is_entry_to_exit = start_label == "entry" and end_label == "exit"
+
         if not (is_exit_to_entry or is_entry_to_exit):
             return None
 
         dx = float(curr[0]) - float(prev[0])
         dy = float(curr[1]) - float(prev[1])
         step_dist = (dx * dx + dy * dy) ** 0.5
-        min_fast_step = max(6.0, self.zone_config.min_crossing_displacement_px * 0.45)
+        min_fast_step = max(4.0, self.zone_config.min_crossing_displacement_px * 0.30)
         if step_dist < min_fast_step:
             return None
 
@@ -497,8 +523,8 @@ class TrajectoryEntryAnalysisModule:
         if not self._recent_lost_tracks:
             return
 
-        best_old_id = None
-        best_distance = float("inf")
+        candidates: List[Tuple[float, int]] = []
+        dynamic_max_distance = self.reid_max_distance_px * (1.0 + min(0.30, max(0, self._active_track_count - 1) * 0.05))
 
         for old_id, payload in list(self._recent_lost_tracks.items()):
             gap = self._frame_idx - int(payload.get("frame_idx", -10_000))
@@ -507,13 +533,30 @@ class TrajectoryEntryAnalysisModule:
             old_center = payload.get("center")
             if old_center is None:
                 continue
-            distance = ((float(center[0]) - float(old_center[0])) ** 2 + (float(center[1]) - float(old_center[1])) ** 2) ** 0.5
-            if distance < best_distance and distance <= self.reid_max_distance_px:
-                best_distance = distance
-                best_old_id = old_id
+            velocity = payload.get("velocity", (0.0, 0.0))
+            vx = float(velocity[0])
+            vy = float(velocity[1])
+            predicted_center = (
+                float(old_center[0]) + (vx * min(gap, 6)),
+                float(old_center[1]) + (vy * min(gap, 6)),
+            )
 
-        if best_old_id is None:
+            dist_pred = ((float(center[0]) - predicted_center[0]) ** 2 + (float(center[1]) - predicted_center[1]) ** 2) ** 0.5
+            dist_last = ((float(center[0]) - float(old_center[0])) ** 2 + (float(center[1]) - float(old_center[1])) ** 2) ** 0.5
+            score = (0.74 * dist_pred) + (0.26 * dist_last)
+            if score <= dynamic_max_distance:
+                candidates.append((score, old_id))
+
+        if not candidates:
             return
+
+        candidates.sort(key=lambda item: item[0])
+        best_distance, best_old_id = candidates[0]
+        if len(candidates) > 1:
+            second_distance = candidates[1][0]
+            # Avoid unstable ID switches in crowded areas when candidates are too similar.
+            if second_distance <= max(best_distance + 12.0, best_distance / self.reid_ambiguity_ratio):
+                return
 
         previous_history = self.track_history.pop(best_old_id, None)
         if previous_history is not None:
@@ -594,10 +637,21 @@ class TrajectoryEntryAnalysisModule:
             if not history:
                 continue
             if known_id not in self._recent_lost_tracks:
+                velocity = (0.0, 0.0)
+                if len(history) >= 3:
+                    dx = float(history[-1][0]) - float(history[-3][0])
+                    dy = float(history[-1][1]) - float(history[-3][1])
+                    velocity = (dx / 2.0, dy / 2.0)
+                elif len(history) >= 2:
+                    dx = float(history[-1][0]) - float(history[-2][0])
+                    dy = float(history[-1][1]) - float(history[-2][1])
+                    velocity = (dx, dy)
                 newly_lost_track_ids.append(known_id)
                 self._recent_lost_tracks[known_id] = {
                     "center": history[-1],
                     "frame_idx": self._frame_idx,
+                    "velocity": velocity,
+                    "zone": self._last_seen_primary_zone_by_track.get(known_id, "none"),
                 }
 
         stale_ids = []

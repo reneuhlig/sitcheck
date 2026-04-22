@@ -17,6 +17,11 @@ import { sitcheckApi } from "@/lib/api";
 import { useAppData } from "@/context/AppDataContext";
 
 const NARRATIVE_TIMEOUT_MS = 120000;
+const FORECAST_START_OFFSET_MINUTES = 30;
+const FORECAST_DURATION_MINUTES = 180;
+const FORECAST_END_OFFSET_MINUTES = FORECAST_START_OFFSET_MINUTES + FORECAST_DURATION_MINUTES;
+const FORECAST_BUCKET_MINUTES = 10;
+const FORECAST_WINDOW_LABEL = "ab +30 Minuten für 3 Stunden";
 
 function formatWholeNumber(value) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "–";
@@ -50,6 +55,55 @@ function asNumber(value) {
     return null;
   }
   return value;
+}
+
+function averageForecastValue(points, key) {
+  const values = points
+    .map((point) => asNumber(point?.[key]))
+    .filter((value) => typeof value === "number");
+
+  if (values.length === 0) {
+    return null;
+  }
+
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function buildForecastChartData(forecastPoints) {
+  const points = Array.isArray(forecastPoints) ? forecastPoints : [];
+  const nowMs = Math.floor(Date.now() / 60000) * 60000;
+  const startMs = nowMs + FORECAST_START_OFFSET_MINUTES * 60 * 1000;
+  const endMs = nowMs + FORECAST_END_OFFSET_MINUTES * 60 * 1000;
+  const bucketMs = FORECAST_BUCKET_MINUTES * 60 * 1000;
+  const buckets = new Map();
+
+  points.forEach((point) => {
+    const timestampMs = new Date(point?.timestamp).getTime();
+    if (!Number.isFinite(timestampMs) || timestampMs < startMs || timestampMs > endMs) {
+      return;
+    }
+
+    const bucketIndex = Math.floor((timestampMs - startMs) / bucketMs);
+    const bucketStartMs = startMs + bucketIndex * bucketMs;
+
+    if (!buckets.has(bucketIndex)) {
+      buckets.set(bucketIndex, {
+        timestamp: bucketStartMs,
+        points: [],
+      });
+    }
+
+    buckets.get(bucketIndex).points.push(point);
+  });
+
+  return Array.from(buckets.values())
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .map((bucket) => ({
+      label: formatTime(bucket.timestamp),
+      forecast: averageForecastValue(bucket.points, "yhat"),
+      lower: averageForecastValue(bucket.points, "pi_low"),
+      upper: averageForecastValue(bucket.points, "pi_high"),
+    }));
 }
 
 function formatCountPhrase(count, singular, plural) {
@@ -279,7 +333,7 @@ function buildRecommendationNarrative({
     return "Für Besucher bedeutet das konkret: Weil Live-Trend und Buchungen beide nach oben zeigen, dürfte es in der nächsten Stunde eher schwieriger werden, spontan einen ruhigen Platz zu finden.";
   }
 
-  return "Für Besucher bedeutet das konkret: Die nächsten 60 Minuten wirken aktuell gut planbar, auch wenn kleinere Ausschläge im laufenden Betrieb normal bleiben.";
+  return "Für Besucher bedeutet das konkret: Die 3 Stunden ab +30 Minuten wirken aktuell gut planbar, auch wenn kleinere Ausschläge im laufenden Betrieb normal bleiben.";
 }
 
 function buildLiveExplainabilitySnapshot({
@@ -314,7 +368,7 @@ function buildLiveExplainabilitySnapshot({
   }
 
   if (forecastValue !== null) {
-    parts.push(`in 60 Minuten liegt die Erwartung bei etwa ${formatWholeNumber(forecastValue)} Personen`);
+    parts.push(`zum Start des Prognosebands in +30 Minuten liegt die Erwartung bei etwa ${formatWholeNumber(forecastValue)} Personen`);
   }
 
   if (peakValue !== null && peakValue !== forecastValue) {
@@ -473,7 +527,7 @@ function buildFallbackNarrative({
       intro += " Für den kurzfristigen Ausblick ist deshalb eher keine zusätzliche Nachfrage bis zur Wiederöffnung zu erwarten.";
     }
   } else if (libraryHours?.closes_within_horizon && typeof libraryHours?.today_close === "string") {
-    intro = `Kurz gesagt: Aktuell sind ungefähr ${formatWholeNumber(currentPersons)} Personen in der Bibliothek. Die Bibliothek schließt heute um ${libraryHours.today_close} Uhr und damit noch innerhalb der nächsten 60 Minuten.`;
+    intro = `Kurz gesagt: Aktuell sind ungefähr ${formatWholeNumber(currentPersons)} Personen in der Bibliothek. Die Bibliothek schließt heute um ${libraryHours.today_close} Uhr und damit innerhalb des 3-Stunden-Prognosefensters ab +30 Minuten.`;
     if (typeof forecastCurrent === "number" || typeof forecastPeak === "number") {
       intro += ` Selbst wenn das Rohmodell rechnerisch noch etwa ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen sieht${zoneCapacity ? `, bei insgesamt ${formatWholeNumber(zoneCapacity)} verfügbaren Plätzen` : ""}, begrenzt die anstehende Schließung spätere Nachfrage deutlich.`;
     }
@@ -481,14 +535,14 @@ function buildFallbackNarrative({
     intro = `Kurz gesagt: Aktuell sind ungefähr ${formatWholeNumber(currentPersons)} Personen in der Bibliothek.`;
     if (typeof occupancyDelta === "number") {
       if (occupancyDelta > 10) {
-        intro += ` Ich rechne in den nächsten 60 Minuten damit, dass es deutlich voller wird und sich die Auslastung in Richtung ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen bewegt${zoneCapacity ? `, bei insgesamt ${formatWholeNumber(zoneCapacity)} verfügbaren Plätzen` : ""}.`;
+        intro += ` Im 3-Stunden-Fenster ab +30 Minuten rechne ich damit, dass es deutlich voller wird und sich die Auslastung in Richtung ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen bewegt${zoneCapacity ? `, bei insgesamt ${formatWholeNumber(zoneCapacity)} verfügbaren Plätzen` : ""}.`;
       } else if (occupancyDelta < -10) {
-        intro += ` Ich erwarte in der nächsten Stunde eher eine Entspannung und damit weniger Belegung als im aktuellen Moment. Der wahrscheinliche Bereich liegt bei etwa ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
+        intro += ` Im 3-Stunden-Fenster ab +30 Minuten erwarte ich eher eine Entspannung und damit weniger Belegung als im aktuellen Moment. Der wahrscheinliche Bereich liegt bei etwa ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
       } else {
-        intro += ` Für die nächste Stunde erwarte ich keine extreme Verschiebung, sondern eher einen Bereich um ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
+        intro += ` Für das 3-Stunden-Fenster ab +30 Minuten erwarte ich keine extreme Verschiebung, sondern eher einen Bereich um ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
       }
     } else {
-      intro += ` Für die nächsten 60 Minuten liegt die erwartete Auslastung ungefähr im Bereich von ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
+      intro += ` Für das 3-Stunden-Fenster ab +30 Minuten liegt die erwartete Auslastung ungefähr im Bereich von ${formatWholeNumber(forecastCurrent)} bis ${formatWholeNumber(forecastPeak)} Personen${zoneCapacity ? ` bei einer Kapazität von ${formatWholeNumber(zoneCapacity)} Plätzen` : ""}.`;
     }
   }
 
@@ -533,7 +587,7 @@ function buildNarrativePrompt({
   historyPoints,
 }) {
   const parts = [
-    "Erkläre für Studierende in einfacher Sprache, warum die Bibliothek in den nächsten 60 Minuten so prognostiziert wird.",
+    "Erkläre für Studierende in einfacher Sprache, warum die Bibliothek ab 30 Minuten nach der aktuellen Uhrzeit für die folgenden 3 Stunden so prognostiziert wird.",
   ];
   const current = asNumber(currentPersons);
   const capacity = asNumber(zoneCapacity);
@@ -556,7 +610,7 @@ function buildNarrativePrompt({
   }
 
   if (forecastValue !== null) {
-    parts.push(`Die 60-Minuten-Prognose liegt bei etwa ${Math.round(forecastValue)} Personen.`);
+    parts.push(`Der erste Prognosepunkt in +30 Minuten liegt bei etwa ${Math.round(forecastValue)} Personen.`);
   }
 
   if (peakValue !== null) {
@@ -594,7 +648,7 @@ function buildNarrativePrompt({
     parts.push(`Außerdem gibt es ${eventCount} relevante Campus-Termine.`);
   }
 
-  parts.push("Wenn die Bibliothek vor Ablauf des 60-Minuten-Horizonts schließt, behandle das als dominanten begrenzenden Faktor.");
+  parts.push("Wenn die Bibliothek vor Ablauf des 3-Stunden-Prognosefensters ab +30 Minuten schließt, behandle das als dominanten begrenzenden Faktor.");
   parts.push("Nenne die zwei bis drei wichtigsten Treiber, die Unsicherheit und was das konkret für Besucher bedeutet.");
   return parts.join(" ");
 }
@@ -646,7 +700,7 @@ export default function HomePage() {
   const commandCenterFailureCountRef = useRef(0);
   const narrativeInFlightRef = useRef(false);
   const narrativePromptRef = useRef(
-    "Erkläre für Studierende in einfacher Sprache, warum die Bibliothek in den nächsten 60 Minuten so prognostiziert wird.",
+    "Erkläre für Studierende in einfacher Sprache, warum die Bibliothek ab 30 Minuten nach der aktuellen Uhrzeit für die folgenden 3 Stunden so prognostiziert wird.",
   );
 
   useEffect(() => {
@@ -831,20 +885,15 @@ export default function HomePage() {
     : [];
   const forecastPoints =
     commandCenterForecastPoints.length > 0 ? commandCenterForecastPoints : hubForecastPoints;
-  const forecastChartData = forecastPoints.map((point) => ({
-    label: formatTime(point.timestamp),
-    forecast: typeof point.yhat === "number" ? Math.round(point.yhat) : null,
-    lower: typeof point.pi_low === "number" ? Math.round(point.pi_low) : null,
-    upper: typeof point.pi_high === "number" ? Math.round(point.pi_high) : null,
-  }));
+  const forecastChartData = buildForecastChartData(forecastPoints);
 
-  const forecastPeak = forecastPoints.length > 0
-    ? forecastPoints.reduce((peak, point) => {
-        const yhat = asNumber(point?.yhat);
-        return yhat !== null && yhat > peak ? yhat : peak;
+  const forecastPeak = forecastChartData.length > 0
+    ? forecastChartData.reduce((peak, point) => {
+        const forecast = asNumber(point?.forecast);
+        return forecast !== null && forecast > peak ? forecast : peak;
       }, 0)
     : null;
-  const forecastCurrent = forecastPoints.length > 0 ? Math.round(asNumber(forecastPoints[0]?.yhat) ?? 0) : null;
+  const forecastCurrent = forecastChartData.length > 0 ? forecastChartData[0].forecast : null;
 
   const explanation = commandCenter?.explanation ?? {};
   const calendarEvents = Array.isArray(commandCenter?.calendar_events) ? commandCenter.calendar_events : [];
@@ -921,7 +970,7 @@ export default function HomePage() {
     { label: "Kapazität", value: zoneCapacity ?? "–", hint: "aktive Bibliotheksentität" },
     { label: "Freie Plätze", value: freeSeats ?? "–", hint: "rein rechnerisch verfügbar" },
     { label: "Auslastung", value: utilization !== null ? `${utilization}%` : "–", hint: "bezogen auf die Bibliothekskapazität" },
-    { label: "60m Peak", value: forecastPeak ? Math.round(forecastPeak) : "–", hint: "Prognosespitze inkl. Buchungs-Overlay" },
+    { label: "3h Peak", value: forecastPeak !== null ? Math.round(forecastPeak) : "–", hint: "Spitze ab +30 min inkl. Buchungs-Overlay" },
     { label: "Durchschnitt", value: averagePersons !== null ? averagePersons.toFixed(1) : "–", hint: "historischer Mittelwert im Hub" },
   ];
 
@@ -936,7 +985,7 @@ export default function HomePage() {
             <div className="space-y-2">
               <h2 className="text-3xl font-semibold sm:text-4xl">Live-Lagebild des Learning Centers DHBW</h2>
               <p className="max-w-2xl text-sm leading-6 text-slate-200 sm:text-base">
-                Sitcheck bündelt Live-Auslastung, 60-Minuten-Prognose, Explainable AI und
+                Sitcheck bündelt Live-Auslastung, 3-Stunden-Prognose ab +30 Minuten, Explainable AI und
                 Nutzerbuchungen für die gesamte Bibliothek in einer einzigen Oberfläche.
               </p>
             </div>
@@ -1024,19 +1073,19 @@ export default function HomePage() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--ink-muted)]">
-                60-Minuten-Prognose
+                3-Stunden-Prognose
               </p>
               <h3 className="mt-1 text-2xl font-semibold text-[color:var(--ink-strong)]">
                 Prognoseband inkl. Buchungs-Overlay
               </h3>
               <p className="mt-2 text-sm leading-6 text-[color:var(--ink-soft)]">
-                Jede bestätigte Buchung wird zur Laufzeit als +1 geplanter Platz auf die
-                Kurzfristprognose addiert. Die gespeicherten Forecast-Snapshots bleiben dabei unverändert.
+                Die Darstellung startet {FORECAST_WINDOW_LABEL}, aggregiert die Messpunkte im
+                10-Minuten-Takt und zeigt die Prognose inkl. Buchungs-Overlay.
               </p>
             </div>
             <div className="rounded-2xl bg-[color:var(--surface-muted)] px-4 py-3 text-sm text-[color:var(--ink-strong)]">
-              <p>Nächster Prognosewert: {forecastCurrent ?? "–"}</p>
-              <p>Peak: {forecastPeak ? Math.round(forecastPeak) : "–"}</p>
+              <p>Erster Wert (+30 min): {forecastCurrent ?? "–"}</p>
+              <p>Peak: {forecastPeak !== null ? Math.round(forecastPeak) : "–"}</p>
             </div>
           </div>
 
@@ -1149,7 +1198,7 @@ export default function HomePage() {
             <div className="mt-4 space-y-4">
               <p className="text-sm leading-6 text-[color:var(--ink-soft)]">
                 Alle bestätigten Bibliotheks-Buchungen aller Nutzer zählen im MVP als bekannte
-                Nachfrage und fließen gemeinsam in die 60-Minuten-Prognose ein. Deine Buchungen
+                Nachfrage und fließen gemeinsam in die 3-Stunden-Prognose ab +30 Minuten ein. Deine Buchungen
                 sind also nur ein Teil des globalen Effekts.
               </p>
               <div className="rounded-[1.5rem] bg-[color:var(--surface-muted)] px-4 py-4">

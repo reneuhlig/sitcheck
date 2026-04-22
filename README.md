@@ -142,6 +142,69 @@ Occupancy-Quellen:
 - `frame_near`: naehert ueber aktive Tracks im Frame an.
 - `profile_simulation` aktiv: live Occupancy folgt Simulationsprofil (siehe unten), Detection-Events wirken als temporale Korrektur.
 
+### Technisches Detail: Frame-, Direction-, Trajectory- und ReID-Logik
+
+Dieser Abschnitt beschreibt die Entscheidungslogik auf Implementierungsebene.
+
+1. Frame-Sampling und Laststeuerung
+- Capture liefert bis `capture_max_fps` Frames in die Analyse-Queue.
+- Inferenz verarbeitet nur jeden n-ten Frame (`process_every_n_frames`).
+- Unter Queue-Druck wird `n` dynamisch bis `dynamic_skip_max_n` angehoben.
+- Effekt: stabile Latenz statt wachsender Verzugszeit.
+
+2. Track-Stabilisierung in `YOLOTrackingModule`
+- Jede sichtbare ID wird mit EMA geglaettet:
+  - `bbox_t = alpha * bbox_current + (1-alpha) * bbox_prev`
+  - `center_t = alpha * center_current + (1-alpha) * center_prev`
+- Kurzzeitverluste werden ueber `track_hold_frames` gepuffert.
+- Die Confidence faellt in Hold-Frames exponentiell (`hold_confidence_decay`).
+- `trail_length` speichert die letzten Zentren als Trajektorie.
+
+3. Bewegungsrichtung (Direction)
+- Aus den geglaetteten Zentren wird pro Frame ein Bewegungsvektor berechnet.
+- Unterhalb `motion_min_pixels` wird ein Track als "still" markiert.
+- Oberhalb der Schwelle wird in Hauptachsen/Diagonalen klassifiziert.
+- Diese Richtung ist kein Event an sich, aber wichtig fuer Plausibilisierung.
+
+4. Trajectory-basierte Event-Entscheidung
+- `TrajectoryEntryAnalysisModule` verarbeitet nur nicht-stale Tracks.
+- Pro Track wird eine Historie (`max_history`) als Punktfolge aufgebaut.
+- Erst bei ausreichender Evidenz wird ein Event erzeugt:
+  - Mindestpunkte (`min_track_points`),
+  - Mindestverschiebung (`min_crossing_displacement_px`),
+  - Cooldown (`min_event_cooldown_frames`).
+
+5. Line-Mode
+- Signierte Distanz zur Linie wird fuer aufeinanderfolgende Punkte berechnet.
+- Vorzeichenwechsel entspricht Linienkreuzung.
+- Entry/Exit folgt `line_entry_direction`.
+- Ohne ausreichende Normalverschiebung kein Event (Jitter-Schutz).
+
+6. Dual-Polygon-Mode
+- Punkt wird gegen Entry- und Exit-Polygon klassifiziert.
+- Zone-Wechsel wird ueber kurze Historie stabilisiert (Mehrheitsentscheidung).
+- Event entsteht nur bei klarer Transition zwischen Entry<->Exit.
+- Zusaetzlich prueft die Logik eine Divider-Linienkreuzung als starke Evidenz.
+
+7. Fast-Transition fuer schnelle Personen
+- Fuer kurze Historien (2-3 Punkte) wird ein Fast-Path aktiv.
+- Direkter oder quasi-direkter Wechsel Exit->Entry bzw. Entry->Exit wird akzeptiert,
+  wenn Schrittdistanz und Divider-Crossing plausibel sind.
+- Dadurch werden schnelle Durchgaenge erkannt, die sonst wegen kurzer Sichtbarkeit verloren gingen.
+
+8. ReID-Stitching bei ID-Wechseln
+- Verschwindende Tracks landen in einer Lost-Map mit Zeitstempel und letzter Geschwindigkeit.
+- Neue IDs werden gegen diese Lost-Kandidaten gematcht (Zeitluecke + Distanz + Positionsprognose).
+- Score basiert auf Distanz zur vorhergesagten Position und zur letzten Position.
+- Ambiguitaetsfilter: wenn der zweitbeste Kandidat zu nah am besten liegt,
+  wird bewusst nicht gestitcht, um False-Merges in dichten Gruppen zu vermeiden.
+
+9. Warum diese Kombination robust ist
+- Kurzfristige Detektor-Aussetzer werden durch Track-Hold/EMA abgefedert.
+- Schnelle Personen profitieren vom Fast-Transition-Pfad.
+- Dichte Szenen profitieren vom konservativen ReID-Ambiguitaetsfilter.
+- Event-Cooldowns verhindern Mehrfachzaehlung bei Oszillation an der Grenzlinie.
+
 ### Verhalten bei pausierter Auswertung (wichtig fuer Demo)
 
 Wenn `analysis_enabled=false` gesetzt wird:

@@ -41,12 +41,15 @@ tracking:
   tta_enabled: false
   max_detections: 300
   stabilization_enabled: true
-  track_hold_frames: 8
-  box_ema_alpha: 0.6
-  hold_confidence_decay: 0.88
+  track_hold_frames: 12
+  box_ema_alpha: 0.78
+  hold_confidence_decay: 0.9
   trail_length: 16
-  motion_min_pixels: 1.8
-  process_every_n_frames: 3
+  motion_min_pixels: 1.2
+  process_every_n_frames: 2
+  reid_max_gap_frames: 24
+  reid_max_distance_px: 150.0
+  reid_ambiguity_ratio: 0.87
 preprocess:
   enabled: false
   upscale: 1.0
@@ -60,10 +63,10 @@ dashboard:
   jpeg_optimize: false
   stream_max_width: 1280
   analysis_queue_frames: 128
-  analysis_skip_threshold_frames: 24
+  analysis_skip_threshold_frames: 20
   dynamic_skip_enabled: true
-  dynamic_skip_queue_threshold: 8
-  dynamic_skip_max_n: 4
+  dynamic_skip_queue_threshold: 10
+  dynamic_skip_max_n: 3
   profile_simulation:
     enabled: true
     excel_path: /sitcheck/bildauswertung/KI_Projekt_Daten_einJahr.xlsx
@@ -138,9 +141,9 @@ zone:
       - 0.9923537234042553
     - - 0.9948803180075706
       - 0
-  min_crossing_displacement_px: 20.0
+  min_crossing_displacement_px: 16.0
   min_track_points: 3
-  min_event_cooldown_frames: 6
+  min_event_cooldown_frames: 5
 ui:
   show_window: true
   enable_zone_editor: true

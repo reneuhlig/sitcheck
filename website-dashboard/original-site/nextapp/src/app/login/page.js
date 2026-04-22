@@ -254,7 +254,7 @@ export default function LoginPage() {
           <div className="rounded-[1.5rem] bg-[color:var(--surface-muted)] px-4 py-4">
             <p className="text-sm font-semibold text-[color:var(--ink-strong)]">3. Prognose passt sich an</p>
             <p className="mt-2 text-sm leading-7 text-[color:var(--ink-soft)]">
-              Jede bestätigte Buchung erhöht die 60-Minuten-Prognose im gebuchten Zeitraum um genau einen Platz.
+              Jede bestätigte Buchung erhöht die 3-Stunden-Prognose ab +30 Minuten im gebuchten Zeitraum um genau einen Platz.
             </p>
           </div>
         </div>
