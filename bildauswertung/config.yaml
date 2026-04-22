@@ -22,14 +22,14 @@ tracking:
   api_failure_cooldown_seconds: 2.0
   max_api_fps: 10.0
   api_jpeg_quality: 85
-  model_path: models/yolo26n.pt
-  hybrid_target_fps: 30.0
-  api_refresh_every_n_frames: 3
+  model_path: models/yolo28n.pt
+  hybrid_target_fps: 20.0
+  api_refresh_every_n_frames: 2
   local_preload_enabled: true
   local_fill_enabled: true
-  local_fill_max_fps: 12.0
-  local_refresh_every_n_frames: 2
-  cache_fallback_max_age_frames: 8
+  local_fill_max_fps: 20.0
+  local_refresh_every_n_frames: 1
+  cache_fallback_max_age_frames: 4
   min_person_height_ratio: 0.1
   min_person_area_ratio: 0.01
   min_person_aspect_ratio: 1.0
@@ -67,17 +67,17 @@ preprocess:
   clahe_clip: 2.0
   denoise: false
 dashboard:
-  stream_fps: 30
-  capture_max_fps: 30
-  visual_update_fps: 30
+  stream_fps: 20
+  capture_max_fps: 20
+  visual_update_fps: 20
   jpeg_quality: 100
   jpeg_optimize: false
   stream_max_width: 1280
   analysis_queue_frames: 128
-  analysis_skip_threshold_frames: 20
+  analysis_skip_threshold_frames: 60
   dynamic_skip_enabled: true
-  dynamic_skip_queue_threshold: 10
-  dynamic_skip_max_n: 3
+  dynamic_skip_queue_threshold: 20
+  dynamic_skip_max_n: 2
   profile_simulation:
     enabled: true
     excel_path: /sitcheck/bildauswertung/KI_Projekt_Daten_einJahr.xlsx
