@@ -34,7 +34,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "api_failure_cooldown_seconds": 2.0,
         "max_api_fps": 10.0,
         "api_jpeg_quality": 85,
-        "model_path": "models/yolo28n.pt",
+        "model_path": "models/yolo26n.pt",
         "hybrid_target_fps": 20.0,
         "api_refresh_every_n_frames": 2,
         "local_preload_enabled": True,
