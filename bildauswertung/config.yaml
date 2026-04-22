@@ -15,7 +15,7 @@ video:
     default_clip_id: leerlauf
     idle_loop: false
 tracking:
-  detector_mode: local
+  detector_mode: hybrid
   api_url: https://predict-69c3e01f0ad4a9f263ed-dproatj77a-ey.a.run.app/predict
   api_key: ul_1464994a534bea3e58bd6539b980ba1e3deb6317
   api_timeout_seconds: 3.0
@@ -36,7 +36,7 @@ tracking:
   allow_classless_person_detections: false
   device: auto
   tracker: bytetrack_entrance.yaml
-  confidence_threshold: 0.1
+  confidence_threshold: 0.05
   iou_threshold: 0.45
   imgsz: 480
   analysis_roi:
