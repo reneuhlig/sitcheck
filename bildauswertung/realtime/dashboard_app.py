@@ -2206,9 +2206,7 @@ class TrackingEngine:
           )
 
         now_visual = time.monotonic()
-        should_update_visual = run_tracking_now
-        if not should_update_visual and self.visual_update_interval > 0:
-          should_update_visual = (now_visual - self._last_visual_update_ts) >= self.visual_update_interval
+        should_update_visual = True
 
         if should_update_visual:
           output = self.visualizer.draw(

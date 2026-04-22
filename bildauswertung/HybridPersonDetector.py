@@ -6,7 +6,7 @@ from BaseDetector import BaseDetector
 
 
 class HybridPersonDetector(BaseDetector):
-    """API-first detector with budgeted local YOLO refreshes and cached frame fill."""
+    """Local-first detector: lokales YOLO primär, API nur als Fallback bei Local-Failure."""
 
     def __init__(
         self,
@@ -178,32 +178,9 @@ class HybridPersonDetector(BaseDetector):
     ) -> List[Dict[str, Any]]:
         self._frame_counter += 1
         now_ts = time.time()
-        errors: List[str] = []
-        api_tracks = self._consume_api_future()
-        if api_tracks is not None:
-            return api_tracks
 
-        if self._api_ready(now_ts) and self._api_future is None:
-            self._last_api_refresh_frame = self._frame_counter
-            self._api_future_frame_counter = self._frame_counter
-            self._api_future = self._api_executor.submit(
-                self._run_api_track,
-                frame.copy(),
-                tracker,
-                conf,
-                iou,
-                imgsz,
-                augment,
-                max_det,
-            )
-
-        force_local_refresh = (
-            self.max_cache_only_frames > 0
-            and self._cache_only_streak >= self.max_cache_only_frames
-            and self._api_future is not None
-        )
-
-        if self._local_ready(now_ts, ignore_frame_interval=force_local_refresh):
+        # ── 1. LOCAL ZUERST (primäre Quelle) ──────────────────────────
+        if self._local_ready(now_ts, ignore_frame_interval=True):
             self._last_local_refresh_ts = now_ts
             self._last_local_refresh_frame = self._frame_counter
             tracks = self.local_detector.track(
@@ -222,20 +199,42 @@ class HybridPersonDetector(BaseDetector):
                 self._cache_only_streak = 0
                 self._local_fail_streak = 0
                 return tracks
-            errors.append(str(getattr(self.local_detector, "last_track_error", "") or "local_failed"))
+
             self._local_fail_streak += 1
             if self._local_fail_streak >= 10 and not self._local_fail_logged:
                 self._local_fail_logged = True
                 print(
-                    f"[WARN] Lokaler Detektor {self._local_fail_streak}× hintereinander fehlgeschlagen: "
+                    f"[WARN] Lokaler Detektor {self._local_fail_streak}x fehlgeschlagen: "
                     f"{getattr(self.local_detector, 'last_track_error', '?')}"
                 )
 
+        # ── 2. API als Fallback (nur wenn Local versagt) ──────────────
+        api_tracks = self._consume_api_future()
+        if api_tracks is not None:
+            self._cache_tracks(api_tracks, "api_fallback")
+            self._cache_only_streak = 0
+            return api_tracks
+
+        if self._local_fail_streak >= 3 and self._api_ready(now_ts) and self._api_future is None:
+            self._last_api_refresh_frame = self._frame_counter
+            self._api_future_frame_counter = self._frame_counter
+            self._api_future = self._api_executor.submit(
+                self._run_api_track,
+                frame.copy(),
+                tracker,
+                conf,
+                iou,
+                imgsz,
+                augment,
+                max_det,
+            )
+
+        # ── 3. Cache als letzter Fallback ─────────────────────────────
         if self._cached_tracks_still_valid():
             return self._return_cached_tracks()
 
-        self.last_track_ok = False if errors else True
-        self.last_track_error = " | ".join(error for error in errors if error)
+        self.last_track_ok = self._local_fail_streak == 0
+        self.last_track_error = "local_and_api_unavailable" if self._local_fail_streak > 0 else ""
         self.last_detector_source = "empty"
         self._cache_only_streak += 1
         return []

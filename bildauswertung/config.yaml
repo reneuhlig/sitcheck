@@ -20,15 +20,15 @@ tracking:
   api_key: ul_1464994a534bea3e58bd6539b980ba1e3deb6317
   api_timeout_seconds: 3.0
   api_failure_cooldown_seconds: 2.0
-  max_api_fps: 15.0
+  max_api_fps: 5.0
   api_jpeg_quality: 85
   model_path: models/yolo26n.pt
   hybrid_target_fps: 20.0
-  api_refresh_every_n_frames: 1
+  api_refresh_every_n_frames: 10
   local_preload_enabled: true
   local_fill_enabled: true
-  local_fill_max_fps: 10.0
-  local_refresh_every_n_frames: 2
+  local_fill_max_fps: 20.0
+  local_refresh_every_n_frames: 1
   cache_fallback_max_age_frames: 10
   min_person_height_ratio: 0.08
   min_person_area_ratio: 0.005
@@ -55,7 +55,7 @@ tracking:
   hold_confidence_decay: 0.9
   trail_length: 16
   motion_min_pixels: 1.2
-  process_every_n_frames: 1
+  process_every_n_frames: 2
   api_result_max_age_frames: 6
   max_cache_only_frames: 5
   reid_max_gap_frames: 24
