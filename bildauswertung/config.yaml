@@ -30,13 +30,13 @@ tracking:
   local_fill_max_fps: 20.0
   local_refresh_every_n_frames: 1
   cache_fallback_max_age_frames: 10
-  min_person_height_ratio: 0.08
-  min_person_area_ratio: 0.005
-  min_person_aspect_ratio: 0.6
+  min_person_height_ratio: 0.04
+  min_person_area_ratio: 0.002
+  min_person_aspect_ratio: 0.25
   allow_classless_person_detections: false
   device: auto
   tracker: bytetrack_entrance.yaml
-  confidence_threshold: 0.2
+  confidence_threshold: 0.10
   iou_threshold: 0.45
   imgsz: 640
   analysis_roi:
