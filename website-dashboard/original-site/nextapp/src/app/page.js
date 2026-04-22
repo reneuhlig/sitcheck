@@ -934,7 +934,7 @@ export default function HomePage() {
               Smarter finden, Besser lernen
             </span>
             <div className="space-y-2">
-              <h2 className="text-3xl font-semibold sm:text-4xl">Live-Lagebild der Unibibliothek</h2>
+              <h2 className="text-3xl font-semibold sm:text-4xl">Live-Lagebild des Learning Centers DHBW</h2>
               <p className="max-w-2xl text-sm leading-6 text-slate-200 sm:text-base">
                 Sitcheck bündelt Live-Auslastung, 60-Minuten-Prognose, Explainable AI und
                 Nutzerbuchungen für die gesamte Bibliothek in einer einzigen Oberfläche.

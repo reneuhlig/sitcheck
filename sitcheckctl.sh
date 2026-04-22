@@ -37,6 +37,12 @@ REALTIME_STATE_URL="${SITCHECK_REALTIME_STATE_URL:-http://127.0.0.1:8080/api/sta
 
 ORCH_MODE="${SITCHECK_ORCH_MODE:-local}" # local | docker
 START_STANDALONE_TRACKING="${SITCHECK_START_STANDALONE_TRACKING:-0}"
+RECLAIM_PORTS_RAW="${SITCHECK_RECLAIM_PORTS:-1}"
+if [[ "${RECLAIM_PORTS_RAW,,}" =~ ^(1|true|yes|on)$ ]]; then
+    RECLAIM_PORTS=1
+else
+    RECLAIM_PORTS=0
+fi
 
 mkdir -p "${LOG_DIR}"
 
@@ -82,6 +88,83 @@ wait_for_http() {
 port_in_use() {
     local port="$1"
     ss -ltn "( sport = :${port} )" | grep -q ":${port}"
+}
+
+pids_on_port() {
+    local port="$1"
+    ss -lptn "( sport = :${port} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u
+}
+
+reclaim_port() {
+    local port="$1"
+    local label="$2"
+    local pids
+    pids="$(pids_on_port "${port}")"
+
+    if [ -z "${pids}" ]; then
+        return 0
+    fi
+
+    while read -r pid; do
+        [ -z "${pid}" ] && continue
+        if ! pid_alive "${pid}"; then
+            continue
+        fi
+
+        log "[WARN] Port ${port} (${label}) belegt durch externen Prozess (PID=${pid}); beende fuer deterministischen Neustart."
+        kill "${pid}" >/dev/null 2>&1 || true
+    done <<< "${pids}"
+
+    for _ in $(seq 1 20); do
+        if ! port_in_use "${port}"; then
+            return 0
+        fi
+        sleep 0.2
+    done
+
+    pids="$(pids_on_port "${port}")"
+    while read -r pid; do
+        [ -z "${pid}" ] && continue
+        if ! pid_alive "${pid}"; then
+            continue
+        fi
+        log "[WARN] Erzwinge Port-Freigabe ${port} (${label}) via SIGKILL (PID=${pid})."
+        kill -9 "${pid}" >/dev/null 2>&1 || true
+    done <<< "${pids}"
+
+    for _ in $(seq 1 20); do
+        if ! port_in_use "${port}"; then
+            return 0
+        fi
+        sleep 0.2
+    done
+
+    if port_in_use "${port}"; then
+        log "[ERROR] Port ${port} (${label}) konnte nicht freigegeben werden."
+        return 1
+    fi
+    return 0
+}
+
+reclaim_managed_ports() {
+    if [ "${RECLAIM_PORTS}" != "1" ]; then
+        log "[INFO] Port-Reclaim deaktiviert (SITCHECK_RECLAIM_PORTS=${RECLAIM_PORTS_RAW})."
+        return 0
+    fi
+
+    log "[INFO] Port-Reclaim aktiv: bereinige bekannte Sitcheck-Ports vor dem Start."
+    reclaim_port 8000 "api-gateway"
+    reclaim_port 5000 "api-gateway-legacy"
+    reclaim_port 8001 "forecast"
+    reclaim_port 8002 "xai"
+    reclaim_port 8003 "recommendations"
+    reclaim_port 8012 "lecture-ingest"
+    reclaim_port 8010 "calendar-ingest"
+    reclaim_port 8081 "mcp-sitcheck"
+    reclaim_port 8011 "forecast-scheduler"
+    reclaim_port 8501 "streamlit-dashboard"
+    reclaim_port 8080 "realtime-dashboard"
+    reclaim_port 8090 "portal"
 }
 
 pid_alive() {
@@ -310,9 +393,11 @@ stop_portal_stack() {
 start_all() {
     require_cmd curl
     require_cmd python3
+    require_cmd ss
     mkdir -p "${RUNTIME_ROOT}/dash" "${RUNTIME_ROOT}/hls" "${RUNTIME_ROOT}/original-site-out" "${LOG_DIR}"
 
     log "[INFO] Start Sitcheck (Mode=${ORCH_MODE}, kein Port-80-Binding)"
+    reclaim_managed_ports
     start_prognose_stack
     start_realtime_stack
     start_portal_stack
@@ -427,6 +512,7 @@ show_status() {
     echo "Forecast backend: ${FORECAST_MODEL_BACKEND}"
     echo "Forecast training_mode: ${FORECAST_TRAINING_MODE}"
     echo "Forecast trainer enabled: ${FORECAST_TRAINER_ENABLED}"
+    echo "Port reclaim: ${RECLAIM_PORTS_RAW}"
     status_health_line "api-gateway" "${API_HEALTH_URL}"
     status_health_line "api-gateway legacy" "${API_LEGACY_HEALTH_URL}"
     status_health_line "calendar-ingest" "${CALENDAR_INGEST_HEALTH_URL}"
@@ -533,6 +619,7 @@ case "${1:-}" in
         echo "Optional env: SITCHECK_FORECAST_SNAPSHOT_HORIZONS=60[,1440,...] (default: 60)"
         echo "Optional env: SITCHECK_FORECAST_TRAINER_ENABLED=0|1 (default: 0)"
         echo "Optional env: SITCHECK_TF_MIN_TRAIN_POINTS=<int> (default: 1000)"
+        echo "Optional env: SITCHECK_RECLAIM_PORTS=0|1 (default: 1)"
         exit 1
         ;;
 esac

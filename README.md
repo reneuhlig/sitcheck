@@ -108,6 +108,51 @@ Warum eventbasiert:
 - Nicht die Anzahl der Boxen im Frame zaehlt, sondern verifizierte Uebertritte.
 - Das reduziert Fehlzaehlungen durch Passanten, die nur vorbeilaufen.
 
+### Tracking- und Eventlogik (praesentationsgeeignet, Schritt fuer Schritt)
+
+Die Realtime-Engine in `bildauswertung/realtime/dashboard_app.py` arbeitet in drei entkoppelten Loops:
+
+1. Capture-Loop
+- Liest kontinuierlich Frames aus der Quelle (YouTube oder Livefeed Simulation).
+- Puffert Frames in einer Analyse-Queue.
+- Bei Backpressure werden alte Frames verworfen (Queue-Schutz), damit Latenz stabil bleibt.
+
+2. Inference-Loop
+- Zieht Frames aus der Queue und fuehrt Tracking nur auf jedem n-ten Frame aus (`process_every_n_frames`).
+- Unter Last wird `n` dynamisch erhoeht (dynamic skip), um Echtzeitfaehigkeit zu halten.
+- Optional wird vor der Inferenz ein ROI-Crop angewendet, danach werden Track-Koordinaten auf das Originalbild zurueckgemappt.
+
+3. Packetizer/Stream-Loop
+- Nimmt den letzten Visual- oder Fallback-Raw-Frame und erzeugt DASH-Segmente.
+- Dadurch bleibt der Stream fluessig, auch wenn Inferenz kurzzeitig aussetzt.
+
+Evententscheidung (Entry/Exit):
+
+1. Tracker liefert pro Person stabile Track-ID und Trajektorie.
+2. `TrajectoryEntryAnalysisModule` prueft Crossing gegen die konfigurierte Zone:
+- `line`: gerichtetes Ueberschreiten einer Linie.
+- `polygon`: Eintritt/Austritt ueber Polygonregeln.
+- `dual_polygon`: getrennte Entry- und Exit-Polygone (robusteste Option fuer Tuerszenarien).
+3. Event wird erst akzeptiert, wenn zeitliche und geometrische Mindestkriterien erfuellt sind.
+4. Akzeptierte Events aktualisieren Zaehler (`entries_total`, `exits_total`) und Belegungszustand.
+
+Occupancy-Quellen:
+
+- `occupancy_state`: strikt eventbasierter Zustand.
+- `frame_near`: naehert ueber aktive Tracks im Frame an.
+- `profile_simulation` aktiv: live Occupancy folgt Simulationsprofil (siehe unten), Detection-Events wirken als temporale Korrektur.
+
+### Verhalten bei pausierter Auswertung (wichtig fuer Demo)
+
+Wenn `analysis_enabled=false` gesetzt wird:
+
+- Es werden keine Inferenz-API-Aufrufe mehr ausgefuehrt.
+- Die Profilsimulation laeuft weiter und erzeugt Tick-basierte Entry/Exit-Deltas.
+- Diese Deltas werden weiterhin an den Integration-Writer uebergeben, inklusive Heartbeat-Schreibungen.
+- Damit bleiben `prognose.counts` und nachgelagerte Forecast-Services mit realistisch wirkendem Signal versorgt, auch im "Pause"-Modus.
+
+Das ermoeglicht Live-Demos mit stabiler Prognose, ohne GPU/Inference-Druck.
+
 ## 3) Realtime Dashboard (Web + API + Stream)
 
 Datei: `bildauswertung/realtime/dashboard_app.py`
@@ -235,6 +280,7 @@ ENV-Overrides (Auszug):
 - `SITCHECK_TRACKING_WITH_SYSTEM=0|1`
 - `SITCHECK_DASHBOARD_HOST`, `SITCHECK_DASHBOARD_PORT`
 - `SITCHECK_PORTAL_HOST`, `SITCHECK_PORTAL_PORT`
+- `SITCHECK_RECLAIM_PORTS=0|1` (Default: `1`, raeumt belegte Sitcheck-Ports vor Start auf)
 
 ## Troubleshooting
 
@@ -257,6 +303,22 @@ Nur einen Startweg aktiv halten.
 
 - Portal-Status pruefen in `sitcheckctl status`.
 - Portal-Log unter `website-dashboard/runtime/logs/portal.log` ansehen.
+
+### Scheduler ist degraded / Snapshot schlaegt fehl
+
+Symptom:
+
+- `sitcheckctl status` zeigt Warnung fuer `forecast-scheduler`.
+
+Haeufige Ursache:
+
+- Extern gestarteter API-Gateway-Prozess ohne `INTERNAL_API_TOKEN` belegt Port `8000`.
+
+Loesung:
+
+1. Mit Default-Start (`SITCHECK_RECLAIM_PORTS=1`) uebernimmt `sitcheckctl.sh` die Sitcheck-Ports deterministisch.
+2. Danach `./sitcheckctl.sh restart` ausfuehren.
+3. Erneut Status pruefen; Scheduler sollte Snapshot-Aufrufe wieder erfolgreich fahren.
 
 ## Weiterfuehrende Dokumente
 

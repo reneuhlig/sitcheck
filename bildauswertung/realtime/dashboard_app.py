@@ -823,10 +823,15 @@ HTML_PAGE = """
       const loaded = !!sim.profile_loaded;
       const err = String(sim.profile_error || '').trim();
       const buckets = Number(sim.profile_bucket_count || 0);
+      const simEntriesTotal = Number(sim.sim_entries_total || 0);
+      const simExitsTotal = Number(sim.sim_exits_total || 0);
+      const pauseHint = (!analysisEnabled && !!sim.enabled)
+        ? ' | aktiv waehrend Pause'
+        : '';
       if (err) {
-        profileSimInfoEl.textContent = `Status: Fehler (${err}) | Occ: ${occ}`;
+        profileSimInfoEl.textContent = `Status: Fehler (${err}) | Occ: ${occ} | Sim +${simEntriesTotal} / -${simExitsTotal}${pauseHint}`;
       } else {
-        profileSimInfoEl.textContent = `Status: ${loaded ? 'Profil geladen' : 'Profil ausstehend'} | Buckets: ${buckets} | Sim Occ: ${occ}`;
+        profileSimInfoEl.textContent = `Status: ${loaded ? 'Profil geladen' : 'Profil ausstehend'} | Buckets: ${buckets} | Sim Occ: ${occ} | Sim +${simEntriesTotal} / -${simExitsTotal}${pauseHint}`;
       }
     }
 
@@ -1625,6 +1630,8 @@ class TrackingEngine:
         self.last_track_error = ""
         self._fps_ema = 0.0
         self.analysis_skipped_frames = 0
+        self._pause_write_heartbeat_sec = 1.0
+        self._last_pause_write_ts = 0.0
 
         self._lock = threading.Lock()
         self._packet_cv = threading.Condition(self._lock)
@@ -2044,10 +2051,42 @@ class TrackingEngine:
           analysis_enabled = bool(self.analysis_enabled)
 
         if not analysis_enabled:
+          sim_tick_events = self.profile_simulation.consume_tick_events()
+          sim_entries = int(sim_tick_events.get("entries", 0))
+          sim_exits = int(sim_tick_events.get("exits", 0))
+          if sim_entries > 0:
+            self.entries_total += sim_entries
+          if sim_exits > 0:
+            self.exits_total += sim_exits
+
+          live_occupancy = self._resolve_live_occupancy()
+          frame_id = self._capture_frame_idx
+          now_pause = time.monotonic()
+          should_write_pause_frame = (sim_entries > 0 or sim_exits > 0)
+          if not should_write_pause_frame:
+            should_write_pause_frame = (now_pause - self._last_pause_write_ts) >= self._pause_write_heartbeat_sec
+
+          if self.integration_writer and should_write_pause_frame:
+            # Keep downstream forecast ingestion active in pause-mode demos.
+            self.integration_writer.write_frame(
+              occupancy=live_occupancy,
+              tracks=[],
+              run_tracking_now=False,
+              track_ok=True,
+              track_error="",
+              model_name=str(getattr(self.detector, "model_name", "yolo")),
+              model_version=str(getattr(self.detector, "model_version", "unknown")),
+              frame_id=frame_id,
+              events_in_frame={"entry": sim_entries, "exit": sim_exits},
+            )
+            self._last_pause_write_ts = now_pause
+
           self.last_tracks = 0
-          self.last_entries = 0
-          self.last_exits = 0
+          self.last_entries = sim_entries
+          self.last_exits = sim_exits
           self.last_inference_fps = 0.0
+          self.last_track_ok = True
+          self.last_track_error = ""
           self._last_tracks_cache = []
           time.sleep(0.02)
           continue
