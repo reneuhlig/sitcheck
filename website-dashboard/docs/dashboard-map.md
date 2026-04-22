@@ -31,8 +31,7 @@ Runtime-Artefakte:
 - `website-dashboard/runtime/logs`
 
 Start:
-- `./bildauswertung/realtime/start_dashboard.sh start`
-- oder zentral: `./sitcheckctl.sh start`
+- `./sitcheckctl.sh start`
 
 ## 3. Analytics/Executive Dashboard (Streamlit)
 Pfad:

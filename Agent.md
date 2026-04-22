@@ -38,7 +38,8 @@ Counting is event-based and must avoid false positives from pedestrians passing 
 - `bildauswertung/realtime/dashboard_app.py` contains the full live pipeline for web usage:
   video ingest + YOLO tracking + trajectory analysis + overlay rendering + DASH output.
 - `bildauswertung/run_live_detection.py` / `bildauswertung/start_system.sh` is a standalone local/CLI runtime.
-- To avoid duplicate inference load and lag, do **not** run `bildauswertung/realtime/start_dashboard.sh` and `bildauswertung/start_system.sh` at the same time on the same source.
+- Central orchestrator for all components is `./sitcheckctl.sh`.
+- To avoid duplicate inference load and lag, do **not** run `./sitcheckctl.sh start` and `bildauswertung/start_system.sh start` at the same time on the same source.
 
 ### Separation Principles
 - Video source is abstracted and replaceable via configuration.
@@ -176,12 +177,12 @@ python3 bildauswertung/run_live_detection.py --config bildauswertung/config.yaml
 ./bildauswertung/start_system.sh stop
 ```
 
-## Recommended production pipeline (web + tracking + DASH in one process)
+## Recommended production pipeline (all components)
 ```bash
-./bildauswertung/realtime/start_dashboard.sh start
-./bildauswertung/realtime/start_dashboard.sh status
-./bildauswertung/realtime/start_dashboard.sh logs
-./bildauswertung/realtime/start_dashboard.sh stop
+./sitcheckctl.sh start
+./sitcheckctl.sh status
+./sitcheckctl.sh logs
+./sitcheckctl.sh stop
 ```
 
 Default web URL:

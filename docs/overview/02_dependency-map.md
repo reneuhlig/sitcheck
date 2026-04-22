@@ -24,7 +24,7 @@ Core module dependencies:
 Current intentional couplings:
 - `bildauswertung/realtime` -> `bildauswertung` (shared runtime detection stack)
 - `bildauswertung` and `prognose` are logically complementary but code-decoupled.
-- Root wrappers (`start_system.sh`, `start_dashboard.sh`) delegate to new area paths.
+- `sitcheckctl.sh` orchestrates prognose + realtime + portal as central startup entrypoint.
 
 ## 5. Public Runtime Interfaces
 Unchanged HTTP routes (realtime dashboard):

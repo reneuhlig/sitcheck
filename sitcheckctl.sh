@@ -4,7 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROGNOSE_DIR="${SCRIPT_DIR}/prognose"
 BILDAUSWERTUNG_CTL="${SCRIPT_DIR}/bildauswertung/start_system.sh"
-DASHBOARD_CTL="${SCRIPT_DIR}/bildauswertung/realtime/start_dashboard.sh"
 PORTAL_CTL="${SCRIPT_DIR}/website-dashboard/portal/start_portal.sh"
 RUNTIME_ROOT="${SCRIPT_DIR}/website-dashboard/runtime"
 LOG_DIR="${RUNTIME_ROOT}/logs"
@@ -286,22 +285,17 @@ stop_prognose_stack() {
 }
 
 start_realtime_stack() {
-    if [ "${START_STANDALONE_TRACKING}" = "1" ]; then
-        log "[INFO] Starte zusätzlich standalone Tracking."
-        "${BILDAUSWERTUNG_CTL}" start >>"${SITCHECKCTL_LOG}" 2>&1 || true
-    else
-        log "[INFO] Standalone Tracking deaktiviert (SITCHECK_START_STANDALONE_TRACKING=0)."
+    if [ "${START_STANDALONE_TRACKING}" = "1" ] && [ -z "${SITCHECK_TRACKING_WITH_SYSTEM:-}" ]; then
+        export SITCHECK_TRACKING_WITH_SYSTEM="1"
+        log "[INFO] Kompatibilitaet: SITCHECK_TRACKING_WITH_SYSTEM=1 aus SITCHECK_START_STANDALONE_TRACKING abgeleitet."
     fi
 
-    "${DASHBOARD_CTL}" start >>"${SITCHECKCTL_LOG}" 2>&1
+    "${BILDAUSWERTUNG_CTL}" start >>"${SITCHECKCTL_LOG}" 2>&1
     wait_for_http "${REALTIME_HEALTH_URL}" "realtime dashboard" 120 0
 }
 
 stop_realtime_stack() {
-    "${DASHBOARD_CTL}" stop >>"${SITCHECKCTL_LOG}" 2>&1 || true
-    if [ "${START_STANDALONE_TRACKING}" = "1" ]; then
-        "${BILDAUSWERTUNG_CTL}" stop >>"${SITCHECKCTL_LOG}" 2>&1 || true
-    fi
+    "${BILDAUSWERTUNG_CTL}" stop >>"${SITCHECKCTL_LOG}" 2>&1 || true
 }
 
 start_portal_stack() {
@@ -452,7 +446,6 @@ show_status() {
     "${BILDAUSWERTUNG_CTL}" status || true
     echo "[website-dashboard]"
     "${PORTAL_CTL}" status || true
-    "${DASHBOARD_CTL}" status || true
     echo
 
     if [ "${ORCH_MODE}" = "local" ]; then
