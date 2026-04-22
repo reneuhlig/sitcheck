@@ -187,6 +187,12 @@ HTML_PAGE = """
       font-weight: 700;
       box-shadow: 0 8px 16px rgba(32, 86, 69, 0.5);
     }
+    .det-btn.active {
+      background: linear-gradient(110deg, #4ec89f, #3dad86);
+      border-color: rgba(192, 255, 231, 0.4);
+      color: #062117;
+      font-weight: 700;
+    }
 
     .navlink {
       display: inline-block;
@@ -320,6 +326,13 @@ HTML_PAGE = """
         <div class="row" style="margin-top:10px; align-items:center;">
           <button id="toggle_analysis">Auswertung stoppen</button>
           <div class="muted">Status: <span id="analysis_status" class="ok">aktiv</span></div>
+        </div>
+        <div class="row" style="margin-top:10px; align-items:center; gap:6px;">
+          <label style="margin-right:4px;">Detektor:</label>
+          <button id="det_local" class="det-btn">Local</button>
+          <button id="det_api" class="det-btn">API</button>
+          <button id="det_hybrid" class="det-btn">Hybrid</button>
+          <span id="det_status" class="muted"></span>
         </div>
         <div class="row" style="margin-top:10px;">
           <a class="navlink" id="main_link">Zur Hauptseite</a>
@@ -1038,6 +1051,7 @@ HTML_PAGE = """
         inferFpsEl.textContent = st.inference_fps;
         detectorSourceEl.textContent = st.detector_source ?? '-';
         eventsEl.textContent = `+${st.entries_frame} / -${st.exits_frame}`;
+        if (st.detector_mode) updateDetectorButtons(st.detector_mode);
         setAnalysisUi(st.analysis_enabled !== false);
         updateSimulationPanelFromPayload(st);
         updateProfileSimulationPanelFromPayload(st);
@@ -1195,6 +1209,40 @@ HTML_PAGE = """
     loadSimulationCatalog();
     loadProfileSimulationControl();
     initDashPlayer();
+
+    function updateDetectorButtons(mode) {
+      document.querySelectorAll('.det-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('det_' + mode);
+      if (btn) btn.classList.add('active');
+    }
+    async function setDetectorMode(mode) {
+      document.querySelectorAll('.det-btn').forEach(b => b.disabled = true);
+      try {
+        const res = await fetch(withPrefix('/api/detector/mode'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          updateDetectorButtons(data.detector_mode);
+          statusEl.textContent = 'Detektor: ' + data.detector_mode;
+          statusEl.className = 'ok';
+        } else {
+          statusEl.textContent = 'Fehler: ' + (data.error || 'unknown');
+          statusEl.className = 'warn';
+        }
+      } catch (e) {
+        statusEl.textContent = 'Detektor-Wechsel fehlgeschlagen';
+        statusEl.className = 'warn';
+      } finally {
+        document.querySelectorAll('.det-btn').forEach(b => b.disabled = false);
+      }
+    }
+    document.getElementById('det_local').onclick = () => setDetectorMode('local');
+    document.getElementById('det_api').onclick = () => setDetectorMode('api');
+    document.getElementById('det_hybrid').onclick = () => setDetectorMode('hybrid');
+
     setInterval(pollState, 1000);
     setInterval(drawZone, 1000);
   </script>
@@ -2321,6 +2369,7 @@ class TrackingEngine:
           "track_ok": self.last_track_ok,
           "track_error": self.last_track_error,
           "detector_source": str(getattr(self.detector, "last_detector_source", "api")),
+          "detector_mode": str(self.config.get("tracking", {}).get("detector_mode", "hybrid")),
           "zone": self.zone_config.to_dict(),
           "analysis_roi": self.analysis_roi,
           "integration_writer": (
@@ -2346,6 +2395,37 @@ class TrackingEngine:
         state["simulation_basic_clip"] = self._simulation_clip_brief(self._simulation_basic_clip_id)
         state["simulation_pending_queue"] = self._simulation_queue_snapshot_locked()
       return state
+
+    def set_detector_mode(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+      mode = str(payload.get("mode", "")).strip().lower()
+      if mode not in {"local", "api", "hybrid"}:
+        raise ValueError(f"Ungültiger Modus: {mode}")
+
+      cfg = self.config_manager.load()
+      tracking_cfg = cfg["tracking"]
+      tracking_cfg["detector_mode"] = mode
+
+      if mode == "api":
+        tracking_cfg["max_api_fps"] = 20.0
+        tracking_cfg["imgsz"] = 640
+      elif mode == "local":
+        tracking_cfg["max_api_fps"] = 5.0
+        tracking_cfg["imgsz"] = 480
+
+      self.config_manager.save(cfg)
+      self.config = cfg
+
+      new_detector = build_person_detector(
+        tracking_cfg=tracking_cfg,
+        config_dir=self.config_dir,
+      )
+      with self._lock:
+        self.detector = new_detector
+        self.tracking_module.detector = new_detector
+        self.tracking_module._track_memory.clear()
+
+      print(f"[INFO] Detektor-Modus gewechselt: {mode}")
+      return {"ok": True, "detector_mode": mode}
 
     def get_video_source(self) -> Dict[str, Any]:
       simulation_clip_id = self.simulation_registry.find_clip_id_by_path(str(getattr(self.video_input, "raw_source", "")))
@@ -2852,6 +2932,17 @@ def create_app(config_path: str) -> Flask:
       payload = request.get_json(silent=True) or {}
       try:
         return jsonify(engine.update_profile_simulation_control(payload))
+      except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    @app.route("/api/detector/mode", methods=["GET", "POST"])
+    def api_detector_mode():
+      if request.method == "GET":
+        mode = str(engine.config.get("tracking", {}).get("detector_mode", "hybrid"))
+        return jsonify({"ok": True, "detector_mode": mode})
+      payload = request.get_json(silent=True) or {}
+      try:
+        return jsonify(engine.set_detector_mode(payload))
       except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 

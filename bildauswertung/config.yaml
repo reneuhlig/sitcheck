@@ -38,7 +38,7 @@ tracking:
   tracker: bytetrack_entrance.yaml
   confidence_threshold: 0.10
   iou_threshold: 0.45
-  imgsz: 640
+  imgsz: 480
   analysis_roi:
     enabled: true
     mode: polygon
@@ -55,7 +55,7 @@ tracking:
   hold_confidence_decay: 0.9
   trail_length: 16
   motion_min_pixels: 1.2
-  process_every_n_frames: 2
+  process_every_n_frames: 1
   api_result_max_age_frames: 6
   max_cache_only_frames: 5
   reid_max_gap_frames: 24
