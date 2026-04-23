@@ -39,6 +39,10 @@ SCHEDULER_SERVICE_URL = os.getenv("SCHEDULER_SERVICE_URL", "http://forecast-sche
 INTERNAL_API_TOKEN = os.getenv("INTERNAL_API_TOKEN", "")
 FORECAST_SERVICE_TIMEOUT_SECONDS = float(os.getenv("FORECAST_SERVICE_TIMEOUT_SECONDS", "75"))
 FORECAST_SNAPSHOT_RETENTION_DAYS = int(os.getenv("FORECAST_SNAPSHOT_RETENTION_DAYS", "14"))
+# counts needs at least 3 days for occupancy_lag_week (4320 min) used by LGBM inference.
+COUNTS_RETENTION_DAYS = int(os.getenv("COUNTS_RETENTION_DAYS", "3"))
+SCENARIO_RUNS_RETENTION_DAYS = int(os.getenv("SCENARIO_RUNS_RETENTION_DAYS", "3"))
+DB_CLEANUP_INTERVAL_SECONDS = int(os.getenv("DB_CLEANUP_INTERVAL_SECONDS", "3600"))
 FORECAST_STALE_THRESHOLD_SECONDS = int(os.getenv("FORECAST_STALE_THRESHOLD_SECONDS", "900"))
 MAX_FORECAST_HORIZON_MINUTES = int(os.getenv("MAX_FORECAST_HORIZON_MINUTES", "43200"))
 DEFAULT_FORECAST_HORIZON_MINUTES = max(
@@ -126,6 +130,61 @@ def _slot_key(slot_minutes: int = 15) -> int:
 _forecast_multi_cache: _TTLCache = _TTLCache(ttl=13.5 * 60)
 _explanation_cache: _TTLCache = _TTLCache(ttl=5 * 60)
 _narrative_exec_cache: _TTLCache = _TTLCache(ttl=13.5 * 60)
+
+
+# ---------------------------------------------------------------------------
+# Periodic DB cleanup
+# ---------------------------------------------------------------------------
+
+def _cleanup_old_data(db: Session) -> dict[str, int]:
+    """Delete rows that are no longer needed.  Returns deleted-row counts per table.
+
+    counts retention:  COUNTS_RETENTION_DAYS (default 3).  Must stay ≥ 3 days because
+    LGBM inference reads occupancy_lag_week (72 h back) and occupancy_lag_day (12 h back)
+    directly from this table; deleting earlier would degrade forecast accuracy.
+
+    user_sessions: hard-expire – removed immediately when expires_at is in the past.
+    """
+    deleted: dict[str, int] = {}
+    now = datetime.now(UTC)
+
+    # Occupancy readings – primary growth driver; bounded to COUNTS_RETENTION_DAYS
+    cutoff_counts = now - timedelta(days=COUNTS_RETENTION_DAYS)
+    n = db.query(Count).filter(Count.ts < cutoff_counts).delete(synchronize_session=False)
+    deleted["counts"] = n
+
+    # Forecast snapshots – already cleaned per-write, but also do a periodic sweep
+    cutoff_fc = now - timedelta(days=FORECAST_SNAPSHOT_RETENTION_DAYS)
+    n = db.query(ForecastSnapshot).filter(ForecastSnapshot.created_at < cutoff_fc).delete(synchronize_session=False)
+    deleted["forecasts"] = n
+
+    # Scenario run results – transient, can be regenerated on demand
+    cutoff_sc = now - timedelta(days=SCENARIO_RUNS_RETENTION_DAYS)
+    n = db.query(ScenarioRun).filter(ScenarioRun.created_at < cutoff_sc).delete(synchronize_session=False)
+    deleted["scenario_runs"] = n
+
+    # Expired user sessions
+    n = db.query(UserSession).filter(UserSession.expires_at < now).delete(synchronize_session=False)
+    deleted["user_sessions"] = n
+
+    db.commit()
+    return deleted
+
+
+def _cleanup_worker() -> None:
+    """Daemon thread: runs DB cleanup every DB_CLEANUP_INTERVAL_SECONDS (default 1 h)."""
+    # Stagger first run by 60 s so startup finishes first
+    time.sleep(60)
+    while True:
+        try:
+            with SessionLocal() as db:
+                result = _cleanup_old_data(db)
+            total = sum(result.values())
+            if total:
+                print(f"[db-cleanup] deleted {result}", flush=True)
+        except Exception as exc:
+            print(f"[db-cleanup] error: {exc}", flush=True)
+        time.sleep(DB_CLEANUP_INTERVAL_SECONDS)
 
 if DATABASE_URL.startswith("sqlite:"):
     # For local no-docker runtime, avoid QueuePool starvation under bursty dashboard polling.
@@ -1930,12 +1989,37 @@ def startup() -> None:
         _seed_mock_calendar(db, zone.zone_id)
         _ensure_sqlite_indexes(db)
         _ensure_sqlite_schema_extensions(db)
+        # Initial cleanup on startup so we don't carry stale rows from previous runs
+        try:
+            result = _cleanup_old_data(db)
+            total = sum(result.values())
+            if total:
+                print(f"[db-cleanup] startup cleanup: {result}", flush=True)
+        except Exception as exc:
+            print(f"[db-cleanup] startup cleanup error: {exc}", flush=True)
+    # Start periodic background cleanup daemon (runs every DB_CLEANUP_INTERVAL_SECONDS)
+    _t = threading.Thread(target=_cleanup_worker, daemon=True, name="db-cleanup")
+    _t.start()
 
 
 @app.get("/health")
 def health(db: Session = Depends(get_db)) -> dict[str, Any]:
     db.execute(text("SELECT 1"))
     return {"status": "ok", "service": "api-gateway"}
+
+
+@app.post("/api/v1/internal/cleanup")
+def trigger_cleanup(db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Manually trigger a DB cleanup cycle.  Returns deleted row counts per table."""
+    result = _cleanup_old_data(db)
+    return {
+        "deleted": result,
+        "retention": {
+            "counts_days": COUNTS_RETENTION_DAYS,
+            "forecasts_days": FORECAST_SNAPSHOT_RETENTION_DAYS,
+            "scenario_runs_days": SCENARIO_RUNS_RETENTION_DAYS,
+        },
+    }
 
 
 @app.get("/api/v1/zones", response_model=list[ZoneResponse])
@@ -2638,6 +2722,31 @@ async def create_forecast_snapshot(
     return _to_latest_response(payload=payload, source="snapshot", stale_seconds=FORECAST_STALE_THRESHOLD_SECONDS)
 
 
+@app.get("/api/v1/dashboard/live")
+async def get_dashboard_live(
+    zone_id: str,
+    history_minutes: int = Query(default=180, ge=30, le=1440),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Lightweight endpoint returning only current occupancy + recent history.
+    Reads directly from the DB – never calls external services, never fails."""
+    _ = _get_zone_or_404(db, zone_id)
+    generated_at = datetime.now(UTC)
+    history_points, live = _latest_live_state(db=db, zone_id=zone_id, history_minutes=history_minutes)
+    return {
+        "zone_id": zone_id,
+        "generated_at": generated_at.isoformat(),
+        "live": live,
+        "history": {
+            "zone_id": zone_id,
+            "from": (generated_at - timedelta(minutes=history_minutes)).isoformat(),
+            "to": generated_at.isoformat(),
+            "granularity": "1m",
+            "points": history_points,
+        },
+    }
+
+
 @app.get("/api/v1/dashboard/command-center")
 async def get_dashboard_command_center(
     zone_id: str,
@@ -2649,8 +2758,13 @@ async def get_dashboard_command_center(
 ) -> dict[str, Any]:
     zone = _get_zone_or_404(db, zone_id)
     generated_at = datetime.now(UTC)
+    _errors: dict[str, str] = {}
 
-    history_points, live = _latest_live_state(db=db, zone_id=zone_id, history_minutes=history_minutes)
+    try:
+        history_points, live = _latest_live_state(db=db, zone_id=zone_id, history_minutes=history_minutes)
+    except Exception as exc:
+        history_points, live = [], {}
+        _errors["live"] = str(exc)
     db.rollback()
     try:
         latest_forecast = await _resolve_latest_forecast(
@@ -2659,7 +2773,7 @@ async def get_dashboard_command_center(
             horizon=horizon,
             stale_seconds=stale_seconds,
         )
-    except Exception:
+    except Exception as exc:
         latest_forecast = ForecastLatestResponse(
             zone_id=zone_id,
             horizon=horizon,
@@ -2673,6 +2787,7 @@ async def get_dashboard_command_center(
             lineage=None,
             source="on_demand_fallback",
         )
+        _errors["forecast"] = str(exc)
     try:
         weekly_forecast = await _resolve_latest_weekly_forecast(
             db=db,
@@ -2681,7 +2796,7 @@ async def get_dashboard_command_center(
             slot_minutes=WEEKLY_FORECAST_SLOT_MINUTES,
             stale_seconds=stale_seconds,
         )
-    except Exception:
+    except Exception as exc:
         weekly_forecast = WeeklyForecastResponse(
             zone_id=zone_id,
             product=PRODUCT_WEEKLY,
@@ -2698,6 +2813,7 @@ async def get_dashboard_command_center(
             lineage={},
             source="on_demand_fallback",
         )
+        _errors["weekly_forecast"] = str(exc)
     db.rollback()
     try:
         explanation = await _resolve_adjusted_explanation(
@@ -2706,8 +2822,9 @@ async def get_dashboard_command_center(
             horizon=horizon,
             forecast=latest_forecast,
         )
-    except Exception:
+    except Exception as exc:
         explanation = {"drivers": [], "uncertainty": {"level": "unknown"}, "error": "xai_unavailable"}
+        _errors["explanation"] = str(exc)
     try:
         recommendations = await _fetch_recommendations(
             {
@@ -2718,58 +2835,71 @@ async def get_dashboard_command_center(
                 "explanation": explanation,
             }
         )
-    except Exception:
+    except Exception as exc:
         recommendations = {"actions": [], "scenarios": [], "error": "recommendations_unavailable"}
+        _errors["recommendations"] = str(exc)
     weekly_lineage = _latest_model_lineage(db=db, zone_id=zone_id, product=PRODUCT_WEEKLY)
     short_term_lineage = _latest_model_lineage(db=db, zone_id=zone_id, product=PRODUCT_SHORT_TERM, horizon=horizon)
     lecture_impact = _read_lecture_impact_latest(db=db, zone_id=zone_id)
-    reference_rows = (
-        db.execute(
-            select(ReferenceObject)
-            .where((ReferenceObject.zone_id == zone_id) | (ReferenceObject.zone_id.is_(None)))
-            .order_by(ReferenceObject.imported_at.desc(), ReferenceObject.created_at.desc())
-            .limit(8)
+    try:
+        reference_rows = (
+            db.execute(
+                select(ReferenceObject)
+                .where((ReferenceObject.zone_id == zone_id) | (ReferenceObject.zone_id.is_(None)))
+                .order_by(ReferenceObject.imported_at.desc(), ReferenceObject.created_at.desc())
+                .limit(8)
+            )
+            .scalars()
+            .all()
         )
-        .scalars()
-        .all()
-    )
-    reference_objects = [_reference_payload_to_public(row) for row in reference_rows]
-    lecture_metadata = lecture_impact.get("metadata", {}) if isinstance(lecture_impact, dict) else {}
-    for idx, item in enumerate(lecture_metadata.get("external_references", []) if isinstance(lecture_metadata, dict) else [], start=1):
-        if not isinstance(item, dict):
-            continue
-        reference_objects.append(
-            {
-                "reference_id": f"ext-command-center-{idx}",
-                "zone_id": zone_id,
-                "reference_type": str(item.get("reference_type") or "external_reference"),
-                "source_type": str(item.get("source_type") or "external"),
-                "label": str(item.get("label") or "External reference"),
-                "uri_or_path": item.get("url"),
-                "checksum": None,
-                "imported_at": generated_at.isoformat(),
-                "time_from": None,
-                "time_to": None,
-                "row_count": None,
-                "metadata": item.get("metadata", {}) if isinstance(item.get("metadata"), dict) else {},
-                "created_at": generated_at.isoformat(),
-            }
-        )
+        reference_objects = [_reference_payload_to_public(row) for row in reference_rows]
+        lecture_metadata = lecture_impact.get("metadata", {}) if isinstance(lecture_impact, dict) else {}
+        for idx, item in enumerate(lecture_metadata.get("external_references", []) if isinstance(lecture_metadata, dict) else [], start=1):
+            if not isinstance(item, dict):
+                continue
+            reference_objects.append(
+                {
+                    "reference_id": f"ext-command-center-{idx}",
+                    "zone_id": zone_id,
+                    "reference_type": str(item.get("reference_type") or "external_reference"),
+                    "source_type": str(item.get("source_type") or "external"),
+                    "label": str(item.get("label") or "External reference"),
+                    "uri_or_path": item.get("url"),
+                    "checksum": None,
+                    "imported_at": generated_at.isoformat(),
+                    "time_from": None,
+                    "time_to": None,
+                    "row_count": None,
+                    "metadata": item.get("metadata", {}) if isinstance(item.get("metadata"), dict) else {},
+                    "created_at": generated_at.isoformat(),
+                }
+            )
+    except Exception as exc:
+        reference_objects = []
+        _errors["reference_objects"] = str(exc)
 
     db.rollback()
-    calendar_events = get_calendar_events(
-        zone_id=zone_id,
-        from_=generated_at - timedelta(minutes=history_minutes),
-        to=generated_at + timedelta(days=long_term_days),
-        db=db,
-    )
-    weekly_explanation = build_weekly_explainability(
-        zone_id=zone_id,
-        weekly_forecast=weekly_forecast.model_dump(mode="json"),
-        lecture_impact=lecture_impact,
-        lineage=weekly_lineage or weekly_forecast.lineage,
-        calendar_events=[event.model_dump(mode="json") for event in calendar_events],
-    )
+    try:
+        calendar_events = get_calendar_events(
+            zone_id=zone_id,
+            from_=generated_at - timedelta(minutes=history_minutes),
+            to=generated_at + timedelta(days=long_term_days),
+            db=db,
+        )
+    except Exception as exc:
+        calendar_events = []
+        _errors["calendar_events"] = str(exc)
+    try:
+        weekly_explanation = build_weekly_explainability(
+            zone_id=zone_id,
+            weekly_forecast=weekly_forecast.model_dump(mode="json"),
+            lecture_impact=lecture_impact,
+            lineage=weekly_lineage or weekly_forecast.lineage,
+            calendar_events=[event.model_dump(mode="json") for event in calendar_events] if calendar_events else [],
+        )
+    except Exception as exc:
+        weekly_explanation = {}
+        _errors["weekly_explanation"] = str(exc)
 
     long_horizons = sorted(
         {
@@ -2781,25 +2911,27 @@ async def get_dashboard_command_center(
     )
 
     forecast_long_term: list[dict[str, Any]] = []
-    for hz in long_horizons:
-        if hz == horizon:
-            forecast_long_term.append(latest_forecast.model_dump(mode="json"))
-            continue
-
-        snapshot = (
-            db.query(ForecastSnapshot)
-            .filter(
-                ForecastSnapshot.zone_id == zone_id,
-                ForecastSnapshot.product == PRODUCT_SHORT_TERM,
-                ForecastSnapshot.horizon == hz,
+    try:
+        for hz in long_horizons:
+            if hz == horizon:
+                forecast_long_term.append(latest_forecast.model_dump(mode="json"))
+                continue
+            snapshot = (
+                db.query(ForecastSnapshot)
+                .filter(
+                    ForecastSnapshot.zone_id == zone_id,
+                    ForecastSnapshot.product == PRODUCT_SHORT_TERM,
+                    ForecastSnapshot.horizon == hz,
+                )
+                .order_by(ForecastSnapshot.generated_at.desc())
+                .first()
             )
-            .order_by(ForecastSnapshot.generated_at.desc())
-            .first()
-        )
-        if snapshot is None:
-            continue
-        item = _to_latest_response(payload=snapshot.payload, source="snapshot", stale_seconds=stale_seconds)
-        forecast_long_term.append(item.model_dump(mode="json"))
+            if snapshot is None:
+                continue
+            item = _to_latest_response(payload=snapshot.payload, source="snapshot", stale_seconds=stale_seconds)
+            forecast_long_term.append(item.model_dump(mode="json"))
+    except Exception as exc:
+        _errors["forecast_long_term"] = str(exc)
     db.rollback()
 
     upstream_health = await asyncio.gather(
@@ -2814,7 +2946,11 @@ async def get_dashboard_command_center(
         {"service": "api-gateway", "status": "ok", "latency_ms": 0, "detail": "local"},
         *upstream_health,
     ]
-    alerts = _build_alerts(live=live, latest_forecast=latest_forecast, explanation=explanation)
+    try:
+        alerts = _build_alerts(live=live, latest_forecast=latest_forecast, explanation=explanation)
+    except Exception as exc:
+        alerts = []
+        _errors["alerts"] = str(exc)
 
     return {
         "meta": {
@@ -2825,6 +2961,7 @@ async def get_dashboard_command_center(
             "long_term_days": long_term_days,
             "stale_seconds": stale_seconds,
             "environment": os.getenv("APP_ENV", "dev"),
+            "_errors": _errors,
         },
         "service_health": service_health,
         "live": live,
@@ -2847,7 +2984,7 @@ async def get_dashboard_command_center(
             "weekly_slot": weekly_lineage or weekly_forecast.lineage or {},
         },
         "reference_objects": reference_objects,
-        "calendar_events": [event.model_dump(mode="json") for event in calendar_events],
+        "calendar_events": [event.model_dump(mode="json") for event in calendar_events] if calendar_events else [],
         "alerts": alerts,
     }
 

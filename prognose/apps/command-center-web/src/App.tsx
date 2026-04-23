@@ -22,7 +22,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fetchAudienceNarrative, fetchCommandCenter, fetchExecutiveNarrative, fetchForecastMultiStep, fetchHealth } from "./api";
+import { fetchAudienceNarrative, fetchCommandCenter, fetchExecutiveNarrative, fetchForecastMultiStep, fetchHealth, fetchLive } from "./api";
 import { DEFAULT_HORIZON, DEFAULT_ZONE_ID } from "./config";
 import { deriveDecisionState, executiveActions, qualityFlags, type StatusTone } from "./decision";
 import { compactDate, formatNumber, formatTime, percent } from "./format";
@@ -610,29 +610,32 @@ export function App() {
     longTermDays: 14,
   };
 
+  // ── Independent queries – each fails on its own without blocking others ──
+
+  // 1. API health (lightweight)
   const healthQuery = useQuery({
     queryKey: ["health"],
     queryFn: fetchHealth,
     refetchInterval: autoRefresh ? 30_000 : false,
   });
+
+  // 2. Live occupancy + history – DB only, always fast, never blocked by ML services
+  const liveQuery = useQuery({
+    queryKey: ["live", zoneId],
+    queryFn: () => fetchLive(zoneId, 180),
+    refetchInterval: autoRefresh ? 15_000 : false,
+    staleTime: 10_000,
+  });
+
+  // 3. Full aggregated data – may call forecast/xai/recommendations services
+  //    Backend now returns 200 even when sub-services are down.
   const commandQuery = useQuery({
     queryKey: ["command-center", filters],
     queryFn: () => fetchCommandCenter(filters),
     refetchInterval: autoRefresh ? 30_000 : false,
   });
-  // Narrative (Qwen) is expensive – backend caches per 15-min slot.
-  // Frontend refetches at the same cadence; staleTime matches to avoid
-  // redundant refetches caused by window focus or filter identity changes.
-  const NARRATIVE_INTERVAL = 13 * 60_000; // 13 min < 13.5 min backend TTL
-  const narrativeQuery = useQuery({
-    queryKey: ["executive-narrative", filters],
-    queryFn: () => fetchExecutiveNarrative(filters),
-    enabled: Boolean(commandQuery.data),
-    retry: false,
-    staleTime: NARRATIVE_INTERVAL,
-    refetchInterval: autoRefresh ? NARRATIVE_INTERVAL : false,
-  });
-  // Multi-step forecast uses the same 15-min slot cache on the backend.
+
+  // 4. Multi-step ML forecast – cached per 15-min slot on backend
   const FORECAST_MULTI_INTERVAL = 13 * 60_000;
   const forecastMultiQuery = useQuery({
     queryKey: ["forecast-multi", zoneId],
@@ -641,13 +644,37 @@ export function App() {
     refetchInterval: autoRefresh ? FORECAST_MULTI_INTERVAL : false,
   });
 
+  // 5. Narrative (Qwen) – cached per 15-min slot on backend
+  const NARRATIVE_INTERVAL = 13 * 60_000;
+  const narrativeQuery = useQuery({
+    queryKey: ["executive-narrative", zoneId, horizon],
+    queryFn: () => fetchExecutiveNarrative(filters),
+    enabled: Boolean(commandQuery.data || liveQuery.data),
+    retry: false,
+    staleTime: NARRATIVE_INTERVAL,
+    refetchInterval: autoRefresh ? NARRATIVE_INTERVAL : false,
+  });
+
+  // Merge live data: prefer liveQuery (fresher, 15s cadence) over commandQuery
+  const liveOverride = liveQuery.data;
   const payload = commandQuery.data;
-  const decision = payload ? deriveDecisionState(payload, narrativeQuery.data) : null;
+  const mergedPayload: CommandCenterPayload | undefined = payload
+    ? {
+        ...payload,
+        live: liveOverride?.live ?? payload.live,
+        history: liveOverride?.history ?? payload.history,
+      }
+    : liveOverride
+      ? { live: liveOverride.live, history: liveOverride.history, meta: { zone_id: zoneId, generated_at: liveOverride.generated_at } }
+      : undefined;
+
+  const decision = mergedPayload ? deriveDecisionState(mergedPayload as CommandCenterPayload, narrativeQuery.data) : null;
   const forecastModel = payload?.forecast_latest?.model_version || "unbekannt";
   const forecastIsLgbm = forecastModel.toLowerCase().includes("lgbm");
 
   function refreshAll() {
     void healthQuery.refetch();
+    void liveQuery.refetch();
     void commandQuery.refetch();
     void narrativeQuery.refetch();
     void forecastMultiQuery.refetch();
@@ -695,86 +722,109 @@ export function App() {
           label={`API ${healthQuery.data?.status || (healthQuery.isError ? "down" : "prueft")}`}
           tone={healthQuery.isError ? "risk" : healthQuery.data?.status === "ok" ? "ok" : "info"}
         />
+        <StatusPill
+          label={liveQuery.isError ? "Live: Fehler" : liveQuery.data ? "Live: ok" : "Live: lädt"}
+          tone={liveQuery.isError ? "risk" : liveQuery.data ? "ok" : "info"}
+        />
         <StatusPill label={forecastIsLgbm ? "Forecast LGBM" : `Forecast ${forecastModel}`} tone={forecastIsLgbm ? "ok" : "risk"} />
         <StatusPill
           label={`Qwen ${narrativeQuery.data?.meta?.model || (narrativeQuery.isError ? "Fehler" : "prueft")}`}
           tone={narrativeQuery.isError ? "risk" : narrativeQuery.data?.meta?.model ? "ok" : "info"}
         />
-        <span className="last-refresh">Refresh {formatTime(payload?.meta?.generated_at)}</span>
+        <span className="last-refresh">
+          Live {formatTime(liveOverride?.generated_at)} · CC {formatTime(payload?.meta?.generated_at)}
+        </span>
       </section>
 
-      {commandQuery.isLoading ? <div className="loading-page">Command-Center-Daten werden geladen...</div> : null}
-      {commandQuery.isError ? (
-        <div className="error-box page-error">Command Center konnte nicht geladen werden: {(commandQuery.error as Error).message}</div>
+      {/* Live data loads immediately – no blocking on command-center */}
+      {liveQuery.isLoading && !mergedPayload ? (
+        <div className="loading-page">Echtzeit-Daten werden geladen...</div>
       ) : null}
 
-      {payload && decision ? (
-        <>
-          <section className="decision-band" data-testid="decision-band">
-            <DecisionTile label="Entscheidbarkeit" value={decision.label} detail={decision.explanation} tone={decision.tone} />
-            <DecisionTile
-              label="Forecast-Modell"
-              value={decision.modelVersion}
-              detail={forecastIsLgbm ? "Primaerer LGBM-Pfad aktiv" : "Nicht primaerer Modellpfad"}
-              tone={decision.forecastTone}
-            />
-            <DecisionTile
-              label="Datenqualitaet"
-              value={decision.dataQualityLabel}
-              detail={decision.reasons.slice(0, 2).join(" | ") || "Keine blockierenden Flags"}
-              tone={decision.degraded ? "risk" : "ok"}
-            />
-            <DecisionTile
-              label="Naechste Aktion"
-              value={decision.primaryAction.label}
-              detail={decision.primaryAction.detail}
-              tone={decision.degraded ? "warn" : "ok"}
-            />
-          </section>
+      {/* Command-center error is non-fatal – show warning but keep live data visible */}
+      {commandQuery.isError ? (
+        <div className="error-box" style={{ margin: "0.5rem 1rem" }}>
+          Aggregierte Daten nicht verfügbar: {(commandQuery.error as Error).message}
+        </div>
+      ) : null}
 
-          <Alerts alerts={payload.alerts} />
+      {mergedPayload ? (
+        <>
+          {decision ? (
+            <section className="decision-band" data-testid="decision-band">
+              <DecisionTile label="Entscheidbarkeit" value={decision.label} detail={decision.explanation} tone={decision.tone} />
+              <DecisionTile
+                label="Forecast-Modell"
+                value={decision.modelVersion}
+                detail={forecastIsLgbm ? "Primaerer LGBM-Pfad aktiv" : "Nicht primaerer Modellpfad"}
+                tone={decision.forecastTone}
+              />
+              <DecisionTile
+                label="Datenqualitaet"
+                value={decision.dataQualityLabel}
+                detail={decision.reasons.slice(0, 2).join(" | ") || "Keine blockierenden Flags"}
+                tone={decision.degraded ? "risk" : "ok"}
+              />
+              <DecisionTile
+                label="Naechste Aktion"
+                value={decision.primaryAction.label}
+                detail={decision.primaryAction.detail}
+                tone={decision.degraded ? "warn" : "ok"}
+              />
+            </section>
+          ) : null}
+
+          <Alerts alerts={(mergedPayload as CommandCenterPayload).alerts} />
 
           <section className="main-grid">
-            <ForecastChart payload={payload} multiPoints={forecastMultiQuery.data?.points} />
+            <ForecastChart payload={mergedPayload as CommandCenterPayload} multiPoints={forecastMultiQuery.data?.points} />
             <ExecutiveBrief
               narrative={narrativeQuery.data}
               error={narrativeQuery.error as Error | null}
               isLoading={narrativeQuery.isLoading}
-              degraded={decision.degraded}
+              degraded={decision?.degraded ?? false}
             />
           </section>
 
-          <section className="detail-grid">
-            <Panel title="Top-Treiber" icon={<DatabaseZap size={19} />}>
-              <DriverList drivers={narrativeQuery.data?.response?.structured?.top_drivers || payload.explanation?.drivers} />
-            </Panel>
-            <Panel title="Empfehlungen" icon={<CheckCircle2 size={19} />}>
-              <ActionList payload={payload} narrative={narrativeQuery.data} />
-            </Panel>
-            <Panel title="Wochenrisiko" icon={<Activity size={19} />}>
-              <WeeklyRisk payload={payload} />
-            </Panel>
-            <Panel title="Kalenderkontext" icon={<Clock3 size={19} />}>
-              <EventsList events={payload.calendar_events} />
-            </Panel>
-          </section>
+          {payload ? (
+            <>
+              <section className="detail-grid">
+                <Panel title="Top-Treiber" icon={<DatabaseZap size={19} />}>
+                  <DriverList drivers={narrativeQuery.data?.response?.structured?.top_drivers || payload.explanation?.drivers} />
+                </Panel>
+                <Panel title="Empfehlungen" icon={<CheckCircle2 size={19} />}>
+                  <ActionList payload={payload} narrative={narrativeQuery.data} />
+                </Panel>
+                <Panel title="Wochenrisiko" icon={<Activity size={19} />}>
+                  <WeeklyRisk payload={payload} />
+                </Panel>
+                <Panel title="Kalenderkontext" icon={<Clock3 size={19} />}>
+                  <EventsList events={payload.calendar_events} />
+                </Panel>
+              </section>
 
-          <section className="technical-grid">
-            <details>
-              <summary>Systemstatus</summary>
-              <ServiceGrid services={payload.service_health} />
-            </details>
-            <details>
-              <summary>Evidenz und Lineage</summary>
-              <pre>{JSON.stringify({ forecast: payload.forecast_latest?.evidence, lineage: payload.model_lineage }, null, 2)}</pre>
-            </details>
-            <details>
-              <summary>Qwen Details</summary>
-              <pre>{JSON.stringify(narrativeQuery.data || { error: narrativeQuery.error?.message }, null, 2)}</pre>
-            </details>
-          </section>
+              <section className="technical-grid">
+                <details>
+                  <summary>Systemstatus</summary>
+                  <ServiceGrid services={payload.service_health} />
+                </details>
+                <details>
+                  <summary>Evidenz und Lineage</summary>
+                  <pre>{JSON.stringify({ forecast: payload.forecast_latest?.evidence, lineage: payload.model_lineage }, null, 2)}</pre>
+                </details>
+                <details>
+                  <summary>Qwen Details</summary>
+                  <pre>{JSON.stringify(narrativeQuery.data || { error: narrativeQuery.error?.message }, null, 2)}</pre>
+                </details>
+              </section>
 
-          <AudienceChat filters={filters} />
+              <AudienceChat filters={filters} />
+            </>
+          ) : (
+            <div className="loading-page" style={{ marginTop: "1rem" }}>
+              Forecast & Analyse laden… (Live-Daten bereits verfügbar)
+            </div>
+          )}
         </>
       ) : null}
     </main>
