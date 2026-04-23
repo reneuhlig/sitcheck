@@ -2458,6 +2458,180 @@ def get_forecast(
     )
 
 
+def _forecast_multistep(
+    zone_id: str,
+    history_df: pd.DataFrame,
+    context: dict[str, Any],
+    now: datetime,
+    capacity: float,
+    step_minutes: int = 15,
+    horizon_max: int = 180,
+) -> tuple[list[ForecastPoint], dict[str, Any]]:
+    """Generate a multi-step forecast by running LGBM at trained anchor horizons
+    and linearly interpolating for intermediate steps.
+
+    Anchor horizons are the trained model horizons available for zone_id
+    (typically h15, h60, h210).  For each target horizon in
+    [step_minutes, 2*step_minutes, ..., horizon_max] the function finds the
+    two bounding anchors and linearly interpolates yhat / pi_low / pi_high.
+
+    Returns:
+        Tuple of (list of ForecastPoints at step_minutes intervals, info dict).
+    """
+    candidate_horizons = [15, 60, 210]
+    available: list[int] = [
+        h for h in candidate_horizons
+        if gbdt_model_status(TF_MODEL_DIR, zone_id, h).get("exists")
+    ]
+
+    anchor_points: dict[int, ForecastPoint] = {}
+    model_version: str | None = None
+    for ah in available:
+        try:
+            pts, info = _forecast_lgbm(
+                zone_id=zone_id,
+                horizon=ah,
+                history_df=history_df,
+                context=context,
+                now=now,
+                capacity=capacity,
+            )
+            if pts:
+                anchor_points[ah] = pts[0]
+                model_version = model_version or info.get("model_version")
+        except Exception:
+            pass
+
+    sorted_anchors = sorted(anchor_points.keys())
+    target_horizons = list(range(step_minutes, horizon_max + step_minutes, step_minutes))
+
+    result_points: list[ForecastPoint] = []
+
+    if not anchor_points:
+        series = _history_to_series(history_df)
+        baseline_pts, _ = _forecast_baseline(series, horizon_max, capacity=capacity)
+        for h in target_horizons:
+            target_ts = now + timedelta(minutes=h)
+            closest = min(baseline_pts, key=lambda p: abs((p.timestamp - target_ts).total_seconds()))
+            result_points.append(ForecastPoint(
+                timestamp=target_ts,
+                yhat=closest.yhat,
+                pi_low=closest.pi_low,
+                pi_high=closest.pi_high,
+            ))
+        return result_points, {"model_version": "baseline-multistep", "anchor_horizons": []}
+
+    for h in target_horizons:
+        lefts = [ah for ah in sorted_anchors if ah <= h]
+        rights = [ah for ah in sorted_anchors if ah >= h]
+
+        if lefts and rights and lefts[-1] == rights[0]:
+            ap = anchor_points[lefts[-1]]
+            pt = ForecastPoint(
+                timestamp=now + timedelta(minutes=h),
+                yhat=ap.yhat, pi_low=ap.pi_low, pi_high=ap.pi_high,
+            )
+        elif lefts and rights:
+            lh, rh = lefts[-1], rights[0]
+            lp, rp = anchor_points[lh], anchor_points[rh]
+            t = (h - lh) / (rh - lh)
+            pt = ForecastPoint(
+                timestamp=now + timedelta(minutes=h),
+                yhat=round(lp.yhat * (1 - t) + rp.yhat * t, 2),
+                pi_low=round(lp.pi_low * (1 - t) + rp.pi_low * t, 2),
+                pi_high=round(lp.pi_high * (1 - t) + rp.pi_high * t, 2),
+            )
+        elif lefts:
+            ap = anchor_points[lefts[-1]]
+            pt = ForecastPoint(
+                timestamp=now + timedelta(minutes=h),
+                yhat=ap.yhat, pi_low=ap.pi_low, pi_high=ap.pi_high,
+            )
+        else:
+            ap = anchor_points[rights[0]]
+            pt = ForecastPoint(
+                timestamp=now + timedelta(minutes=h),
+                yhat=ap.yhat, pi_low=ap.pi_low, pi_high=ap.pi_high,
+            )
+        result_points.append(pt)
+
+    return result_points, {
+        "model_version": model_version or "lgbm-multistep",
+        "anchor_horizons": sorted_anchors,
+    }
+
+
+@app.get("/v1/forecast/multi", response_model=ForecastResponse)
+def get_forecast_multi(
+    zone_id: str = Query(...),
+    step_minutes: int = Query(default=15, ge=5, le=60),
+    horizon_max: int = Query(default=180, ge=30, le=720),
+) -> ForecastResponse:
+    """Multi-step short-term forecast at regular intervals.
+
+    Runs the LGBM quantile model at each trained anchor horizon (h15, h60, h210)
+    and linearly interpolates to produce a forecast point every `step_minutes`
+    minutes up to `horizon_max` minutes ahead.
+
+    Use this endpoint to populate a 3-hour trajectory chart with 15-minute
+    granularity (step_minutes=15, horizon_max=180 → 12 points).
+    """
+    now = datetime.now(UTC)
+    history_df = _load_history_df(zone_id=zone_id, history_hours=FORECAST_CONTEXT_MAX_HISTORY_HOURS)
+    if history_df.empty or len(history_df) < FORECAST_CONTEXT_MIN_POINTS:
+        extended = _load_history_df(zone_id=zone_id, history_hours=FORECAST_CONTEXT_MAX_HISTORY_HOURS)
+        if not extended.empty:
+            history_df = extended
+    context = _context_status(history_df=history_df, now=now)
+    capacity = _get_zone_capacity(zone_id)
+
+    points, info = _forecast_multistep(
+        zone_id=zone_id,
+        history_df=history_df,
+        context=context,
+        now=now,
+        capacity=capacity,
+        step_minutes=step_minutes,
+        horizon_max=horizon_max,
+    )
+
+    evidence = {
+        "evidence_id": f"forecast-multi-{uuid.uuid4()}",
+        "generated_at": now.isoformat(),
+        "time_window": {"from": context["from_ts"], "to": context["to_ts"]},
+        "sources": _context_sources(zone_id=zone_id, context=context),
+        "model": {
+            "name": "lgbm_multistep",
+            "version": info["model_version"],
+            "backend": "lgbm",
+            "anchor_horizons": info.get("anchor_horizons", []),
+            "step_minutes": step_minutes,
+            "horizon_max": horizon_max,
+        },
+        "quality": {
+            "score": max(0.0, min(1.0, float(context["score"]))),
+            "flags": [f for f in context["flags"] if f != "OK"] or ["OK"],
+        },
+    }
+    lineage = {
+        "product": PRODUCT_SHORT_TERM,
+        "backend": "lgbm",
+        "model_version": info["model_version"],
+        "step_minutes": step_minutes,
+        "horizon_max": horizon_max,
+    }
+    return ForecastResponse(
+        zone_id=zone_id,
+        horizon=horizon_max,
+        generated_at=now,
+        summary=f"Multi-step LGBM forecast: {len(points)} points at {step_minutes}min intervals up to {horizon_max}min",
+        model_version=info["model_version"],
+        points=points,
+        evidence=evidence,
+        lineage=lineage,
+    )
+
+
 @app.get("/v1/forecast/weekly", response_model=WeeklyForecastResponse)
 def get_weekly_forecast(
     zone_id: str = Query(...),

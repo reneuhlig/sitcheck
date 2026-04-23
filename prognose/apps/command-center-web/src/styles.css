@@ -320,7 +320,7 @@ select {
 
 .chart-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 10px;
 }
@@ -348,6 +348,43 @@ select {
   margin-top: 4px;
   color: #111827;
   font-size: 1.28rem;
+}
+
+.agg-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.agg-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.agg-btn:hover {
+  background: var(--info-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.agg-btn--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.agg-label {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--muted-2);
 }
 
 .chart-frame {

@@ -1207,6 +1207,21 @@ async def _fetch_forecast(zone_id: str, horizon: int) -> dict[str, Any]:
     return response.json()
 
 
+async def _fetch_forecast_multi(zone_id: str, step_minutes: int = 15, horizon_max: int = 180) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=FORECAST_SERVICE_TIMEOUT_SECONDS) as client:
+        try:
+            response = await client.get(
+                f"{FORECAST_SERVICE_URL}/v1/forecast/multi",
+                params={"zone_id": zone_id, "step_minutes": step_minutes, "horizon_max": horizon_max},
+            )
+        except httpx.HTTPError as exc:
+            return {"zone_id": zone_id, "points": [], "error": str(exc)}
+
+    if response.status_code >= 400:
+        return {"zone_id": zone_id, "points": [], "error": response.text}
+    return response.json()
+
+
 async def _fetch_weekly_forecast(zone_id: str, days: int, slot_minutes: int) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=FORECAST_SERVICE_TIMEOUT_SECONDS) as client:
         try:
@@ -2415,6 +2430,15 @@ async def get_forecast(
     return await _fetch_forecast(zone_id=zone_id, horizon=horizon)
 
 
+@app.get("/api/v1/forecast/multi")
+async def get_forecast_multi(
+    zone_id: str,
+    step_minutes: int = Query(default=15, ge=5, le=60),
+    horizon_max: int = Query(default=180, ge=30, le=720),
+) -> dict[str, Any]:
+    return await _fetch_forecast_multi(zone_id=zone_id, step_minutes=step_minutes, horizon_max=horizon_max)
+
+
 @app.get("/api/v1/forecast/weekly")
 async def get_weekly_forecast(
     zone_id: str,
@@ -2683,6 +2707,7 @@ async def get_dashboard_command_center(
         _service_health("recommendations", RECOMMENDATIONS_SERVICE_URL),
         _service_health("scheduler", SCHEDULER_SERVICE_URL),
     )
+    forecast_multi = await _fetch_forecast_multi(zone_id=zone_id, step_minutes=15, horizon_max=180)
 
     service_health = [
         {"service": "api-gateway", "status": "ok", "latency_ms": 0, "detail": "local"},
@@ -2710,6 +2735,7 @@ async def get_dashboard_command_center(
             "points": history_points,
         },
         "forecast_latest": latest_forecast.model_dump(mode="json"),
+        "forecast_multi": forecast_multi,
         "forecast_long_term": forecast_long_term,
         "weekly_forecast": weekly_forecast.model_dump(mode="json"),
         "weekly_explanation": weekly_explanation,

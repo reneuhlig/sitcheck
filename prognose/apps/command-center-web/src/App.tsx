@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useCallback, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -98,7 +98,22 @@ function DecisionTile({
   );
 }
 
-function buildChartData(history: HistoryPoint[] = [], forecast: ForecastPoint[] = []) {
+type AggInterval = 15 | 30 | 60;
+
+function aggregateForecastPoints(
+  points: ForecastPoint[],
+  intervalMinutes: AggInterval,
+): ForecastPoint[] {
+  if (intervalMinutes === 15) return points;
+  const step = intervalMinutes / 15;
+  return points.filter((_, i) => i % step === step - 1);
+}
+
+function buildChartData(
+  history: HistoryPoint[] = [],
+  forecast: ForecastPoint[] = [],
+  aggInterval: AggInterval = 15,
+) {
   const historyRows = history.slice(-120).map((point) => ({
     timestamp: point.timestamp,
     label: compactDate(point.timestamp),
@@ -107,7 +122,8 @@ function buildChartData(history: HistoryPoint[] = [], forecast: ForecastPoint[] 
     pi_low: null,
     pi_high: null,
   }));
-  const forecastRows = forecast.map((point) => ({
+  const aggregated = aggregateForecastPoints(forecast, aggInterval);
+  const forecastRows = aggregated.map((point) => ({
     timestamp: point.timestamp,
     label: compactDate(point.timestamp),
     actual: null,
@@ -119,31 +135,59 @@ function buildChartData(history: HistoryPoint[] = [], forecast: ForecastPoint[] 
 }
 
 function ForecastChart({ payload }: { payload: CommandCenterPayload }) {
+  const [aggInterval, setAggInterval] = useState<AggInterval>(15);
+
+  const multiPoints = payload.forecast_multi?.points ?? [];
+  const fallbackPoints = payload.forecast_latest?.points ?? [];
+  const forecastPoints = multiPoints.length > 0 ? multiPoints : fallbackPoints;
   const forecast = payload.forecast_latest;
+
   const chartData = useMemo(
-    () => buildChartData(payload.history?.points || [], forecast?.points || []),
-    [forecast?.points, payload.history?.points],
+    () => buildChartData(payload.history?.points || [], forecastPoints, aggInterval),
+    [forecastPoints, payload.history?.points, aggInterval],
   );
+
+  const handleAgg = useCallback((interval: AggInterval) => setAggInterval(interval), []);
+
   const flags = qualityFlags(forecast);
-  const firstPoint = forecast?.points?.[0];
+  const firstPoint = forecastPoints[0];
+  const lastPoint = forecastPoints[forecastPoints.length - 1];
+  const modelVersion = payload.forecast_multi?.model_version ?? forecast?.model_version;
 
   return (
-    <Panel title="Forecast Verlauf" icon={<LineChart size={19} />} className="forecast-panel">
+    <Panel title="3h Forecast Verlauf" icon={<LineChart size={19} />} className="forecast-panel">
       <div className="chart-summary">
         <div>
           <span>Live</span>
           <strong>{payload.live?.occupancy ?? "n/a"}</strong>
         </div>
         <div>
-          <span>+{forecast?.horizon || payload.meta?.horizon || DEFAULT_HORIZON} min</span>
+          <span>+{firstPoint ? "15" : forecast?.horizon || DEFAULT_HORIZON} min</span>
           <strong>{formatNumber(firstPoint?.yhat, 1)}</strong>
+        </div>
+        <div>
+          <span>+180 min</span>
+          <strong>{formatNumber(lastPoint?.yhat, 1)}</strong>
         </div>
         <div>
           <span>Intervall</span>
           <strong>
-            {formatNumber(firstPoint?.pi_low, 1)} - {formatNumber(firstPoint?.pi_high, 1)}
+            {formatNumber(firstPoint?.pi_low, 1)} – {formatNumber(firstPoint?.pi_high, 1)}
           </strong>
         </div>
+      </div>
+      <div className="agg-buttons">
+        {([15, 30, 60] as AggInterval[]).map((interval) => (
+          <button
+            key={interval}
+            type="button"
+            className={`agg-btn${aggInterval === interval ? " agg-btn--active" : ""}`}
+            onClick={() => handleAgg(interval)}
+          >
+            {interval} min
+          </button>
+        ))}
+        <span className="agg-label">{forecastPoints.length} Punkte gesamt</span>
       </div>
       <div className="chart-frame" data-testid="forecast-chart">
         <ResponsiveContainer width="100%" height={330}>
@@ -161,12 +205,19 @@ function ForecastChart({ payload }: { payload: CommandCenterPayload }) {
             <Area type="monotone" dataKey="pi_high" stroke="none" fill="#dbeafe" fillOpacity={0.7} />
             <Area type="monotone" dataKey="pi_low" stroke="none" fill="#ffffff" fillOpacity={1} />
             <Line type="monotone" dataKey="actual" stroke="#334155" strokeWidth={2} dot={false} name="History" />
-            <Line type="monotone" dataKey="yhat" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} name="Forecast" />
+            <Line
+              type="monotone"
+              dataKey="yhat"
+              stroke="#2563eb"
+              strokeWidth={3}
+              dot={{ r: aggInterval === 60 ? 5 : aggInterval === 30 ? 4 : 3 }}
+              name="Forecast"
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
       <div className="meta-row">
-        <StatusPill label={forecast?.model_version || "Modell unbekannt"} tone="info" />
+        <StatusPill label={modelVersion || "Modell unbekannt"} tone="info" />
         <StatusPill label={forecast?.stale ? "Snapshot stale" : "Snapshot aktuell"} tone={forecast?.stale ? "risk" : "ok"} />
         {flags.slice(0, 3).map((flag) => (
           <StatusPill key={flag} label={flag} tone="warn" />
