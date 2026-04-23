@@ -187,21 +187,24 @@ def render_header(payload: dict[str, Any]) -> None:
     generated_at = str(meta.get("generated_at", "n/a"))
     environment = str(meta.get("environment", "dev"))
 
-    st.markdown(
-        f"""
-        <div class="cc-panel cc-fade-in">
-          <h1 style="margin:0 0 .4rem 0;">Sitcheck Command Center</h1>
-          <div style="color:#bcd0ec;">Zone <b>{zone_id}</b> | Last refresh <span class="mono">{generated_at}</span> | Env <b>{environment}</b></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
     badge_html = "".join(
         _badge(f"{item.get('service', 'service')}: {item.get('status', 'unknown')}", _service_level(str(item.get("status", "down"))))
         for item in service_health
     )
-    st.markdown(f"<div style='margin-top:.5rem'>{badge_html}</div>", unsafe_allow_html=True)
+
+    st.markdown(
+        f"""
+        <div class="sc-topbar sc-fade-in">
+          <div class="sc-brand-mark">SC</div>
+          <div>
+            <h1>Sitcheck Command Center</h1>
+            <div class="sc-brand-meta">Zone <b>{zone_id}</b> &nbsp;&middot;&nbsp; {generated_at} &nbsp;&middot;&nbsp; {environment}</div>
+          </div>
+        </div>
+        <div class="sc-alerts-row">{badge_html}</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_alert_rail(payload: dict[str, Any]) -> None:
@@ -213,12 +216,7 @@ def render_alert_rail(payload: dict[str, Any]) -> None:
         for item in alerts
     )
     st.markdown(
-        f"""
-        <div class="cc-panel cc-fade-in" style="margin-top:.4rem;">
-          <div style="font-weight:700; margin-bottom:.3rem;">Alert Rail</div>
-          <div>{badges}</div>
-        </div>
-        """,
+        f'<div class="sc-alerts-row sc-fade-in">{badges}</div>',
         unsafe_allow_html=True,
     )
 
@@ -246,13 +244,51 @@ def render_kpis(payload: dict[str, Any]) -> None:
         except Exception:
             age_seconds = None
 
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("Live Occupancy", int(live.get("occupancy", 0)))
-    c2.metric("Utilization", f"{float(live.get('utilization', 0.0)):.2f}")
-    c3.metric("Snapshot Age", f"{age_seconds if age_seconds is not None else 'n/a'} sec")
-    c4.metric("Model Version", str(forecast.get("model_version", "n/a")))
-    c5.metric("Peak Horizon", f"{peak:.1f}")
-    c6.metric("Avg Uncertainty", f"{uncertainty_avg:.2f}")
+    occupancy = int(live.get("occupancy", 0))
+    utilization = float(live.get("utilization", 0.0))
+    model_version = str(forecast.get("model_version", "n/a"))
+    age_display = f"{age_seconds} s" if age_seconds is not None else "n/a"
+
+    occ_level = "risk" if occupancy > 80 else ("warn" if occupancy > 50 else "ok")
+    util_level = "risk" if utilization > 0.85 else ("warn" if utilization > 0.6 else "ok")
+    age_level = "risk" if (age_seconds or 0) > 600 else ("warn" if (age_seconds or 0) > 300 else "info")
+
+    st.markdown(
+        f"""
+        <div class="sc-tile-grid sc-fade-in">
+          <div class="sc-tile sc-tile-{occ_level}">
+            <div class="sc-tile-label">Live Occupancy</div>
+            <div class="sc-tile-value">{occupancy}</div>
+            <div class="sc-tile-detail">Personen aktuell</div>
+          </div>
+          <div class="sc-tile sc-tile-{util_level}">
+            <div class="sc-tile-label">Utilization</div>
+            <div class="sc-tile-value">{utilization:.0%}</div>
+            <div class="sc-tile-detail">Auslastung</div>
+          </div>
+          <div class="sc-tile sc-tile-{age_level}">
+            <div class="sc-tile-label">Snapshot Age</div>
+            <div class="sc-tile-value">{age_display}</div>
+            <div class="sc-tile-detail">Letzte Aktualisierung</div>
+          </div>
+        </div>
+        <div class="sc-tile-grid">
+          <div class="sc-tile sc-tile-info">
+            <div class="sc-tile-label">Model Version</div>
+            <div class="sc-tile-value">{model_version}</div>
+          </div>
+          <div class="sc-tile sc-tile-info">
+            <div class="sc-tile-label">Peak Horizon</div>
+            <div class="sc-tile-value">{peak:.1f}</div>
+          </div>
+          <div class="sc-tile sc-tile-info">
+            <div class="sc-tile-label">Avg Uncertainty</div>
+            <div class="sc-tile-value">{uncertainty_avg:.2f}</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_forecast_chart(payload: dict[str, Any]) -> None:
@@ -269,15 +305,42 @@ def render_forecast_chart(payload: dict[str, Any]) -> None:
     if history_points:
         hdf = pd.DataFrame(history_points)
         hdf["timestamp"] = pd.to_datetime(hdf["timestamp"], utc=True)
-        fig.add_trace(go.Scatter(x=hdf["timestamp"], y=hdf["occupancy"], mode="lines", name="history"))
+        fig.add_trace(go.Scatter(
+            x=hdf["timestamp"], y=hdf["occupancy"],
+            mode="lines", name="History",
+            line=dict(color="#5d6b82", width=2),
+        ))
 
     if forecast_points:
         fdf = pd.DataFrame(forecast_points)
         fdf["timestamp"] = pd.to_datetime(fdf["timestamp"], utc=True)
-        fig.add_trace(go.Scatter(x=fdf["timestamp"], y=fdf["yhat"], mode="lines", name="yhat"))
-        fig.add_trace(go.Scatter(x=fdf["timestamp"], y=fdf["pi_low"], mode="lines", name="pi_low"))
-        fig.add_trace(go.Scatter(x=fdf["timestamp"], y=fdf["pi_high"], mode="lines", name="pi_high"))
-    fig.update_layout(height=380, margin=dict(l=20, r=20, t=20, b=20))
+        fig.add_trace(go.Scatter(
+            x=fdf["timestamp"], y=fdf["pi_high"],
+            mode="lines", name="PI High",
+            line=dict(width=0), showlegend=False,
+        ))
+        fig.add_trace(go.Scatter(
+            x=fdf["timestamp"], y=fdf["pi_low"],
+            mode="lines", name="Confidence",
+            line=dict(width=0),
+            fill="tonexty", fillcolor="rgba(37, 99, 235, 0.10)",
+        ))
+        fig.add_trace(go.Scatter(
+            x=fdf["timestamp"], y=fdf["yhat"],
+            mode="lines", name="Forecast",
+            line=dict(color="#2563eb", width=2.5),
+        ))
+    fig.update_layout(
+        height=380,
+        margin=dict(l=20, r=20, t=20, b=20),
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        font=dict(family="Inter, sans-serif", color="#111827"),
+        xaxis=dict(gridcolor="#e8eef7", gridwidth=1, zeroline=False),
+        yaxis=dict(gridcolor="#e8eef7", gridwidth=1, zeroline=False),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified",
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -288,27 +351,31 @@ def render_drivers_and_recommendations(payload: dict[str, Any]) -> None:
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown("### Top Drivers")
-        st.write(explanation.get("summary", "n/a"))
+        summary = explanation.get("summary", "n/a")
+        st.markdown(f'<p class="sc-text">{summary}</p>', unsafe_allow_html=True)
         drivers = explanation.get("drivers", [])
         if drivers:
-            ddf = pd.DataFrame(drivers)[:5]
-            st.dataframe(ddf, use_container_width=True)
-            fig = go.Figure(
-                go.Bar(
-                    x=ddf["impact"],
-                    y=ddf["name"],
-                    orientation="h",
-                    marker_color="#2ea3ff",
+            top = drivers[:5]
+            max_impact = max((abs(float(d.get("impact", 0))) for d in top), default=1.0) or 1.0
+            rows_html = ""
+            for d in top:
+                name = d.get("name", "–")
+                impact = float(d.get("impact", 0))
+                pct = min(100, abs(impact) / max_impact * 100)
+                rows_html += (
+                    '<div class="sc-driver-row">'
+                    f'<div class="sc-driver-name">{name}</div>'
+                    f'<div class="sc-driver-bar"><span class="sc-driver-bar-fill" style="width:{pct:.0f}%"></span></div>'
+                    f'<div class="sc-driver-impact">{impact:.3f}</div>'
+                    '</div>'
                 )
-            )
-            fig.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=20))
-            st.plotly_chart(fig, use_container_width=True)
+            st.markdown(f'<div class="sc-drivers">{rows_html}</div>', unsafe_allow_html=True)
         else:
             st.info("No drivers available.")
 
     with col_b:
         st.markdown("### Recommendations")
-        st.write(recommendations.get("summary", "n/a"))
+        st.markdown(f'<p class="sc-text">{recommendations.get("summary", "n/a")}</p>', unsafe_allow_html=True)
         gates = recommendations.get("gates", {})
         gate_badges = "".join(
             [
@@ -324,14 +391,19 @@ def render_drivers_and_recommendations(payload: dict[str, Any]) -> None:
         actions = recommendations.get("actions", [])
         if actions:
             for action in actions:
+                action_type = action.get("action_type", "action")
+                priority = action.get("priority", "n/a")
+                rationale = action.get("rationale", "")
+                impact = action.get("expected_impact", {})
                 st.markdown(
                     f"""
-                    <div class="cc-panel" style="margin-bottom:.4rem;">
-                      <div style="font-weight:700;">{action.get("action_type", "action")} (P{action.get("priority", "n/a")})</div>
-                      <div>{action.get("rationale", "")}</div>
-                      <div class="mono" style="margin-top:.2rem; color:#b6c9e5;">
-                        impact: {action.get("expected_impact", {})}
+                    <div class="sc-action">
+                      <div style="display:flex; justify-content:space-between; gap:12px;">
+                        <strong>{action_type}</strong>
+                        <span class="sc-action-meta">P{priority}</span>
                       </div>
+                      <p>{rationale}</p>
+                      <div class="sc-tech-strip"><span>impact: {impact}</span></div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -411,10 +483,28 @@ def render_weekly_outlook(payload: dict[str, Any]) -> None:
 
     if not points.empty:
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=points["timestamp"], y=points["yhat"], mode="lines", name="yhat"))
-        fig.add_trace(go.Scatter(x=points["timestamp"], y=points["pi_low"], mode="lines", name="pi_low"))
-        fig.add_trace(go.Scatter(x=points["timestamp"], y=points["pi_high"], mode="lines", name="pi_high"))
-        fig.update_layout(height=340, margin=dict(l=20, r=20, t=20, b=20))
+        fig.add_trace(go.Scatter(
+            x=points["timestamp"], y=points["pi_high"],
+            mode="lines", line=dict(width=0), showlegend=False, name="PI High",
+        ))
+        fig.add_trace(go.Scatter(
+            x=points["timestamp"], y=points["pi_low"],
+            mode="lines", line=dict(width=0), name="Confidence",
+            fill="tonexty", fillcolor="rgba(37, 99, 235, 0.10)",
+        ))
+        fig.add_trace(go.Scatter(
+            x=points["timestamp"], y=points["yhat"],
+            mode="lines", name="Forecast", line=dict(color="#2563eb", width=2.5),
+        ))
+        fig.update_layout(
+            height=340, margin=dict(l=20, r=20, t=20, b=20),
+            paper_bgcolor="white", plot_bgcolor="white",
+            font=dict(family="Inter, sans-serif", color="#111827"),
+            xaxis=dict(gridcolor="#e8eef7", gridwidth=1, zeroline=False),
+            yaxis=dict(gridcolor="#e8eef7", gridwidth=1, zeroline=False),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            hovermode="x unified",
+        )
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("No weekly forecast points available yet. Fallback view is shown.")
@@ -441,7 +531,11 @@ def render_weekly_outlook(payload: dict[str, Any]) -> None:
                     colorbar=dict(title="yhat"),
                 )
             )
-            fig.update_layout(height=320, margin=dict(l=20, r=20, t=20, b=20))
+            fig.update_layout(
+                height=320, margin=dict(l=20, r=20, t=20, b=20),
+                paper_bgcolor="white", plot_bgcolor="white",
+                font=dict(family="Inter, sans-serif", color="#111827"),
+            )
             st.plotly_chart(fig, use_container_width=True)
         daily = grid.groupby("day", as_index=False).agg(
             peak_yhat=("yhat", "max"),
@@ -478,10 +572,16 @@ def render_weekly_outlook(payload: dict[str, Any]) -> None:
                     x=driver_df["impact"],
                     y=driver_df["name"],
                     orientation="h",
-                    marker_color="#2ea3ff",
+                    marker_color="#2563eb",
                 )
             )
-            fig.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=20))
+            fig.update_layout(
+                height=280, margin=dict(l=20, r=20, t=10, b=20),
+                paper_bgcolor="white", plot_bgcolor="white",
+                font=dict(family="Inter, sans-serif", color="#111827"),
+                xaxis=dict(gridcolor="#e8eef7", gridwidth=1, zeroline=False),
+                yaxis=dict(gridcolor="#e8eef7", gridwidth=1, zeroline=False),
+            )
             st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("No weekly drivers available yet.")
@@ -533,10 +633,27 @@ def render_horizon_panel(payload: dict[str, Any]) -> None:
             sdf = pd.DataFrame(points)
             sdf["timestamp"] = pd.to_datetime(sdf["timestamp"], utc=True)
             fig = go.Figure()
-            fig.add_trace(go.Scatter(x=sdf["timestamp"], y=sdf["yhat"], mode="lines", name="yhat"))
-            fig.add_trace(go.Scatter(x=sdf["timestamp"], y=sdf["pi_low"], mode="lines", name="pi_low"))
-            fig.add_trace(go.Scatter(x=sdf["timestamp"], y=sdf["pi_high"], mode="lines", name="pi_high"))
-            fig.update_layout(height=280, margin=dict(l=20, r=20, t=10, b=20))
+            fig.add_trace(go.Scatter(
+                x=sdf["timestamp"], y=sdf["pi_high"],
+                mode="lines", line=dict(width=0), showlegend=False, name="PI High",
+            ))
+            fig.add_trace(go.Scatter(
+                x=sdf["timestamp"], y=sdf["pi_low"],
+                mode="lines", line=dict(width=0), name="Confidence",
+                fill="tonexty", fillcolor="rgba(37, 99, 235, 0.10)",
+            ))
+            fig.add_trace(go.Scatter(
+                x=sdf["timestamp"], y=sdf["yhat"],
+                mode="lines", name="Forecast", line=dict(color="#2563eb", width=2.5),
+            ))
+            fig.update_layout(
+                height=280, margin=dict(l=20, r=20, t=10, b=20),
+                paper_bgcolor="white", plot_bgcolor="white",
+                font=dict(family="Inter, sans-serif", color="#111827"),
+                xaxis=dict(gridcolor="#e8eef7", gridwidth=1, zeroline=False),
+                yaxis=dict(gridcolor="#e8eef7", gridwidth=1, zeroline=False),
+                hovermode="x unified",
+            )
             st.plotly_chart(fig, use_container_width=True)
 
 
@@ -606,10 +723,27 @@ def render_forecast_lab(
         df = pd.DataFrame(points)
         df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=df["timestamp"], y=df["yhat"], mode="lines", name="yhat"))
-        fig.add_trace(go.Scatter(x=df["timestamp"], y=df["pi_low"], mode="lines", name="pi_low"))
-        fig.add_trace(go.Scatter(x=df["timestamp"], y=df["pi_high"], mode="lines", name="pi_high"))
-        fig.update_layout(height=320, margin=dict(l=20, r=20, t=20, b=20))
+        fig.add_trace(go.Scatter(
+            x=df["timestamp"], y=df["pi_high"],
+            mode="lines", line=dict(width=0), showlegend=False, name="PI High",
+        ))
+        fig.add_trace(go.Scatter(
+            x=df["timestamp"], y=df["pi_low"],
+            mode="lines", line=dict(width=0), name="Confidence",
+            fill="tonexty", fillcolor="rgba(37, 99, 235, 0.10)",
+        ))
+        fig.add_trace(go.Scatter(
+            x=df["timestamp"], y=df["yhat"],
+            mode="lines", name="Forecast", line=dict(color="#2563eb", width=2.5),
+        ))
+        fig.update_layout(
+            height=320, margin=dict(l=20, r=20, t=20, b=20),
+            paper_bgcolor="white", plot_bgcolor="white",
+            font=dict(family="Inter, sans-serif", color="#111827"),
+            xaxis=dict(gridcolor="#e8eef7", gridwidth=1, zeroline=False),
+            yaxis=dict(gridcolor="#e8eef7", gridwidth=1, zeroline=False),
+            hovermode="x unified",
+        )
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("No forecast points available for selected horizon.")
