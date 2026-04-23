@@ -95,6 +95,29 @@ pids_on_port() {
     ss -lptn "( sport = :${port} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u
 }
 
+log_port_occupancy() {
+    local port="$1"
+    log "[DEBUG] Port ${port} Belegungsdetails:"
+    ss -lptn "( sport = :${port} )" 2>/dev/null | while IFS= read -r line; do
+        log "[DEBUG]   ss: ${line}"
+    done
+    if command -v fuser >/dev/null 2>&1; then
+        local fpids
+        fpids="$(fuser "${port}/tcp" 2>/dev/null || true)"
+        if [ -n "${fpids}" ]; then
+            for fpid in ${fpids}; do
+                local cmd ppid pgid
+                cmd="$(ps -p "${fpid}" -o comm= 2>/dev/null || echo '?')"
+                ppid="$(ps -p "${fpid}" -o ppid= 2>/dev/null | tr -d ' ' || echo '?')"
+                pgid="$(ps -p "${fpid}" -o pgid= 2>/dev/null | tr -d ' ' || echo '?')"
+                log "[DEBUG]   fuser: PID=${fpid} CMD=${cmd} PPID=${ppid} PGID=${pgid}"
+            done
+        else
+            log "[DEBUG]   fuser: keine PIDs gefunden"
+        fi
+    fi
+}
+
 reclaim_port() {
     local port="$1"
     local label="$2"
@@ -109,6 +132,8 @@ reclaim_port() {
         fi
 
         if [ -z "${pids}" ] && port_in_use "${port}"; then
+            log "[WARN] Port ${port} (${label}): ss findet keinen PID, Port aber belegt."
+            log_port_occupancy "${port}"
             if command -v fuser >/dev/null 2>&1; then
                 fuser -k "${port}/tcp" >/dev/null 2>&1 || true
             fi
@@ -148,6 +173,7 @@ reclaim_port() {
 
     if port_in_use "${port}"; then
         log "[ERROR] Port ${port} (${label}) konnte nach 3 Versuchen nicht freigegeben werden."
+        log_port_occupancy "${port}"
         return 1
     fi
     return 0
@@ -243,6 +269,9 @@ start_local_service() {
     fi
 
     log "[ERROR] ${name} konnte nicht gestartet werden. Siehe Log: ${log_file}"
+    if [ -n "${port}" ]; then
+        log_port_occupancy "${port}"
+    fi
     return 1
 }
 
