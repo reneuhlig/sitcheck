@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import time
@@ -130,44 +130,59 @@ def _fetch_multi_horizon_forecast(
     max_minutes: int = CC_FORECAST_HORIZON_MINUTES,
     timeout_seconds: float = 8.0,
 ) -> dict[str, Any]:
-    horizons = list(range(step_minutes, max_minutes + 1, step_minutes))
-    points: list[dict[str, Any]] = []
+    # Fetch all forecast points in a single call at the full horizon.
+    # The base granularity is always 15 min; aggregate afterwards if step_minutes > 15.
+    payload = _fetch_single_horizon(max_minutes, timeout_seconds)
+    base_points: list[dict[str, Any]] = []
 
-    with ThreadPoolExecutor(max_workers=min(len(horizons), 6)) as pool:
-        futures = {
-            pool.submit(_fetch_single_horizon, h, timeout_seconds): h
-            for h in horizons
-        }
-        for future in as_completed(futures):
-            payload = future.result()
-            if not isinstance(payload, dict):
+    if isinstance(payload, dict):
+        raw_points = payload.get("points", [])
+        if isinstance(raw_points, list):
+            for point in raw_points:
+                if not isinstance(point, dict):
+                    continue
+                timestamp = point.get("timestamp")
+                yhat = point.get("yhat")
+                if timestamp is None or yhat is None:
+                    continue
+                try:
+                    yhat_f = float(yhat)
+                    low_f = float(point.get("pi_low", yhat))
+                    high_f = float(point.get("pi_high", yhat))
+                except Exception:  # noqa: BLE001
+                    continue
+                base_points.append(
+                    {
+                        "timestamp": str(timestamp),
+                        "yhat": round(yhat_f, 2),
+                        "pi_low": round(min(low_f, high_f), 2),
+                        "pi_high": round(max(low_f, high_f), 2),
+                    }
+                )
+
+    base_points.sort(key=lambda p: p["timestamp"])
+
+    # Aggregate base 15-min points to the requested step granularity
+    if step_minutes <= 15:
+        points = base_points
+    else:
+        group_size = max(1, step_minutes // 15)
+        points = []
+        for i in range(0, len(base_points), group_size):
+            group = base_points[i : i + group_size]
+            if not group:
                 continue
-            raw_points = payload.get("points", [])
-            if not isinstance(raw_points, list) or not raw_points:
-                continue
-            point = raw_points[0]
-            if not isinstance(point, dict):
-                continue
-            timestamp = point.get("timestamp")
-            yhat = point.get("yhat")
-            if timestamp is None or yhat is None:
-                continue
-            try:
-                yhat_f = float(yhat)
-                low_f = float(point.get("pi_low", yhat))
-                high_f = float(point.get("pi_high", yhat))
-            except Exception:  # noqa: BLE001
-                continue
+            avg_yhat = round(sum(p["yhat"] for p in group) / len(group), 2)
+            avg_low = round(sum(p["pi_low"] for p in group) / len(group), 2)
+            avg_high = round(sum(p["pi_high"] for p in group) / len(group), 2)
             points.append(
                 {
-                    "timestamp": str(timestamp),
-                    "yhat": round(yhat_f, 2),
-                    "pi_low": round(min(low_f, high_f), 2),
-                    "pi_high": round(max(low_f, high_f), 2),
+                    "timestamp": group[-1]["timestamp"],
+                    "yhat": avg_yhat,
+                    "pi_low": avg_low,
+                    "pi_high": avg_high,
                 }
             )
-
-    points.sort(key=lambda p: p["timestamp"])
 
     current_yhat = points[0]["yhat"] if points else None
     peak_yhat = max((p["yhat"] for p in points), default=None)
