@@ -822,6 +822,77 @@ def occupancy_compat() -> Response:
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
     strict_slashes=False,
 )
+NATIVE_GRANULARITIES = {"1m", "5m", "15m", "60m"}
+AGGREGATE_GRANULARITY_MAP = {
+    "30m": ("15m", 2),
+}
+
+
+@app.route("/api/v1/counts", methods=["GET"])
+def counts_with_aggregation() -> Response:
+    granularity = request.args.get("granularity", "1m")
+    if granularity in NATIVE_GRANULARITIES:
+        return _proxy(
+            base_url=f"{PROGNOSE_API_BASE_URL.rstrip('/')}/api/v1",
+            upstream_path="counts",
+            timeout_seconds=PROXY_TIMEOUT_SECONDS,
+        )
+
+    agg = AGGREGATE_GRANULARITY_MAP.get(granularity)
+    if agg is None:
+        return jsonify({"error": f"unsupported granularity: {granularity}"}), 422
+
+    base_gran, merge_count = agg
+    zone_id = request.args.get("zone_id", DEFAULT_ZONE_ID)
+    from_val = request.args.get("from", "")
+    to_val = request.args.get("to", "")
+    url = (
+        f"{PROGNOSE_API_BASE_URL.rstrip('/')}/api/v1/counts?"
+        + urlparse.urlencode({"zone_id": zone_id, "from": from_val, "to": to_val, "granularity": base_gran})
+    )
+    try:
+        payload = _json_get(url, timeout_seconds=PROXY_TIMEOUT_SECONDS)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+
+    raw_points = payload.get("points", [])
+    if not isinstance(raw_points, list):
+        raw_points = []
+
+    aggregated: list[dict[str, Any]] = []
+    for i in range(0, len(raw_points), merge_count):
+        chunk = raw_points[i : i + merge_count]
+        if not chunk:
+            continue
+        occ_values = []
+        for p in chunk:
+            try:
+                occ_values.append(float(p.get("occupancy", 0)))
+            except Exception:
+                pass
+        avg_occ = round(sum(occ_values) / len(occ_values), 2) if occ_values else 0
+        base_point = dict(chunk[-1])
+        base_point["occupancy"] = avg_occ
+        aggregated.append(base_point)
+
+    payload["points"] = aggregated
+    return jsonify(payload)
+
+
+@app.route("/api/v1/forecast/multi-horizon", methods=["GET"])
+def forecast_multi_horizon() -> Response:
+    step = int(request.args.get("step_minutes", CC_FORECAST_STEP_MINUTES))
+    horizon = int(request.args.get("horizon_minutes", CC_FORECAST_HORIZON_MINUTES))
+    step = max(15, min(120, step))
+    horizon = max(step, min(360, horizon))
+    result = _fetch_multi_horizon_forecast(
+        step_minutes=step,
+        max_minutes=horizon,
+        timeout_seconds=min(CC_TIMEOUT_SECONDS, 10.0),
+    )
+    return jsonify(result)
+
+
 @app.route(
     "/realtime/<path:upstream_path>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],

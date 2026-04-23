@@ -722,6 +722,9 @@ export default function HomePage() {
   const [trackingGranularity, setTrackingGranularity] = useState("1m");
   const [trackingData, setTrackingData] = useState([]);
   const [trackingError, setTrackingError] = useState("");
+  const [forecastGranularity, setForecastGranularity] = useState("15");
+  const [multiHorizonData, setMultiHorizonData] = useState(null);
+  const [multiHorizonError, setMultiHorizonError] = useState("");
   const hubFailureCountRef = useRef(0);
   const commandCenterFailureCountRef = useRef(0);
   const narrativeInFlightRef = useRef(false);
@@ -814,6 +817,36 @@ export default function HomePage() {
       window.clearInterval(intervalId);
     };
   }, [trackingGranularity]);
+
+  useEffect(() => {
+    let active = true;
+    const abortController = new AbortController();
+
+    async function loadMultiHorizon() {
+      try {
+        const payload = await sitcheckApi.getMultiHorizonForecast({
+          stepMinutes: parseInt(forecastGranularity, 10),
+          horizonMinutes: 180,
+          signal: abortController.signal,
+        });
+        if (!active) return;
+        setMultiHorizonData(payload);
+        setMultiHorizonError("");
+      } catch (error) {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : "Multi-Horizon-Forecast nicht verfügbar.";
+        setMultiHorizonError(message);
+      }
+    }
+
+    loadMultiHorizon();
+    const intervalId = window.setInterval(loadMultiHorizon, 60000);
+    return () => {
+      active = false;
+      abortController.abort();
+      window.clearInterval(intervalId);
+    };
+  }, [forecastGranularity]);
 
   useEffect(() => {
     let active = true;
@@ -932,13 +965,18 @@ export default function HomePage() {
   const commandCenterForecastPoints = Array.isArray(commandCenter?.forecast_latest?.points)
     ? commandCenter.forecast_latest.points
     : [];
+  const multiHorizonPoints = Array.isArray(multiHorizonData?.points)
+    ? multiHorizonData.points
+    : [];
   const hubForecastPoints = Array.isArray(hubOverview?.forecast?.points)
     ? hubOverview.forecast.points
     : [];
-  const forecastPoints =
+  const fallbackForecastPoints =
     hubForecastPoints.length >= commandCenterForecastPoints.length
       ? hubForecastPoints
       : commandCenterForecastPoints;
+  const forecastPoints =
+    multiHorizonPoints.length > 0 ? multiHorizonPoints : fallbackForecastPoints;
   const forecastChartData = buildForecastChartData(forecastPoints);
   const forecastChartDataWithStart = buildForecastChartDataWithStart(forecastPoints, currentPersons);
 
@@ -1133,26 +1171,29 @@ export default function HomePage() {
               <h3 className="mt-1 text-2xl font-semibold text-[color:var(--ink-strong)]">
                 Nächste 3 Stunden
               </h3>
-              <p className="mt-2 max-w-md text-sm leading-6 text-[color:var(--ink-soft)]">
-                Aktueller Echtzeit-Wert als Startpunkt, dann Forecast in 15-Minuten-Intervallen.
-              </p>
             </div>
-            <div className="grid gap-2 text-sm text-[color:var(--ink-strong)] sm:grid-cols-3">
-              <div className="rounded-[1rem] bg-[color:var(--surface-muted)] px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">Aktuell</p>
-                <p className="mt-1 font-semibold">{currentPersons !== null ? Math.round(currentPersons) : "–"}</p>
-              </div>
-              <div className="rounded-[1rem] bg-[color:var(--surface-muted)] px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">Peak</p>
-                <p className="mt-1 font-semibold">{forecastPeak !== null ? Math.round(forecastPeak) : "–"}</p>
-              </div>
-              <div className="rounded-[1rem] bg-[color:var(--surface-muted)] px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">Punkte</p>
-                <p className="mt-1 font-semibold">{forecastChartData.length}</p>
-              </div>
+            <div className="flex items-center gap-1">
+              {[
+                { value: "15", label: "15 min" },
+                { value: "30", label: "30 min" },
+                { value: "60", label: "1 Std" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setForecastGranularity(option.value)}
+                  className={`rounded-full px-3.5 py-1.5 text-sm font-semibold transition ${
+                    forecastGranularity === option.value
+                      ? "bg-[color:var(--accent)] text-white"
+                      : "bg-[color:var(--surface-muted)] text-[color:var(--ink-soft)] hover:bg-[color:var(--surface-muted)]/80"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="mt-5 flex flex-wrap gap-4 text-sm text-[color:var(--ink-soft)]">
+          <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-[color:var(--ink-soft)]">
             <span className="inline-flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-[#2563eb]" />
               Forecast
@@ -1160,6 +1201,11 @@ export default function HomePage() {
             <span className="inline-flex items-center gap-2">
               <span className="h-3 w-6 rounded-sm bg-[#8bc6ec]/40" />
               Konfidenzband
+            </span>
+            <span>
+              {forecastChartData.length} Punkte
+              {forecastPeak !== null ? ` • Peak: ${Math.round(forecastPeak)}` : ""}
+              {multiHorizonError ? ` • ${multiHorizonError}` : ""}
             </span>
           </div>
           <div className="mt-6 h-[26rem]">
@@ -1197,8 +1243,8 @@ export default function HomePage() {
                     dataKey="forecast"
                     stroke="#2563eb"
                     strokeWidth={3}
-                    dot={false}
-                    activeDot={{ r: 5 }}
+                    dot={{ r: 4, fill: "#2563eb", strokeWidth: 0 }}
+                    activeDot={{ r: 6 }}
                     name="Forecast"
                   />
                 </ComposedChart>
@@ -1226,6 +1272,7 @@ export default function HomePage() {
                 { value: "1m", label: "1 min" },
                 { value: "5m", label: "5 min" },
                 { value: "15m", label: "15 min" },
+                { value: "30m", label: "30 min" },
               ].map((option) => (
                 <button
                   key={option.value}

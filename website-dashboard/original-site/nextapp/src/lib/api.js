@@ -126,6 +126,12 @@ export const sitcheckApi = {
       { signal },
     );
   },
+  async getMultiHorizonForecast({ stepMinutes = 15, horizonMinutes = 180, signal } = {}) {
+    return apiRequest(
+      `/api/v1/forecast/multi-horizon?step_minutes=${stepMinutes}&horizon_minutes=${horizonMinutes}`,
+      { signal },
+    );
+  },
   async getBookings(signal) {
     return apiRequest("/api/v1/bookings", { signal });
   },
