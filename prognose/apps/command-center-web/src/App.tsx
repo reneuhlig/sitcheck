@@ -22,7 +22,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fetchAudienceNarrative, fetchCommandCenter, fetchExecutiveNarrative, fetchHealth } from "./api";
+import { fetchAudienceNarrative, fetchCommandCenter, fetchExecutiveNarrative, fetchForecastMultiStep, fetchHealth } from "./api";
 import { DEFAULT_HORIZON, DEFAULT_ZONE_ID } from "./config";
 import { deriveDecisionState, executiveActions, qualityFlags, type StatusTone } from "./decision";
 import { compactDate, formatNumber, formatTime, percent } from "./format";
@@ -134,16 +134,28 @@ function buildChartData(
   return [...historyRows, ...forecastRows];
 }
 
-function ForecastChart({ payload }: { payload: CommandCenterPayload }) {
+function ForecastChart({
+  payload,
+  multiPoints,
+}: {
+  payload: CommandCenterPayload;
+  multiPoints?: ForecastPoint[];
+}) {
   const [aggInterval, setAggInterval] = useState<AggInterval>(15);
 
-  const multiPoints = payload.forecast_multi?.points ?? [];
-  const fallbackPoints = payload.forecast_latest?.points ?? [];
-  const forecastPoints = multiPoints.length > 0 ? multiPoints : fallbackPoints;
+  const forecastPoints = (
+    multiPoints && multiPoints.length > 0
+      ? multiPoints
+      : (payload.forecast_multi?.points ?? []).length > 0
+        ? payload.forecast_multi!.points
+        : payload.forecast_latest?.points ?? []
+  ) as ForecastPoint[];
+
   const forecast = payload.forecast_latest;
 
   const chartData = useMemo(
     () => buildChartData(payload.history?.points || [], forecastPoints, aggInterval),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [forecastPoints, payload.history?.points, aggInterval],
   );
 
@@ -152,7 +164,8 @@ function ForecastChart({ payload }: { payload: CommandCenterPayload }) {
   const flags = qualityFlags(forecast);
   const firstPoint = forecastPoints[0];
   const lastPoint = forecastPoints[forecastPoints.length - 1];
-  const modelVersion = payload.forecast_multi?.model_version ?? forecast?.model_version;
+  const modelVersion =
+    payload.forecast_multi?.model_version ?? forecast?.model_version;
 
   return (
     <Panel title="3h Forecast Verlauf" icon={<LineChart size={19} />} className="forecast-panel">
@@ -162,7 +175,7 @@ function ForecastChart({ payload }: { payload: CommandCenterPayload }) {
           <strong>{payload.live?.occupancy ?? "n/a"}</strong>
         </div>
         <div>
-          <span>+{firstPoint ? "15" : forecast?.horizon || DEFAULT_HORIZON} min</span>
+          <span>+15 min</span>
           <strong>{formatNumber(firstPoint?.yhat, 1)}</strong>
         </div>
         <div>
@@ -170,7 +183,7 @@ function ForecastChart({ payload }: { payload: CommandCenterPayload }) {
           <strong>{formatNumber(lastPoint?.yhat, 1)}</strong>
         </div>
         <div>
-          <span>Intervall</span>
+          <span>PI 15 min</span>
           <strong>
             {formatNumber(firstPoint?.pi_low, 1)} – {formatNumber(firstPoint?.pi_high, 1)}
           </strong>
@@ -187,7 +200,7 @@ function ForecastChart({ payload }: { payload: CommandCenterPayload }) {
             {interval} min
           </button>
         ))}
-        <span className="agg-label">{forecastPoints.length} Punkte gesamt</span>
+        <span className="agg-label">{forecastPoints.length} Punkte / {aggregateForecastPoints(forecastPoints, aggInterval).length} angezeigt</span>
       </div>
       <div className="chart-frame" data-testid="forecast-chart">
         <ResponsiveContainer width="100%" height={330}>
@@ -202,9 +215,31 @@ function ForecastChart({ payload }: { payload: CommandCenterPayload }) {
                 boxShadow: "0 14px 32px rgba(15, 23, 42, 0.12)",
               }}
             />
-            <Area type="monotone" dataKey="pi_high" stroke="none" fill="#dbeafe" fillOpacity={0.7} />
-            <Area type="monotone" dataKey="pi_low" stroke="none" fill="#ffffff" fillOpacity={1} />
-            <Line type="monotone" dataKey="actual" stroke="#334155" strokeWidth={2} dot={false} name="History" />
+            <Area
+              type="monotone"
+              dataKey="pi_high"
+              stroke="none"
+              fill="#dbeafe"
+              fillOpacity={0.7}
+              isAnimationActive={false}
+            />
+            <Area
+              type="monotone"
+              dataKey="pi_low"
+              stroke="none"
+              fill="#ffffff"
+              fillOpacity={1}
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="actual"
+              stroke="#334155"
+              strokeWidth={2}
+              dot={false}
+              name="History"
+              isAnimationActive={false}
+            />
             <Line
               type="monotone"
               dataKey="yhat"
@@ -212,13 +247,17 @@ function ForecastChart({ payload }: { payload: CommandCenterPayload }) {
               strokeWidth={3}
               dot={{ r: aggInterval === 60 ? 5 : aggInterval === 30 ? 4 : 3 }}
               name="Forecast"
+              isAnimationActive={false}
             />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
       <div className="meta-row">
         <StatusPill label={modelVersion || "Modell unbekannt"} tone="info" />
-        <StatusPill label={forecast?.stale ? "Snapshot stale" : "Snapshot aktuell"} tone={forecast?.stale ? "risk" : "ok"} />
+        <StatusPill
+          label={forecast?.stale ? "Snapshot stale" : "Snapshot aktuell"}
+          tone={forecast?.stale ? "risk" : "ok"}
+        />
         {flags.slice(0, 3).map((flag) => (
           <StatusPill key={flag} label={flag} tone="warn" />
         ))}
@@ -557,6 +596,11 @@ export function App() {
     retry: false,
     refetchInterval: autoRefresh ? 60_000 : false,
   });
+  const forecastMultiQuery = useQuery({
+    queryKey: ["forecast-multi", zoneId],
+    queryFn: () => fetchForecastMultiStep(zoneId),
+    refetchInterval: autoRefresh ? 15_000 : false,
+  });
 
   const payload = commandQuery.data;
   const decision = payload ? deriveDecisionState(payload, narrativeQuery.data) : null;
@@ -567,6 +611,7 @@ export function App() {
     void healthQuery.refetch();
     void commandQuery.refetch();
     void narrativeQuery.refetch();
+    void forecastMultiQuery.refetch();
   }
 
   return (
@@ -651,7 +696,7 @@ export function App() {
           <Alerts alerts={payload.alerts} />
 
           <section className="main-grid">
-            <ForecastChart payload={payload} />
+            <ForecastChart payload={payload} multiPoints={forecastMultiQuery.data?.points} />
             <ExecutiveBrief
               narrative={narrativeQuery.data}
               error={narrativeQuery.error as Error | null}

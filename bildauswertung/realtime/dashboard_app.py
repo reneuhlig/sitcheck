@@ -520,6 +520,7 @@ HTML_PAGE = """
     const profileSimNoiseEl = document.getElementById('profile_sim_noise');
     const profileSimStepEl = document.getElementById('profile_sim_step');
     const profileSimInfoEl = document.getElementById('profile_sim_info');
+    let profileSimDirty = false;
     const activePolySel = document.getElementById('activePoly');
     const roiEnabledEl = document.getElementById('roi_enabled');
     const roiModeEl = document.getElementById('roi_mode');
@@ -831,12 +832,14 @@ HTML_PAGE = """
     function updateProfileSimulationPanelFromPayload(payload) {
       const sim = payload?.profile_simulation || {};
       profileSimEnabledEl.checked = !!sim.enabled;
-      profileSimExcelEl.value = String(sim.excel_path || profileSimExcelEl.value || '');
-      profileSimTickEl.value = Number(sim.tick_seconds ?? 60).toFixed(0);
-      profileSimRollbackEl.value = Number(sim.rollback_minutes ?? 15).toFixed(0);
-      profileSimBlendEl.value = Number(sim.profile_blend ?? 0.72).toFixed(2);
-      profileSimNoiseEl.value = Number(sim.noise_sigma_scale ?? 0.85).toFixed(2);
-      profileSimStepEl.value = Number(sim.max_step_per_tick ?? 2).toFixed(1);
+      if (!profileSimDirty) {
+        profileSimExcelEl.value = String(sim.excel_path || profileSimExcelEl.value || '');
+        profileSimTickEl.value = Number(sim.tick_seconds ?? 60).toFixed(0);
+        profileSimRollbackEl.value = Number(sim.rollback_minutes ?? 15).toFixed(0);
+        profileSimBlendEl.value = Number(sim.profile_blend ?? 0.72).toFixed(2);
+        profileSimNoiseEl.value = Number(sim.noise_sigma_scale ?? 0.85).toFixed(2);
+        profileSimStepEl.value = Number(sim.max_step_per_tick ?? 2).toFixed(1);
+      }
 
       const occ = Number(sim.simulated_occupancy ?? 0);
       const loaded = !!sim.profile_loaded;
@@ -861,6 +864,7 @@ HTML_PAGE = """
         profileSimInfoEl.textContent = `Laden fehlgeschlagen: ${payload.error || 'unknown'}`;
         return;
       }
+      profileSimDirty = false;
       updateProfileSimulationPanelFromPayload(payload);
     }
 
@@ -886,6 +890,7 @@ HTML_PAGE = """
         statusEl.className = 'warn';
         return;
       }
+      profileSimDirty = false;
       updateProfileSimulationPanelFromPayload(data);
       statusEl.textContent = 'Profilsimulation aktualisiert.';
       statusEl.className = 'ok';
@@ -1169,6 +1174,9 @@ HTML_PAGE = """
     document.getElementById('profile_sim_reload').addEventListener('click', loadProfileSimulationControl);
     document.getElementById('profile_sim_save').addEventListener('click', saveProfileSimulationControl);
     profileSimEnabledEl.addEventListener('change', saveProfileSimulationControl);
+    [profileSimExcelEl, profileSimTickEl, profileSimRollbackEl, profileSimBlendEl, profileSimNoiseEl, profileSimStepEl].forEach(el => {
+      el.addEventListener('input', () => { profileSimDirty = true; });
+    });
     document.getElementById('save_roi').addEventListener('click', saveRoi);
     document.getElementById('reload_roi').addEventListener('click', loadRoi);
     document.getElementById('undo_roi').addEventListener('click', () => {
