@@ -1,0 +1,21 @@
+RewriteEngine On
+
+# Sitcheck Executive Command Center for dashboard.beckya.de.
+# Keep this host-specific so the existing osTicket installation remains the
+# default for IP-based access and other hostnames served by this vhost.
+RewriteCond %{HTTP_HOST} ^dashboard\.beckya\.de$ [NC]
+RewriteRule ^api/ _sitcheck-dashboard/api-proxy.php [QSA,END]
+
+RewriteCond %{HTTP_HOST} ^dashboard\.beckya\.de$ [NC]
+RewriteRule ^health$ _sitcheck-dashboard/api-proxy.php [QSA,END]
+
+RewriteCond %{HTTP_HOST} ^dashboard\.beckya\.de$ [NC]
+RewriteRule ^assets/(.*)$ _sitcheck-dashboard/assets/$1 [END]
+
+RewriteCond %{HTTP_HOST} ^dashboard\.beckya\.de$ [NC]
+RewriteRule ^$ _sitcheck-dashboard/index.html [END]
+
+RewriteCond %{HTTP_HOST} ^dashboard\.beckya\.de$ [NC]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^.*$ _sitcheck-dashboard/index.html [END]

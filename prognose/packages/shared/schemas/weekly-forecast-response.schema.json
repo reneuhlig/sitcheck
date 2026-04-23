@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/weekly-forecast-response.schema.json",
+  "title": "WeeklyForecastResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "zone_id",
+    "product",
+    "days",
+    "slot_minutes",
+    "generated_at",
+    "age_seconds",
+    "stale",
+    "summary",
+    "model_version",
+    "points",
+    "daily_summaries",
+    "evidence",
+    "lineage",
+    "source"
+  ],
+  "properties": {
+    "zone_id": { "type": "string", "minLength": 1 },
+    "product": { "type": "string", "enum": ["weekly_slot"] },
+    "days": { "type": "integer", "minimum": 1 },
+    "slot_minutes": { "type": "integer", "minimum": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "age_seconds": { "type": "integer", "minimum": 0 },
+    "stale": { "type": "boolean" },
+    "summary": { "type": "string" },
+    "model_version": { "type": "string" },
+    "points": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["timestamp", "yhat", "pi_low", "pi_high", "day_of_week", "slot_of_day"],
+        "properties": {
+          "timestamp": { "type": "string", "format": "date-time" },
+          "yhat": { "type": "number" },
+          "pi_low": { "type": "number" },
+          "pi_high": { "type": "number" },
+          "day_of_week": { "type": "integer", "minimum": 0, "maximum": 6 },
+          "slot_of_day": { "type": "integer", "minimum": 0, "maximum": 1439 },
+          "event_active": { "type": "number" },
+          "event_impact_sum": { "type": "number" },
+          "lecture_net_pull": { "type": "number" },
+          "quality_score": { "type": "number" }
+        }
+      }
+    },
+    "daily_summaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["date", "peak_slot", "peak_yhat", "avg_yhat", "risk_level", "data_quality"],
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "peak_slot": {
+            "oneOf": [
+              { "type": "string", "format": "date-time" },
+              { "type": "null" }
+            ]
+          },
+          "peak_yhat": { "type": "number" },
+          "avg_yhat": { "type": "number" },
+          "risk_level": { "type": "string", "enum": ["low", "medium", "high"] },
+          "data_quality": { "type": "string", "enum": ["good", "reduced", "poor"] }
+        }
+      }
+    },
+    "evidence": { "$ref": "https://sitcheck.dev/schemas/evidence.schema.json" },
+    "lineage": { "$ref": "https://sitcheck.dev/schemas/model-lineage.schema.json" },
+    "source": { "type": "string", "enum": ["snapshot", "on_demand_fallback"] }
+  }
+}

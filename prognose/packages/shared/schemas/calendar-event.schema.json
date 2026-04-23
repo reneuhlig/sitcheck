@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/calendar-event.schema.json",
+  "title": "CalendarEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "title", "starts_at", "ends_at", "source"],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "zone_id": { "type": "string" },
+    "title": { "type": "string", "minLength": 1 },
+    "category": { "type": "string" },
+    "starts_at": { "type": "string", "format": "date-time" },
+    "ends_at": { "type": "string", "format": "date-time" },
+    "expected_impact": { "type": "number" },
+    "source": { "type": "string", "minLength": 1 },
+    "metadata": { "type": "object" }
+  }
+}

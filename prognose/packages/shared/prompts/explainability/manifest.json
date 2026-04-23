@@ -1,0 +1,34 @@
+{
+  "template_set_id": "explainability-de-v2",
+  "version": "2.2.0",
+  "language": "de",
+  "default_audience": "ops",
+  "audiences": ["ops", "executive", "enduser", "professor"],
+  "required_context_fields": [
+    "request_meta",
+    "zone_capacity",
+    "utilization_now_pct",
+    "occupancy_explainer",
+    "improvement_candidates",
+    "forecast_snapshot",
+    "history_digest",
+    "driver_summary",
+    "uncertainty",
+    "recommendation_digest",
+    "lecture_impact_digest",
+    "quality_digest",
+    "citation_map",
+    "policy_block"
+  ],
+  "files": {
+    "system": "system.de.md",
+    "task": "task.forecast_explain.de.md",
+    "output_rules": "output_rules.de.md",
+    "audience": {
+      "ops": "audience.ops.de.md",
+      "executive": "audience.executive.de.md",
+      "enduser": "audience.enduser.de.md",
+      "professor": "audience.professor.de.md"
+    }
+  }
+}

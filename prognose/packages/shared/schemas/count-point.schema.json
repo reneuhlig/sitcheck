@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/count-point.schema.json",
+  "title": "CountPoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["timestamp", "zone_id", "occupancy", "utilization", "quality_flags", "evidence"],
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "zone_id": { "type": "string", "minLength": 1 },
+    "occupancy": { "type": "integer", "minimum": 0 },
+    "utilization": { "type": "number", "minimum": 0 },
+    "source": { "type": "string" },
+    "quality_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "quality_flags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence": { "$ref": "https://sitcheck.dev/schemas/evidence.schema.json" }
+  }
+}

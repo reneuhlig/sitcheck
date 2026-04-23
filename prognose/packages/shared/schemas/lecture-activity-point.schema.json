@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/lecture-activity-point.schema.json",
+  "title": "LectureActivityPoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timestamp",
+    "zone_id",
+    "active_lectures",
+    "active_courses",
+    "starts_next_60m",
+    "ends_next_60m",
+    "source",
+    "quality_score",
+    "quality_flags",
+    "metadata"
+  ],
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "zone_id": { "type": "string", "minLength": 1 },
+    "active_lectures": { "type": "integer", "minimum": 0 },
+    "active_courses": { "type": "integer", "minimum": 0 },
+    "starts_next_60m": { "type": "integer", "minimum": 0 },
+    "ends_next_60m": { "type": "integer", "minimum": 0 },
+    "source": { "type": "string", "minLength": 1 },
+    "quality_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "quality_flags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "metadata": { "type": "object" }
+  }
+}

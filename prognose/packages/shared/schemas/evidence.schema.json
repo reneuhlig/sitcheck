@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/evidence.schema.json",
+  "title": "Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_id", "generated_at", "time_window", "sources", "model", "quality"],
+  "properties": {
+    "evidence_id": { "type": "string", "minLength": 3 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "time_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "string", "format": "date-time" },
+        "to": { "type": "string", "format": "date-time" }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "id"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "counts",
+              "events",
+              "forecast",
+              "xai",
+              "recommendation",
+              "scenario",
+              "api",
+              "lecture_activity",
+              "calendar_events",
+              "excel",
+              "csv",
+              "xlsx"
+            ]
+          },
+          "id": { "type": "string", "minLength": 1 },
+          "uri": { "type": "string" },
+          "note": { "type": "string" },
+          "metadata": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "backend": { "type": "string" }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "flags"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "flags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

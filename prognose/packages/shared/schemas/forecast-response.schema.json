@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/forecast-response.schema.json",
+  "title": "ForecastResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["zone_id", "horizon", "generated_at", "summary", "model_version", "points", "evidence"],
+  "properties": {
+    "zone_id": { "type": "string", "minLength": 1 },
+    "horizon": { "type": "integer", "minimum": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "summary": { "type": "string" },
+    "model_version": { "type": "string" },
+    "points": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["timestamp", "yhat", "pi_low", "pi_high"],
+        "properties": {
+          "timestamp": { "type": "string", "format": "date-time" },
+          "yhat": { "type": "number" },
+          "pi_low": { "type": "number" },
+          "pi_high": { "type": "number" }
+        }
+      }
+    },
+    "evidence": { "$ref": "https://sitcheck.dev/schemas/evidence.schema.json" },
+    "lineage": { "$ref": "https://sitcheck.dev/schemas/model-lineage.schema.json" }
+  }
+}

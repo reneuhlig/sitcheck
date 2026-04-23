@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/lecture-activity-response.schema.json",
+  "title": "LectureActivityResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["zone_id", "from", "to", "granularity", "points"],
+  "properties": {
+    "zone_id": { "type": "string", "minLength": 1 },
+    "from": { "type": "string", "format": "date-time" },
+    "to": { "type": "string", "format": "date-time" },
+    "granularity": {
+      "type": "string",
+      "enum": ["raw", "1m", "5m", "15m"]
+    },
+    "points": {
+      "type": "array",
+      "items": { "$ref": "https://sitcheck.dev/schemas/lecture-activity-point.schema.json" }
+    }
+  }
+}

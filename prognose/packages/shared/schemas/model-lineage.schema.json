@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/model-lineage.schema.json",
+  "title": "ModelLineage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "product"
+  ],
+  "properties": {
+    "model_run_id": {
+      "oneOf": [
+        { "type": "string", "minLength": 3 },
+        { "type": "null" }
+      ]
+    },
+    "zone_id": { "type": "string" },
+    "product": { "type": "string", "enum": ["short_term", "weekly_slot"] },
+    "horizon": {
+      "oneOf": [
+        { "type": "integer", "minimum": 1 },
+        { "type": "null" }
+      ]
+    },
+    "backend": { "type": "string" },
+    "model_backend": { "type": "string" },
+    "model_version": { "type": "string" },
+    "status": { "type": "string" },
+    "scientific_status": { "type": "string" },
+    "include_lecture_impact": { "type": "boolean" },
+    "feature_set_version": { "type": "string" },
+    "history_from": {
+      "oneOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    },
+    "history_to": {
+      "oneOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    },
+    "raw_rows": {
+      "oneOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "null" }
+      ]
+    },
+    "train_rows": {
+      "oneOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "null" }
+      ]
+    },
+    "val_rows": {
+      "oneOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "null" }
+      ]
+    },
+    "test_rows": {
+      "oneOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "null" }
+      ]
+    },
+    "evaluation_run_id": {
+      "oneOf": [
+        { "type": "string", "minLength": 3 },
+        { "type": "null" }
+      ]
+    },
+    "promoted": { "type": "boolean" },
+    "promoted_at": {
+      "oneOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    },
+    "promotion_source": {
+      "oneOf": [
+        { "type": "string", "minLength": 3 },
+        { "type": "null" }
+      ]
+    },
+    "history_window": { "type": "object", "additionalProperties": true },
+    "reference_window": { "type": "object", "additionalProperties": true },
+    "metrics": { "type": "object", "additionalProperties": true },
+    "metadata": { "type": "object", "additionalProperties": true },
+    "lineage": { "type": "object", "additionalProperties": true },
+    "reference_objects": {
+      "type": "array",
+      "items": { "$ref": "https://sitcheck.dev/schemas/reference-object.schema.json" }
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

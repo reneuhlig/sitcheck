@@ -1,0 +1,18 @@
+{
+  "name": "sitcheck-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:schemas": "node scripts/tests/schema_contract_test.mjs",
+    "command-center:dev": "npm --prefix apps/command-center-web run dev",
+    "command-center:build": "npm --prefix apps/command-center-web run build",
+    "command-center:serve": "npm --prefix apps/command-center-web run serve:prod",
+    "command-center:test": "npm --prefix apps/command-center-web run test",
+    "command-center:e2e": "npm --prefix apps/command-center-web run test:e2e"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/scenario-result.schema.json",
+  "title": "ScenarioResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["zone_id", "horizon", "summary", "baseline", "counterfactual", "delta", "evidence"],
+  "properties": {
+    "zone_id": { "type": "string", "minLength": 1 },
+    "horizon": { "type": "integer", "minimum": 1 },
+    "summary": { "type": "string" },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["peak_occupancy", "peak_utilization"],
+      "properties": {
+        "peak_occupancy": { "type": "number" },
+        "peak_utilization": { "type": "number" }
+      }
+    },
+    "counterfactual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["peak_occupancy", "peak_utilization"],
+      "properties": {
+        "peak_occupancy": { "type": "number" },
+        "peak_utilization": { "type": "number" }
+      }
+    },
+    "delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["peak_occupancy", "peak_utilization"],
+      "properties": {
+        "peak_occupancy": { "type": "number" },
+        "peak_utilization": { "type": "number" }
+      }
+    },
+    "evidence": { "$ref": "https://sitcheck.dev/schemas/evidence.schema.json" }
+  }
+}

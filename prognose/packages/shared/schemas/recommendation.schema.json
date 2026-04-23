@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/recommendation.schema.json",
+  "title": "Recommendation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["zone_id", "horizon", "summary", "actions", "gates", "evidence"],
+  "properties": {
+    "zone_id": { "type": "string", "minLength": 1 },
+    "horizon": { "type": "integer", "minimum": 1 },
+    "summary": { "type": "string" },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action_type", "priority", "rationale", "expected_impact"],
+        "properties": {
+          "action_type": { "type": "string" },
+          "priority": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "rationale": { "type": "string" },
+          "expected_impact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["delta_occupancy"],
+            "properties": {
+              "delta_occupancy": { "type": "number" },
+              "delta_utilization": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quality_ok", "uncertainty_ok"],
+      "properties": {
+        "quality_ok": { "type": "boolean" },
+        "uncertainty_ok": { "type": "boolean" },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "evidence": { "$ref": "https://sitcheck.dev/schemas/evidence.schema.json" }
+  }
+}

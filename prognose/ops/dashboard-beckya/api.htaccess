@@ -1,0 +1,18 @@
+RewriteEngine On
+
+# Sitcheck dashboard API proxy. This must live inside /var/www/osticket/api
+# because osTicket owns that physical directory and has its own API rewrite.
+RewriteCond %{HTTP_HOST} ^dashboard\.beckya\.de$ [NC]
+RewriteRule ^.*$ /_sitcheck-dashboard/api-proxy.php [QSA,END]
+
+<IfModule mod_rewrite.c>
+
+RewriteEngine On
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} (.*/api)
+
+RewriteRule ^(.*)$ %1/http.php/$1 [L]
+
+</IfModule>

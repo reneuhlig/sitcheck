@@ -1,0 +1,389 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/llm-explainability-context-v2.schema.json",
+  "title": "LlmExplainabilityContextV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_meta",
+    "zone_capacity",
+    "utilization_now_pct",
+    "occupancy_explainer",
+    "improvement_candidates",
+    "forecast_snapshot",
+    "history_digest",
+    "driver_summary",
+    "uncertainty",
+    "recommendation_digest",
+    "lecture_impact_digest",
+    "quality_digest",
+    "citation_map",
+    "policy_block"
+  ],
+  "properties": {
+    "request_meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "generated_at",
+        "zone_id",
+        "horizon",
+        "audience",
+        "language",
+        "query",
+        "guardrails",
+        "template_set_id",
+        "prompt_version"
+      ],
+      "properties": {
+        "request_id": { "type": "string", "minLength": 3 },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "zone_id": { "type": "string", "minLength": 1 },
+        "horizon": { "type": "integer", "minimum": 1 },
+        "audience": { "type": "string", "enum": ["ops", "executive", "enduser", "professor"] },
+        "language": { "type": "string", "enum": ["de", "en"] },
+        "query": { "type": "string" },
+        "guardrails": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "template_set_id": { "type": "string", "minLength": 1 },
+        "prompt_version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "zone_capacity": { "type": "integer", "minimum": 0 },
+    "utilization_now_pct": { "type": "number", "minimum": 0 },
+    "occupancy_explainer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_occupancy",
+        "avg_60m",
+        "trend_15m",
+        "forecast_next_60m_peak",
+        "risk_level"
+      ],
+      "properties": {
+        "current_occupancy": { "type": "integer", "minimum": 0 },
+        "avg_60m": { "type": "number" },
+        "trend_15m": { "type": "number" },
+        "forecast_next_60m_peak": { "type": "number" },
+        "risk_level": { "type": "string", "enum": ["low", "medium", "high"] }
+      }
+    },
+    "improvement_candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "measure_id",
+          "measure_text",
+          "expected_effect",
+          "effort",
+          "owner_hint",
+          "evidence_ref"
+        ],
+        "properties": {
+          "measure_id": { "type": "string", "minLength": 3 },
+          "measure_text": { "type": "string", "minLength": 5 },
+          "expected_effect": { "type": "string", "minLength": 5 },
+          "effort": { "type": "string", "enum": ["low", "medium", "high"] },
+          "owner_hint": { "type": "string", "minLength": 2 },
+          "evidence_ref": { "type": "string", "minLength": 3 }
+        }
+      }
+    },
+    "forecast_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "zone_id",
+        "horizon",
+        "generated_at",
+        "age_seconds",
+        "stale",
+        "summary",
+        "model_version",
+        "source",
+        "next_point",
+        "peak",
+        "point_count",
+        "evidence_ref"
+      ],
+      "properties": {
+        "zone_id": { "type": "string", "minLength": 1 },
+        "horizon": { "type": "integer", "minimum": 1 },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "age_seconds": { "type": "integer", "minimum": 0 },
+        "stale": { "type": "boolean" },
+        "summary": { "type": "string" },
+        "model_version": { "type": "string" },
+        "source": { "type": "string" },
+        "next_point": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": true
+            }
+          ]
+        },
+        "peak": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "timestamp"],
+          "properties": {
+            "value": { "type": "number" },
+            "timestamp": {
+              "oneOf": [
+                { "type": "null" },
+                { "type": "string", "format": "date-time" }
+              ]
+            }
+          }
+        },
+        "point_count": { "type": "integer", "minimum": 0 },
+        "evidence_ref": { "type": "string", "minLength": 3 }
+      }
+    },
+    "history_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "last_occupancy",
+        "last_utilization",
+        "trend_15m",
+        "trend_60m",
+        "quality_score_avg",
+        "quality_flags_top",
+        "point_count",
+        "similar_pattern"
+      ],
+      "properties": {
+        "last_occupancy": { "type": "number" },
+        "last_utilization": { "type": "number" },
+        "trend_15m": { "type": "number" },
+        "trend_60m": { "type": "number" },
+        "quality_score_avg": { "type": "number", "minimum": 0, "maximum": 1 },
+        "quality_flags_top": { "type": "array", "items": { "type": "string" } },
+        "point_count": { "type": "integer", "minimum": 0 },
+        "similar_pattern": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["found"],
+          "properties": {
+            "found": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "driver_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["top_drivers", "evidence_ref"],
+      "properties": {
+        "top_drivers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "impact", "direction", "description", "evidence_ref"],
+            "properties": {
+              "name": { "type": "string" },
+              "impact": { "type": "number" },
+              "direction": { "type": "string", "enum": ["up", "down", "mixed"] },
+              "description": { "type": "string" },
+              "evidence_ref": { "type": "string", "minLength": 3 }
+            }
+          }
+        },
+        "evidence_ref": { "type": "string", "minLength": 3 }
+      }
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "level", "reason", "evidence_ref"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "level": { "type": "string", "enum": ["low", "medium", "high"] },
+        "reason": { "type": "string" },
+        "evidence_ref": { "type": "string", "minLength": 3 }
+      }
+    },
+    "recommendation_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "quality_ok", "uncertainty_ok", "actions", "evidence_ref"],
+      "properties": {
+        "summary": { "type": "string" },
+        "quality_ok": { "type": "boolean" },
+        "uncertainty_ok": { "type": "boolean" },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action_type", "priority", "rationale", "evidence_ref"],
+            "properties": {
+              "action_type": { "type": "string" },
+              "priority": { "type": "integer", "minimum": 1 },
+              "rationale": { "type": "string" },
+              "evidence_ref": { "type": "string", "minLength": 3 }
+            }
+          }
+        },
+        "evidence_ref": { "type": "string", "minLength": 3 }
+      }
+    },
+    "lecture_impact_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "active_lectures",
+        "active_courses",
+        "starts_next_60m",
+        "ends_next_60m",
+        "heavy_active_lectures",
+        "heavy_ended_last_60m",
+        "lecture_pull_regular",
+        "heavy_bib_bonus",
+        "lecture_net_pull",
+        "impact_model_version"
+      ],
+      "properties": {
+        "active_lectures": { "type": "integer", "minimum": 0 },
+        "active_courses": { "type": "integer", "minimum": 0 },
+        "starts_next_60m": { "type": "integer", "minimum": 0 },
+        "ends_next_60m": { "type": "integer", "minimum": 0 },
+        "heavy_active_lectures": { "type": "integer", "minimum": 0 },
+        "heavy_ended_last_60m": { "type": "integer", "minimum": 0 },
+        "lecture_pull_regular": { "type": "number" },
+        "heavy_bib_bonus": { "type": "number" },
+        "lecture_net_pull": { "type": "number" },
+        "impact_model_version": { "type": "string" }
+      }
+    },
+    "quality_digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "live_quality_score",
+        "live_quality_flags",
+        "history_quality_score_avg",
+        "live_point_count",
+        "alerts"
+      ],
+      "properties": {
+        "live_quality_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "live_quality_flags": { "type": "array", "items": { "type": "string" } },
+        "history_quality_score_avg": { "type": "number", "minimum": 0, "maximum": 1 },
+        "live_point_count": { "type": "integer", "minimum": 0 },
+        "alerts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "level", "message"],
+            "properties": {
+              "code": { "type": "string" },
+              "level": { "type": "string" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "citation_map": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ref_id",
+          "evidence_id",
+          "source_type",
+          "source_id",
+          "time_window",
+          "model_version",
+          "quality_score",
+          "quality_flags"
+        ],
+        "properties": {
+          "ref_id": { "type": "string", "minLength": 3 },
+          "evidence_id": { "type": "string", "minLength": 3 },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "counts",
+              "events",
+              "forecast",
+              "xai",
+              "recommendation",
+              "scenario",
+              "lecture_activity",
+              "api"
+            ]
+          },
+          "source_id": { "type": "string", "minLength": 1 },
+          "time_window": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "type": "string", "format": "date-time" },
+              "to": { "type": "string", "format": "date-time" }
+            }
+          },
+          "model_version": { "type": "string", "minLength": 1 },
+          "quality_score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "quality_flags": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "policy_block": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["abstain_rules", "decision_gates", "output_contract"],
+      "properties": {
+        "abstain_rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "decision_gates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["quality_ok", "uncertainty_ok", "forecast_stale"],
+          "properties": {
+            "quality_ok": { "type": "boolean" },
+            "uncertainty_ok": { "type": "boolean" },
+            "forecast_stale": { "type": "boolean" }
+          }
+        },
+        "output_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["narrative_keys", "structured_required"],
+          "properties": {
+            "narrative_keys": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            },
+            "structured_required": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

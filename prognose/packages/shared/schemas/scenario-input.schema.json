@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/scenario-input.schema.json",
+  "title": "ScenarioInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["zone_id", "horizon", "persist", "changes"],
+  "properties": {
+    "zone_id": { "type": "string", "minLength": 1 },
+    "horizon": { "type": "integer", "minimum": 1 },
+    "persist": { "type": "boolean" },
+    "changes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capacity_delta": { "type": "integer" },
+        "open_room": { "type": "boolean" },
+        "push_time_minutes": { "type": "integer", "minimum": 0 },
+        "staff_delta": { "type": "integer" }
+      },
+      "minProperties": 1
+    }
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/weekly-explain-response.schema.json",
+  "title": "WeeklyExplainResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "zone_id",
+    "days",
+    "slot_minutes",
+    "generated_at",
+    "summary",
+    "week_overview",
+    "daily_highlights",
+    "drivers",
+    "uncertainty",
+    "quality",
+    "references",
+    "lineage",
+    "evidence"
+  ],
+  "properties": {
+    "zone_id": { "type": "string", "minLength": 1 },
+    "days": { "type": "integer", "minimum": 1 },
+    "slot_minutes": { "type": "integer", "minimum": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "summary": { "type": "string" },
+    "week_overview": { "type": "object", "additionalProperties": true },
+    "daily_highlights": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "drivers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "impact", "direction", "description"],
+        "properties": {
+          "name": { "type": "string", "minLength": 2 },
+          "impact": { "type": "number" },
+          "direction": { "type": "string", "enum": ["up", "down", "mixed"] },
+          "description": { "type": "string", "minLength": 5 }
+        }
+      }
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "level", "reason"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "level": { "type": "string", "enum": ["low", "medium", "high"] },
+        "reason": { "type": "string", "minLength": 3 }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "flags"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "flags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "references": {
+      "type": "array",
+      "items": { "$ref": "https://sitcheck.dev/schemas/reference-object.schema.json" }
+    },
+    "lineage": { "$ref": "https://sitcheck.dev/schemas/model-lineage.schema.json" },
+    "evidence": { "$ref": "https://sitcheck.dev/schemas/evidence.schema.json" }
+  }
+}

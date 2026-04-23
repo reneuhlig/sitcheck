@@ -1,0 +1,317 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sitcheck}
+      POSTGRES_USER: ${POSTGRES_USER:-sitcheck}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./infra/db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sitcheck} -d ${POSTGRES_DB:-sitcheck}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  forecast:
+    build:
+      context: .
+      dockerfile: services/forecast/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://sitcheck:change_me@timescaledb:5432/sitcheck}
+      FORECAST_MODEL_BACKEND: ${FORECAST_MODEL_BACKEND:-lgbm}
+      TF_MODEL_DIR: ${TF_MODEL_DIR:-/models}
+      TF_MIN_TRAIN_POINTS: ${TF_MIN_TRAIN_POINTS:-2000}
+      TF_DEFAULT_HORIZON: ${TF_DEFAULT_HORIZON:-210}
+      TF_RETRAIN_INTERVAL_MINUTES: ${TF_RETRAIN_INTERVAL_MINUTES:-360}
+      TF_USE_CALENDAR_FEATURES: ${TF_USE_CALENDAR_FEATURES:-true}
+      TF_ENABLE_GPU: ${TF_ENABLE_GPU:-false}
+      TF_TRAIN_EPOCHS: ${TF_TRAIN_EPOCHS:-120}
+      TF_BATCH_SIZE: ${TF_BATCH_SIZE:-64}
+      TF_TRAIN_HISTORY_HOURS: ${TF_TRAIN_HISTORY_HOURS:-720}
+      TF_INFERENCE_HISTORY_HOURS: ${TF_INFERENCE_HISTORY_HOURS:-72}
+      TF_MIN_QUALITY_SCORE: ${TF_MIN_QUALITY_SCORE:-0.0}
+      TF_PROMOTION_MIN_IMPROVEMENT: ${TF_PROMOTION_MIN_IMPROVEMENT:-0.0}
+      FORECAST_CONTEXT_MIN_POINTS: ${FORECAST_CONTEXT_MIN_POINTS:-120}
+      FORECAST_CONTEXT_STALE_SECONDS: ${FORECAST_CONTEXT_STALE_SECONDS:-900}
+      FORECAST_CONTEXT_MAX_HISTORY_HOURS: ${FORECAST_CONTEXT_MAX_HISTORY_HOURS:-720}
+      MAX_FORECAST_HORIZON_MINUTES: ${MAX_FORECAST_HORIZON_MINUTES:-43200}
+      LONG_HORIZON_STEP_MINUTES: ${LONG_HORIZON_STEP_MINUTES:-60}
+      FORECAST_PORT: ${FORECAST_PORT:-8001}
+    ports:
+      - "${FORECAST_PORT:-8001}:8001"
+    volumes:
+      - forecast_models:/models
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  forecast-trainer:
+    build:
+      context: .
+      dockerfile: services/forecast/Dockerfile
+    command: ["python", "/app/trainer_main.py"]
+    environment:
+      FORECAST_SERVICE_URL: ${FORECAST_SERVICE_URL:-http://forecast:8001}
+      DEFAULT_ZONE_ID: ${DEFAULT_ZONE_ID:-default-zone}
+      TF_TRAIN_ZONES: ${TF_TRAIN_ZONES:-default-zone}
+      TF_DEFAULT_HORIZON: ${TF_DEFAULT_HORIZON:-210}
+      TF_RETRAIN_INTERVAL_MINUTES: ${TF_RETRAIN_INTERVAL_MINUTES:-360}
+      TF_TRAIN_HISTORY_HOURS: ${TF_TRAIN_HISTORY_HOURS:-720}
+      TF_TRAIN_HORIZONS: ${TF_TRAIN_HORIZONS:-210}
+    volumes:
+      - forecast_models:/models
+    depends_on:
+      forecast:
+        condition: service_healthy
+    profiles: ["ml-train"]
+
+  xai:
+    build:
+      context: .
+      dockerfile: services/xai/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://sitcheck:change_me@timescaledb:5432/sitcheck}
+      FORECAST_SERVICE_URL: ${FORECAST_SERVICE_URL:-http://forecast:8001}
+      DEFAULT_FORECAST_HORIZON_MINUTES: ${DEFAULT_FORECAST_HORIZON_MINUTES:-210}
+      XAI_SHAP_ENABLED: ${XAI_SHAP_ENABLED:-false}
+      XAI_PORT: ${XAI_PORT:-8002}
+    ports:
+      - "${XAI_PORT:-8002}:8002"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      forecast:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8002/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  recommendations:
+    build:
+      context: .
+      dockerfile: services/recommendations/Dockerfile
+    environment:
+      RECOMMENDATIONS_PORT: ${RECOMMENDATIONS_PORT:-8003}
+    ports:
+      - "${RECOMMENDATIONS_PORT:-8003}:8003"
+    depends_on:
+      xai:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8003/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    environment:
+      API_PORT: ${API_PORT:-8000}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://sitcheck:change_me@timescaledb:5432/sitcheck}
+      DEFAULT_ZONE_ID: ${DEFAULT_ZONE_ID:-default-zone}
+      DEFAULT_ZONE_CAPACITY: ${DEFAULT_ZONE_CAPACITY:-100}
+      FORECAST_SERVICE_URL: ${FORECAST_SERVICE_URL:-http://forecast:8001}
+      XAI_SERVICE_URL: ${XAI_SERVICE_URL:-http://xai:8002}
+      RECOMMENDATIONS_SERVICE_URL: ${RECOMMENDATIONS_SERVICE_URL:-http://recommendations:8003}
+      SCHEDULER_SERVICE_URL: ${SCHEDULER_SERVICE_URL:-http://forecast-scheduler:8011}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-change_me_internal}
+      FORECAST_SNAPSHOT_RETENTION_DAYS: ${FORECAST_SNAPSHOT_RETENTION_DAYS:-14}
+      FORECAST_STALE_THRESHOLD_SECONDS: ${FORECAST_STALE_THRESHOLD_SECONDS:-900}
+      DEFAULT_FORECAST_HORIZON_MINUTES: ${DEFAULT_FORECAST_HORIZON_MINUTES:-210}
+      MAX_FORECAST_HORIZON_MINUTES: ${MAX_FORECAST_HORIZON_MINUTES:-43200}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      forecast:
+        condition: service_healthy
+      xai:
+        condition: service_healthy
+      recommendations:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    environment:
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-8501}
+      API_BASE_URL: ${API_BASE_URL:-http://api-gateway:8000}
+      DEFAULT_ZONE_ID: ${DEFAULT_ZONE_ID:-default-zone}
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-false}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:0.5b}
+      DASHBOARD_AUTO_REFRESH_SECONDS: ${DASHBOARD_AUTO_REFRESH_SECONDS:-15}
+      FORECAST_STALE_THRESHOLD_SECONDS: ${FORECAST_STALE_THRESHOLD_SECONDS:-900}
+      DEFAULT_FORECAST_HORIZON_MINUTES: ${DEFAULT_FORECAST_HORIZON_MINUTES:-210}
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8501"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  dashboard-web:
+    build:
+      context: ./apps/command-center-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${DASHBOARD_WEB_API_BASE_URL:-}
+        VITE_DEFAULT_ZONE_ID: ${DEFAULT_ZONE_ID:-default-zone}
+        VITE_DEFAULT_HORIZON: ${DASHBOARD_WEB_DEFAULT_HORIZON:-210}
+        VITE_OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:0.5b}
+    ports:
+      - "${DASHBOARD_WEB_PORT:-5173}:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  forecast-scheduler:
+    build:
+      context: .
+      dockerfile: services/forecast-scheduler/Dockerfile
+    environment:
+      API_BASE_URL: ${API_BASE_URL:-http://api-gateway:8000}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-change_me_internal}
+      FORECAST_SNAPSHOT_INTERVAL_SECONDS: ${FORECAST_SNAPSHOT_INTERVAL_SECONDS:-300}
+      FORECAST_SNAPSHOT_HORIZONS: ${FORECAST_SNAPSHOT_HORIZONS:-210}
+      FORECAST_SNAPSHOT_ZONES: ${FORECAST_SNAPSHOT_ZONES:-auto}
+      FORECAST_SNAPSHOT_MAX_HORIZON_MINUTES: ${FORECAST_SNAPSHOT_MAX_HORIZON_MINUTES:-43200}
+      SCHEDULER_PORT: ${SCHEDULER_PORT:-8011}
+    ports:
+      - "${SCHEDULER_PORT:-8011}:8011"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8011/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mcp-sitcheck:
+    build:
+      context: .
+      dockerfile: apps/mcp-sitcheck/Dockerfile
+    environment:
+      MCP_HEALTH_PORT: ${MCP_HEALTH_PORT:-8081}
+      API_BASE_URL: ${API_BASE_URL:-http://api-gateway:8000}
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-false}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:0.5b}
+    ports:
+      - "${MCP_HEALTH_PORT:-8081}:8081"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  calendar-ingest:
+    build:
+      context: .
+      dockerfile: services/calendar-ingest/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://sitcheck:change_me@timescaledb:5432/sitcheck}
+      DEFAULT_ZONE_ID: ${DEFAULT_ZONE_ID:-default-zone}
+      DEFAULT_ZONE_CAPACITY: ${DEFAULT_ZONE_CAPACITY:-100}
+      CALENDAR_ZONE_ID: ${CALENDAR_ZONE_ID:-default-zone}
+      CALENDAR_ICS_URLS: ${CALENDAR_ICS_URLS:-}
+      CALENDAR_IMPORT_INTERVAL_SECONDS: ${CALENDAR_IMPORT_INTERVAL_SECONDS:-600}
+      CALENDAR_RUN_ONCE: ${CALENDAR_RUN_ONCE:-false}
+    ports:
+      - "${CALENDAR_INGEST_PORT:-8010}:8010"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8010/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    profiles: ["calendar", "dev"]
+
+  lecture-ingest:
+    build:
+      context: .
+      dockerfile: services/lecture-ingest/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://sitcheck:change_me@timescaledb:5432/sitcheck}
+      DEFAULT_ZONE_ID: ${DEFAULT_ZONE_ID:-default-zone}
+      DEFAULT_ZONE_CAPACITY: ${DEFAULT_ZONE_CAPACITY:-100}
+      LECTURE_ZONE_ID: ${LECTURE_ZONE_ID:-default-zone}
+      LECTURE_SITE_CODE: ${LECTURE_SITE_CODE:-MA}
+      LECTURE_API_BASE_URL: ${LECTURE_API_BASE_URL:-https://api.dhbw.app}
+      LECTURE_REFRESH_INTERVAL_SECONDS: ${LECTURE_REFRESH_INTERVAL_SECONDS:-1800}
+      LECTURE_RUN_ONCE: ${LECTURE_RUN_ONCE:-false}
+      LECTURE_BACKFILL_ENABLED: ${LECTURE_BACKFILL_ENABLED:-true}
+      LECTURE_BACKFILL_MAX_COURSES: ${LECTURE_BACKFILL_MAX_COURSES:-0}
+      LECTURE_HISTORY_DAYS: ${LECTURE_HISTORY_DAYS:-400}
+      LECTURE_FUTURE_DAYS: ${LECTURE_FUTURE_DAYS:-180}
+      LECTURE_REQUEST_TIMEOUT: ${LECTURE_REQUEST_TIMEOUT:-20}
+      LECTURE_INGEST_PORT: ${LECTURE_INGEST_PORT:-8012}
+    ports:
+      - "${LECTURE_INGEST_PORT:-8012}:8012"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8012/health')\""]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+
+  demo-generator:
+    build:
+      context: .
+      dockerfile: scripts/demo/Dockerfile
+    environment:
+      API_BASE_URL: ${API_BASE_URL:-http://api-gateway:8000}
+      ZONE_ID: ${DEFAULT_ZONE_ID:-default-zone}
+      DEMO_ITERATIONS: ${DEMO_ITERATIONS:-120}
+      DEMO_INTERVAL_SECONDS: ${DEMO_INTERVAL_SECONDS:-1.0}
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    profiles: ["dev"]
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    profiles: ["ollama"]
+
+volumes:
+  timescaledb_data:
+  forecast_models:

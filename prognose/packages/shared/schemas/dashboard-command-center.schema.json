@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sitcheck.dev/schemas/dashboard-command-center.schema.json",
+  "title": "DashboardCommandCenter",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta",
+    "service_health",
+    "live",
+    "history",
+    "forecast_latest",
+    "forecast_long_term",
+    "weekly_forecast",
+    "weekly_explanation",
+    "explanation",
+    "recommendations",
+    "model_lineage",
+    "reference_objects",
+    "calendar_events",
+    "alerts"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generated_at",
+        "zone_id",
+        "horizon",
+        "history_minutes",
+        "long_term_days",
+        "stale_seconds",
+        "environment"
+      ],
+      "properties": {
+        "generated_at": { "type": "string", "format": "date-time" },
+        "zone_id": { "type": "string", "minLength": 1 },
+        "horizon": { "type": "integer", "minimum": 1 },
+        "history_minutes": { "type": "integer", "minimum": 1 },
+        "long_term_days": { "type": "integer", "minimum": 1 },
+        "stale_seconds": { "type": "integer", "minimum": 1 },
+        "environment": { "type": "string", "minLength": 1 }
+      }
+    },
+    "service_health": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["service", "status", "latency_ms", "detail"],
+        "properties": {
+          "service": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["ok", "degraded", "down"] },
+          "latency_ms": { "type": "integer", "minimum": 0 },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "live": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timestamp", "occupancy", "utilization", "quality_score", "quality_flags", "point_count"],
+      "properties": {
+        "timestamp": {
+          "oneOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        },
+        "occupancy": { "type": "integer", "minimum": 0 },
+        "utilization": { "type": "number", "minimum": 0 },
+        "quality_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "quality_flags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "point_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "history": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["zone_id", "from", "to", "granularity", "points"],
+      "properties": {
+        "zone_id": { "type": "string", "minLength": 1 },
+        "from": { "type": "string", "format": "date-time" },
+        "to": { "type": "string", "format": "date-time" },
+        "granularity": { "type": "string", "enum": ["raw", "1m", "5m", "15m"] },
+        "points": {
+          "type": "array",
+          "items": { "$ref": "https://sitcheck.dev/schemas/count-point.schema.json" }
+        }
+      }
+    },
+    "forecast_latest": {
+      "$ref": "https://sitcheck.dev/schemas/forecast-latest-response.schema.json"
+    },
+    "forecast_long_term": {
+      "type": "array",
+      "items": { "$ref": "https://sitcheck.dev/schemas/forecast-latest-response.schema.json" }
+    },
+    "weekly_forecast": {
+      "$ref": "https://sitcheck.dev/schemas/weekly-forecast-response.schema.json"
+    },
+    "weekly_explanation": {
+      "$ref": "https://sitcheck.dev/schemas/weekly-explain-response.schema.json"
+    },
+    "explanation": {
+      "$ref": "https://sitcheck.dev/schemas/explanation.schema.json"
+    },
+    "recommendations": {
+      "$ref": "https://sitcheck.dev/schemas/recommendation.schema.json"
+    },
+    "model_lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["short_term", "weekly_slot"],
+      "properties": {
+        "short_term": { "$ref": "https://sitcheck.dev/schemas/model-lineage.schema.json" },
+        "weekly_slot": { "$ref": "https://sitcheck.dev/schemas/model-lineage.schema.json" }
+      }
+    },
+    "reference_objects": {
+      "type": "array",
+      "items": { "$ref": "https://sitcheck.dev/schemas/reference-object.schema.json" }
+    },
+    "calendar_events": {
+      "type": "array",
+      "items": { "$ref": "https://sitcheck.dev/schemas/calendar-event.schema.json" }
+    },
+    "alerts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "level", "message"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "level": { "type": "string", "enum": ["ok", "info", "warn", "risk"] },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
