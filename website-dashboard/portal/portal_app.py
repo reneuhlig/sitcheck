@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import time
@@ -130,63 +131,61 @@ def _fetch_multi_horizon_forecast(
     max_minutes: int = CC_FORECAST_HORIZON_MINUTES,
     timeout_seconds: float = 8.0,
 ) -> dict[str, Any]:
-    # Fetch all forecast points in a single call at the full horizon.
-    # The base granularity is always 15 min; aggregate afterwards if step_minutes > 15.
-    payload = _fetch_single_horizon(max_minutes, timeout_seconds)
-    base_points: list[dict[str, Any]] = []
+    BASE_STEP = 15
+    base_horizons = list(range(BASE_STEP, max_minutes + 1, BASE_STEP))  # [15,30,...,180]
+    now_cutoff = (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
 
-    if isinstance(payload, dict):
+    def _fetch_terminal_point(h: int) -> dict[str, Any] | None:
+        payload = _fetch_single_horizon(h, timeout_seconds)
+        if not isinstance(payload, dict):
+            return None
         raw_points = payload.get("points", [])
-        if isinstance(raw_points, list):
-            for point in raw_points:
-                if not isinstance(point, dict):
-                    continue
-                timestamp = point.get("timestamp")
-                yhat = point.get("yhat")
-                if timestamp is None or yhat is None:
-                    continue
-                try:
-                    yhat_f = float(yhat)
-                    low_f = float(point.get("pi_low", yhat))
-                    high_f = float(point.get("pi_high", yhat))
-                except Exception:  # noqa: BLE001
-                    continue
-                base_points.append(
-                    {
-                        "timestamp": str(timestamp),
-                        "yhat": round(yhat_f, 2),
-                        "pi_low": round(min(low_f, high_f), 2),
-                        "pi_high": round(max(low_f, high_f), 2),
-                    }
-                )
+        if not isinstance(raw_points, list) or not raw_points:
+            return None
+        # Terminal value: last point = T+H for both GBDT (1 point) and baseline (1-min steps)
+        point = raw_points[-1]
+        if not isinstance(point, dict):
+            return None
+        timestamp = point.get("timestamp")
+        yhat = point.get("yhat")
+        if timestamp is None or yhat is None:
+            return None
+        if str(timestamp) < now_cutoff:
+            return None
+        try:
+            yhat_f = float(yhat)
+            low_f = float(point.get("pi_low", yhat))
+            high_f = float(point.get("pi_high", yhat))
+        except Exception:  # noqa: BLE001
+            return None
+        return {
+            "timestamp": str(timestamp),
+            "yhat": round(yhat_f, 2),
+            "pi_low": round(min(low_f, high_f), 2),
+            "pi_high": round(max(low_f, high_f), 2),
+        }
 
-    base_points.sort(key=lambda p: p["timestamp"])
+    with ThreadPoolExecutor(max_workers=min(len(base_horizons), 8)) as pool:
+        futures = {pool.submit(_fetch_terminal_point, h): h for h in base_horizons}
+        point_map: dict[int, dict] = {}
+        for future in as_completed(futures):
+            h = futures[future]
+            result = future.result()
+            if result is not None:
+                point_map[h] = result
 
-    # Keep only future points; allow 5-min tolerance for snapshot freshness.
-    cutoff = (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
-    base_points = [p for p in base_points if p["timestamp"] >= cutoff]
+    # Assemble base series in horizon order
+    base_points = [point_map[h] for h in base_horizons if h in point_map]
 
-    # Aggregate base 15-min points to the requested step granularity
-    if step_minutes <= 15:
+    # Stride-based downsampling: pick every Nth point (preserves horizon-specific predictions)
+    # 15-min view: stride=1 → all 12 points
+    # 30-min view: stride=2 → base_points[1::2] = [T+30, T+60, ..., T+180] (6 points)
+    # 60-min view: stride=4 → base_points[3::4] = [T+60, T+120, T+180] (3 points)
+    if step_minutes <= BASE_STEP:
         points = base_points
     else:
-        group_size = max(1, step_minutes // 15)
-        points = []
-        for i in range(0, len(base_points), group_size):
-            group = base_points[i : i + group_size]
-            if not group:
-                continue
-            avg_yhat = round(sum(p["yhat"] for p in group) / len(group), 2)
-            avg_low = round(sum(p["pi_low"] for p in group) / len(group), 2)
-            avg_high = round(sum(p["pi_high"] for p in group) / len(group), 2)
-            points.append(
-                {
-                    "timestamp": group[-1]["timestamp"],
-                    "yhat": avg_yhat,
-                    "pi_low": avg_low,
-                    "pi_high": avg_high,
-                }
-            )
+        stride = max(1, step_minutes // BASE_STEP)
+        points = base_points[stride - 1 :: stride]
 
     current_yhat = points[0]["yhat"] if points else None
     peak_yhat = max((p["yhat"] for p in points), default=None)
