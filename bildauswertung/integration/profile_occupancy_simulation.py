@@ -40,6 +40,7 @@ class ProfileOccupancySimulation:
         self._profile_loaded = False
         self._profile_error = ""
         self._profile_bucket_count = 0
+        self._profile_by_month_weekday_slot: Dict[Tuple[int, int, int], Tuple[float, float]] = {}
         self._profile_by_weekday_slot: Dict[Tuple[int, int], Tuple[float, float]] = {}
         self._profile_by_slot: Dict[int, Tuple[float, float]] = {}
         self._global_mean = 0.0
@@ -265,10 +266,14 @@ class ProfileOccupancySimulation:
             self._last_profile_timestamp = now_dt.isoformat(timespec="seconds")
 
     def _target_for_datetime(self, when: datetime) -> Tuple[float, float]:
+        month = int(when.month)
         weekday = int(when.weekday())
         slot = int(when.hour * 4 + (when.minute // 15))
 
         with self._lock:
+            month_day_slot = self._profile_by_month_weekday_slot.get((month, weekday, slot))
+            if month_day_slot is not None:
+                return month_day_slot
             day_slot = self._profile_by_weekday_slot.get((weekday, slot))
             if day_slot is not None:
                 return day_slot
@@ -281,6 +286,7 @@ class ProfileOccupancySimulation:
         self._profile_loaded = False
         self._profile_error = ""
         self._profile_bucket_count = 0
+        self._profile_by_month_weekday_slot = {}
         self._profile_by_weekday_slot = {}
         self._profile_by_slot = {}
         self._global_mean = 0.0
@@ -316,6 +322,7 @@ class ProfileOccupancySimulation:
                 return
 
             buckets: Dict[Tuple[int, int], List[float]] = defaultdict(list)
+            month_buckets: Dict[Tuple[int, int, int], List[float]] = defaultdict(list)
             slot_buckets: Dict[int, List[float]] = defaultdict(list)
             all_values: List[float] = []
 
@@ -333,8 +340,10 @@ class ProfileOccupancySimulation:
                 except Exception:
                     continue
 
+                month = int(ts_val.month)
                 weekday = int(ts_val.weekday())
                 slot = int(ts_val.hour * 4 + (ts_val.minute // 15))
+                month_buckets[(month, weekday, slot)].append(occ)
                 buckets[(weekday, slot)].append(occ)
                 slot_buckets[slot].append(occ)
                 all_values.append(occ)
@@ -344,6 +353,14 @@ class ProfileOccupancySimulation:
                 self._profile_error = "excel_empty_profile"
                 return
 
+            self._profile_by_month_weekday_slot = {
+                key: (
+                    float(statistics.fmean(values)),
+                    float(statistics.pstdev(values)) if len(values) > 1 else max(1.0, float(values[0]) * 0.15),
+                )
+                for key, values in month_buckets.items()
+                if len(values) >= 2
+            }
             self._profile_by_weekday_slot = {
                 key: (
                     float(statistics.fmean(values)),
@@ -368,7 +385,7 @@ class ProfileOccupancySimulation:
             self._base_occupancy_rounded = int(round(self._base_occupancy))
             self._last_temp_offset_rounded = 0
             self._effective_occupancy = int(self._base_occupancy_rounded)
-            self._profile_bucket_count = len(self._profile_by_weekday_slot)
+            self._profile_bucket_count = len(self._profile_by_month_weekday_slot) + len(self._profile_by_weekday_slot)
             self._profile_loaded = True
             self._profile_error = ""
         except Exception as exc:

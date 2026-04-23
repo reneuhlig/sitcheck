@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import time
@@ -28,6 +29,8 @@ REALTIME_BASE_URL = os.getenv("SITCHECK_REALTIME_BASE_URL", "http://127.0.0.1:80
 PROGNOSE_API_BASE_URL = os.getenv("SITCHECK_PROGNOSE_API_BASE_URL", "http://127.0.0.1:8000")
 DEFAULT_ZONE_ID = os.getenv("SITCHECK_DEFAULT_ZONE_ID", "default-zone")
 CC_HORIZON = int(os.getenv("SITCHECK_CC_HORIZON", "210"))
+CC_FORECAST_STEP_MINUTES = int(os.getenv("SITCHECK_CC_FORECAST_STEP_MINUTES", "15"))
+CC_FORECAST_HORIZON_MINUTES = int(os.getenv("SITCHECK_CC_FORECAST_HORIZON_MINUTES", "180"))
 CC_HISTORY_MINUTES = int(os.getenv("SITCHECK_CC_HISTORY_MINUTES", "180"))
 CC_HUB_HISTORY_MINUTES = int(os.getenv("SITCHECK_HUB_HISTORY_MINUTES", "180"))
 PROXY_TIMEOUT_SECONDS = float(os.getenv("SITCHECK_PROXY_TIMEOUT_SECONDS", "15"))
@@ -111,6 +114,77 @@ def _forecast_latest_url(*, horizon: int | None = None) -> str:
         }
     )
     return f"{PROGNOSE_API_BASE_URL.rstrip('/')}/api/v1/forecast/latest?{query}"
+
+
+def _fetch_single_horizon(horizon: int, timeout_seconds: float) -> dict[str, Any] | None:
+    url = _forecast_latest_url(horizon=horizon)
+    try:
+        return _json_get(url, timeout_seconds=timeout_seconds)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _fetch_multi_horizon_forecast(
+    *,
+    step_minutes: int = CC_FORECAST_STEP_MINUTES,
+    max_minutes: int = CC_FORECAST_HORIZON_MINUTES,
+    timeout_seconds: float = 8.0,
+) -> dict[str, Any]:
+    horizons = list(range(step_minutes, max_minutes + 1, step_minutes))
+    points: list[dict[str, Any]] = []
+
+    with ThreadPoolExecutor(max_workers=min(len(horizons), 6)) as pool:
+        futures = {
+            pool.submit(_fetch_single_horizon, h, timeout_seconds): h
+            for h in horizons
+        }
+        for future in as_completed(futures):
+            payload = future.result()
+            if not isinstance(payload, dict):
+                continue
+            raw_points = payload.get("points", [])
+            if not isinstance(raw_points, list) or not raw_points:
+                continue
+            point = raw_points[0]
+            if not isinstance(point, dict):
+                continue
+            timestamp = point.get("timestamp")
+            yhat = point.get("yhat")
+            if timestamp is None or yhat is None:
+                continue
+            try:
+                yhat_f = float(yhat)
+                low_f = float(point.get("pi_low", yhat))
+                high_f = float(point.get("pi_high", yhat))
+            except Exception:  # noqa: BLE001
+                continue
+            points.append(
+                {
+                    "timestamp": str(timestamp),
+                    "yhat": round(yhat_f, 2),
+                    "pi_low": round(min(low_f, high_f), 2),
+                    "pi_high": round(max(low_f, high_f), 2),
+                }
+            )
+
+    points.sort(key=lambda p: p["timestamp"])
+
+    current_yhat = points[0]["yhat"] if points else None
+    peak_yhat = max((p["yhat"] for p in points), default=None)
+
+    return {
+        "horizon": max_minutes,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "summary": f"multi-horizon forecast, {len(points)} points at {step_minutes}min intervals",
+        "model_version": None,
+        "source": "portal-multi-horizon",
+        "age_seconds": 0,
+        "stale": len(points) == 0,
+        "current_yhat": current_yhat,
+        "peak_yhat": peak_yhat,
+        "points": points,
+        "long_term": [],
+    }
 
 
 def _target_url(base_url: str, path: str) -> str:
@@ -811,6 +885,9 @@ def _build_hub_overview_payload() -> dict[str, Any]:
         optional=True,
         timeout_seconds=min(CC_TIMEOUT_SECONDS, 8.0),
     )
+    multi_horizon_forecast = _fetch_multi_horizon_forecast(
+        timeout_seconds=min(CC_TIMEOUT_SECONDS, 8.0),
+    )
     command_center_url = _command_center_url(history_minutes=CC_HUB_HISTORY_MINUTES)
     if HUB_PROBE_COMMAND_CENTER:
         command_center_health, command_center_payload = _probe_json_endpoint(
@@ -879,6 +956,8 @@ def _build_hub_overview_payload() -> dict[str, Any]:
         occupancy_payload = _normalize_occupancy_from_counts_payload(counts_payload)
     if forecast_payload is None and isinstance(forecast_latest_payload, dict):
         forecast_payload = _normalize_forecast_latest_payload(forecast_latest_payload)
+    if multi_horizon_forecast.get("points"):
+        forecast_payload = multi_horizon_forecast
 
     realtime_occupancy = None
     if isinstance(realtime_state_payload, dict):

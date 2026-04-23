@@ -936,7 +936,9 @@ export default function HomePage() {
     ? hubOverview.forecast.points
     : [];
   const forecastPoints =
-    commandCenterForecastPoints.length > 0 ? commandCenterForecastPoints : hubForecastPoints;
+    hubForecastPoints.length >= commandCenterForecastPoints.length
+      ? hubForecastPoints
+      : commandCenterForecastPoints;
   const forecastChartData = buildForecastChartData(forecastPoints);
   const forecastChartDataWithStart = buildForecastChartDataWithStart(forecastPoints, currentPersons);
 
@@ -1222,8 +1224,8 @@ export default function HomePage() {
             <div className="flex items-center gap-1">
               {[
                 { value: "1m", label: "1 min" },
+                { value: "5m", label: "5 min" },
                 { value: "15m", label: "15 min" },
-                { value: "30m", label: "30 min" },
               ].map((option) => (
                 <button
                   key={option.value}
