@@ -582,12 +582,12 @@ export function App() {
   const healthQuery = useQuery({
     queryKey: ["health"],
     queryFn: fetchHealth,
-    refetchInterval: autoRefresh ? 15_000 : false,
+    refetchInterval: autoRefresh ? 30_000 : false,
   });
   const commandQuery = useQuery({
     queryKey: ["command-center", filters],
     queryFn: () => fetchCommandCenter(filters),
-    refetchInterval: autoRefresh ? 15_000 : false,
+    refetchInterval: autoRefresh ? 30_000 : false,
   });
   const narrativeQuery = useQuery({
     queryKey: ["executive-narrative", filters],
@@ -599,7 +599,7 @@ export function App() {
   const forecastMultiQuery = useQuery({
     queryKey: ["forecast-multi", zoneId],
     queryFn: () => fetchForecastMultiStep(zoneId),
-    refetchInterval: autoRefresh ? 15_000 : false,
+    refetchInterval: autoRefresh ? 30_000 : false,
   });
 
   const payload = commandQuery.data;

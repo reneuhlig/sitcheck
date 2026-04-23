@@ -783,7 +783,7 @@ export default function HomePage() {
     }
 
     loadHub();
-    const intervalId = window.setInterval(loadHub, 5000);
+    const intervalId = window.setInterval(loadHub, 30000);
     return () => {
       active = false;
       window.clearInterval(intervalId);
