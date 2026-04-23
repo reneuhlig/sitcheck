@@ -118,6 +118,14 @@ export const sitcheckApi = {
   async logout() {
     return apiRequest("/api/v1/auth/logout", { method: "POST" });
   },
+  async getCounts({ granularity = "1m", historyMinutes = 180, signal } = {}) {
+    const now = new Date();
+    const from = new Date(now.getTime() - historyMinutes * 60 * 1000);
+    return apiRequest(
+      `/api/v1/counts?zone_id=${DEFAULT_ZONE_ID}&from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(now.toISOString())}&granularity=${encodeURIComponent(granularity)}`,
+      { signal },
+    );
+  },
   async getBookings(signal) {
     return apiRequest("/api/v1/bookings", { signal });
   },

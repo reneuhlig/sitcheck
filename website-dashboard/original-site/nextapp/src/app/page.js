@@ -17,11 +17,6 @@ import { useAppData } from "@/context/AppDataContext";
 
 const NARRATIVE_TIMEOUT_MS = 120000;
 const FORECAST_START_OFFSET_MINUTES = 0;
-const HISTORY_CHART_POINT_LIMIT = 120;
-const FORECAST_WINDOW_LABEL =
-  FORECAST_START_OFFSET_MINUTES > 0
-    ? `ab +${FORECAST_START_OFFSET_MINUTES} Minuten`
-    : "ab dem ersten API-Punkt";
 
 function formatWholeNumber(value) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "–";
@@ -97,48 +92,41 @@ function occupancyValue(point) {
   return firstFiniteNumber(point?.occupancy, point?.persons);
 }
 
-function buildOccupancyChartData(historyPoints, forecastPoints) {
-  const rowsByTimestamp = new Map();
-  const historyRows = (Array.isArray(historyPoints) ? historyPoints : [])
-    .slice(-HISTORY_CHART_POINT_LIMIT)
+function buildForecastChartDataWithStart(forecastPoints, currentPersons) {
+  const fcData = buildForecastChartData(forecastPoints);
+  const current = asNumber(currentPersons);
+  if (current === null || fcData.length === 0) return fcData;
+
+  const nowMs = Math.floor(Date.now() / 60000) * 60000;
+  if (fcData[0].timestamp <= nowMs) return fcData;
+
+  return [
+    {
+      timestamp: nowMs,
+      label: formatTime(new Date(nowMs).toISOString()),
+      forecast: current,
+      lower: current,
+      upper: current,
+      isNow: true,
+    },
+    ...fcData,
+  ];
+}
+
+function buildTrackingChartData(countsPoints) {
+  const points = Array.isArray(countsPoints) ? countsPoints : [];
+  return points
     .map((point) => {
       const timestampMs = new Date(point?.timestamp).getTime();
-      if (!Number.isFinite(timestampMs)) {
-        return null;
-      }
-
+      if (!Number.isFinite(timestampMs)) return null;
       return {
         timestamp: timestampMs,
         label: formatTime(point.timestamp),
         occupancy: occupancyValue(point),
-        forecast: null,
-        lower: null,
-        upper: null,
       };
     })
-    .filter(Boolean);
-
-  [...historyRows, ...buildForecastChartData(forecastPoints)].forEach((row) => {
-    const existing = rowsByTimestamp.get(row.timestamp) ?? {
-      timestamp: row.timestamp,
-      label: row.label,
-      occupancy: null,
-      forecast: null,
-      lower: null,
-      upper: null,
-    };
-
-    rowsByTimestamp.set(row.timestamp, {
-      ...existing,
-      ...row,
-      occupancy: row.occupancy ?? existing.occupancy,
-      forecast: row.forecast ?? existing.forecast,
-      lower: row.lower ?? existing.lower,
-      upper: row.upper ?? existing.upper,
-    });
-  });
-
-  return Array.from(rowsByTimestamp.values()).sort((left, right) => left.timestamp - right.timestamp);
+    .filter(Boolean)
+    .sort((left, right) => left.timestamp - right.timestamp);
 }
 
 function formatCountPhrase(count, singular, plural) {
@@ -731,6 +719,9 @@ export default function HomePage() {
   const [narrativeText, setNarrativeText] = useState("");
   const [narrativeSource, setNarrativeSource] = useState("loading");
   const [narrativeError, setNarrativeError] = useState("");
+  const [trackingGranularity, setTrackingGranularity] = useState("1m");
+  const [trackingData, setTrackingData] = useState([]);
+  const [trackingError, setTrackingError] = useState("");
   const hubFailureCountRef = useRef(0);
   const commandCenterFailureCountRef = useRef(0);
   const narrativeInFlightRef = useRef(false);
@@ -792,6 +783,37 @@ export default function HomePage() {
       window.clearInterval(intervalId);
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const abortController = new AbortController();
+
+    async function loadTracking() {
+      try {
+        const payload = await sitcheckApi.getCounts({
+          granularity: trackingGranularity,
+          historyMinutes: 180,
+          signal: abortController.signal,
+        });
+        if (!active) return;
+        const points = Array.isArray(payload?.points) ? payload.points : [];
+        setTrackingData(buildTrackingChartData(points));
+        setTrackingError("");
+      } catch (error) {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : "Tracking-Daten konnten nicht geladen werden.";
+        setTrackingError(message);
+      }
+    }
+
+    loadTracking();
+    const intervalId = window.setInterval(loadTracking, 30000);
+    return () => {
+      active = false;
+      abortController.abort();
+      window.clearInterval(intervalId);
+    };
+  }, [trackingGranularity]);
 
   useEffect(() => {
     let active = true;
@@ -906,12 +928,6 @@ export default function HomePage() {
     zoneCapacity && currentPersons !== null ? Math.max(zoneCapacity - currentPersons, 0) : null;
   const resolvedHistoryPoints =
     commandCenterHistoryPoints.length > 0 ? commandCenterHistoryPoints : hubHistoryPoints;
-  const historySourceLabel =
-    commandCenterHistoryPoints.length > 0
-      ? "Command Center"
-      : hubHistoryPoints.length > 0
-        ? "Hub-Fallback"
-        : null;
 
   const commandCenterForecastPoints = Array.isArray(commandCenter?.forecast_latest?.points)
     ? commandCenter.forecast_latest.points
@@ -922,8 +938,7 @@ export default function HomePage() {
   const forecastPoints =
     commandCenterForecastPoints.length > 0 ? commandCenterForecastPoints : hubForecastPoints;
   const forecastChartData = buildForecastChartData(forecastPoints);
-  const occupancyChartData = buildOccupancyChartData(resolvedHistoryPoints, forecastPoints);
-  const displayedHistoryPointCount = Math.min(resolvedHistoryPoints.length, HISTORY_CHART_POINT_LIMIT);
+  const forecastChartDataWithStart = buildForecastChartDataWithStart(forecastPoints, currentPersons);
 
   const forecastPeak = forecastChartData.length > 0
     ? forecastChartData.reduce((peak, point) => {
@@ -1106,58 +1121,49 @@ export default function HomePage() {
         ))}
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
+      <section className="grid gap-6 xl:grid-cols-2">
         <article className="rounded-[1.5rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-6 shadow-[0_22px_48px_rgba(15,23,42,0.08)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
-                Belegung und Forecast
+                Prognose
               </p>
               <h3 className="mt-1 text-2xl font-semibold text-[color:var(--ink-strong)]">
-                Live-Verlauf mit Prognoseband
+                Nächste 3 Stunden
               </h3>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--ink-soft)]">
-                Die Ansicht kombiniert die letzten {displayedHistoryPointCount} History-Punkte mit
-                den Forecast-Punkten aus der API. Der Forecast startet {FORECAST_WINDOW_LABEL}.
+              <p className="mt-2 max-w-md text-sm leading-6 text-[color:var(--ink-soft)]">
+                Aktueller Echtzeit-Wert als Startpunkt, dann Forecast in 15-Minuten-Intervallen.
               </p>
             </div>
-            <div className="grid gap-2 text-sm text-[color:var(--ink-strong)] sm:grid-cols-3 lg:min-w-[20rem]">
+            <div className="grid gap-2 text-sm text-[color:var(--ink-strong)] sm:grid-cols-3">
               <div className="rounded-[1rem] bg-[color:var(--surface-muted)] px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">History</p>
-                <p className="mt-1 font-semibold">{displayedHistoryPointCount}</p>
-              </div>
-              <div className="rounded-[1rem] bg-[color:var(--surface-muted)] px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">Forecast</p>
-                <p className="mt-1 font-semibold">{forecastChartData.length}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">Aktuell</p>
+                <p className="mt-1 font-semibold">{currentPersons !== null ? Math.round(currentPersons) : "–"}</p>
               </div>
               <div className="rounded-[1rem] bg-[color:var(--surface-muted)] px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">Peak</p>
                 <p className="mt-1 font-semibold">{forecastPeak !== null ? Math.round(forecastPeak) : "–"}</p>
               </div>
+              <div className="rounded-[1rem] bg-[color:var(--surface-muted)] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">Punkte</p>
+                <p className="mt-1 font-semibold">{forecastChartData.length}</p>
+              </div>
             </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-4 text-sm text-[color:var(--ink-soft)]">
             <span className="inline-flex items-center gap-2">
-              <span className="h-0.5 w-6 rounded-full bg-[#334155]" />
-              History
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-0.5 w-6 rounded-full bg-[#2563eb]" />
+              <span className="h-2 w-2 rounded-full bg-[#2563eb]" />
               Forecast
             </span>
             <span className="inline-flex items-center gap-2">
               <span className="h-3 w-6 rounded-sm bg-[#8bc6ec]/40" />
-              Band
-            </span>
-            <span>
-              Letztes Live-Update: {formatDateTime(commandCenter?.live?.timestamp ?? occupancy?.lastUpdated)}
-              {historySourceLabel ? ` • Quelle: ${historySourceLabel}` : ""}
+              Konfidenzband
             </span>
           </div>
           <div className="mt-6 h-[26rem]">
-            {occupancyChartData.length > 0 ? (
+            {forecastChartDataWithStart.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={occupancyChartData} margin={{ top: 12, right: 20, left: -4, bottom: 4 }}>
+                <ComposedChart data={forecastChartDataWithStart} margin={{ top: 12, right: 20, left: -4, bottom: 4 }}>
                   <defs>
                     <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#8bc6ec" stopOpacity={0.38} />
@@ -1178,37 +1184,104 @@ export default function HomePage() {
                   />
                   <Tooltip
                     formatter={(value, name) => {
-                      const labels = {
-                        occupancy: "History",
-                        forecast: "Forecast",
-                        lower: "Unteres Band",
-                        upper: "Oberes Band",
-                      };
+                      const labels = { forecast: "Forecast", lower: "Unteres Band", upper: "Oberes Band" };
                       return [`${value} Personen`, labels[name] ?? name];
                     }}
                   />
                   <Area type="monotone" dataKey="upper" stroke="none" fill="url(#forecastFill)" connectNulls={false} />
                   <Area type="monotone" dataKey="lower" stroke="none" fill="white" fillOpacity={1} connectNulls={false} />
-                  <Line type="monotone" dataKey="occupancy" stroke="#334155" strokeWidth={2.5} dot={false} name="History" />
                   <Line
                     type="monotone"
                     dataKey="forecast"
                     stroke="#2563eb"
                     strokeWidth={3}
                     dot={false}
-                    activeDot={{ r: 4 }}
+                    activeDot={{ r: 5 }}
                     name="Forecast"
                   />
                 </ComposedChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex h-full items-center justify-center rounded-[1.25rem] border border-dashed border-[color:var(--stroke-strong)] bg-[color:var(--surface-muted)] px-6 text-center text-sm text-[color:var(--ink-soft)]">
-                Noch keine History- oder Forecast-Punkte verfügbar.
+                Noch keine Forecast-Punkte verfügbar.
               </div>
             )}
           </div>
         </article>
 
+        <article className="rounded-[1.5rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-6 shadow-[0_22px_48px_rgba(15,23,42,0.08)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
+                Echtzeit-Tracking
+              </p>
+              <h3 className="mt-1 text-2xl font-semibold text-[color:var(--ink-strong)]">
+                Letzte 3 Stunden
+              </h3>
+            </div>
+            <div className="flex items-center gap-1">
+              {[
+                { value: "1m", label: "1 min" },
+                { value: "15m", label: "15 min" },
+                { value: "30m", label: "30 min" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setTrackingGranularity(option.value)}
+                  className={`rounded-full px-3.5 py-1.5 text-sm font-semibold transition ${
+                    trackingGranularity === option.value
+                      ? "bg-[color:var(--accent)] text-white"
+                      : "bg-[color:var(--surface-muted)] text-[color:var(--ink-soft)] hover:bg-[color:var(--surface-muted)]/80"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-4 text-sm text-[color:var(--ink-soft)]">
+            <span className="inline-flex items-center gap-2">
+              <span className="h-0.5 w-6 rounded-full bg-[#334155]" />
+              Belegung
+            </span>
+            <span>
+              {trackingData.length} Datenpunkte
+              {trackingError ? ` • ${trackingError}` : ""}
+            </span>
+          </div>
+          <div className="mt-6 h-[26rem]">
+            {trackingData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={trackingData} margin={{ top: 12, right: 20, left: -4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#d8e3e1" vertical={false} />
+                  <XAxis dataKey="label" minTickGap={30} tickLine={false} stroke="#6e8381" />
+                  <YAxis
+                    allowDecimals={false}
+                    tickLine={false}
+                    stroke="#6e8381"
+                    width={42}
+                    domain={[
+                      (dataMin) => Math.max(0, Math.floor(dataMin - 5)),
+                      (dataMax) => Math.ceil(dataMax + 5),
+                    ]}
+                  />
+                  <Tooltip
+                    formatter={(value) => [`${value} Personen`, "Belegung"]}
+                  />
+                  <Line type="monotone" dataKey="occupancy" stroke="#334155" strokeWidth={2.5} dot={false} name="Belegung" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-[1.25rem] border border-dashed border-[color:var(--stroke-strong)] bg-[color:var(--surface-muted)] px-6 text-center text-sm text-[color:var(--ink-soft)]">
+                {trackingError || "Noch keine Tracking-Daten verfügbar."}
+              </div>
+            )}
+          </div>
+        </article>
+      </section>
+
+      <section className="grid gap-6">
         <article className="rounded-[1.5rem] border border-[color:var(--stroke-soft)] bg-[color:var(--surface-raised)] p-6 shadow-[0_22px_48px_rgba(15,23,42,0.08)]">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
             Explainable AI
