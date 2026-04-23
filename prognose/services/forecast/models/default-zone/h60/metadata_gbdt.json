@@ -1,11 +1,11 @@
 {
-  "model_version": "lgbm-quantile-v1-20260328163142",
+  "model_version": "lgbm-quantile-v1-20260423032629",
   "backend": "lgbm",
   "product": "short_term",
   "zone_id": "default-zone",
   "horizon": 60,
   "horizon_steps": 4,
-  "trained_at": "2026-03-28T16:31:42.874995+00:00",
+  "trained_at": "2026-04-23T03:26:29.026089+00:00",
   "feature_set_version": "excel_v1",
   "feature_columns": [
     "f_month",
@@ -52,7 +52,7 @@
   "target_name": "y_tplus_4",
   "promoted": true,
   "scientific_status": "walk_forward_validated",
-  "training_data": "training_data.parquet",
+  "training_data": "/sitcheck/prognose/training_data.parquet",
   "quantile_levels": {
     "lower": 0.03,
     "median": 0.5,
