@@ -64,15 +64,14 @@ function firstFiniteNumber(...values) {
 
 function buildForecastChartData(forecastPoints) {
   const points = Array.isArray(forecastPoints) ? forecastPoints : [];
-  const startMs =
-    FORECAST_START_OFFSET_MINUTES > 0
-      ? Math.floor(Date.now() / 60000) * 60000 + FORECAST_START_OFFSET_MINUTES * 60 * 1000
-      : null;
+  // Reject points more than 5 minutes in the past to avoid stale snapshot data
+  // appearing as if it were forecast.
+  const cutoffMs = Date.now() - 5 * 60 * 1000;
 
   return points
     .map((point) => {
       const timestampMs = new Date(point?.timestamp).getTime();
-      if (!Number.isFinite(timestampMs) || (startMs !== null && timestampMs < startMs)) {
+      if (!Number.isFinite(timestampMs) || timestampMs < cutoffMs) {
         return null;
       }
 
@@ -98,6 +97,10 @@ function buildForecastChartDataWithStart(forecastPoints, currentPersons) {
   if (current === null || fcData.length === 0) return fcData;
 
   const nowMs = Math.floor(Date.now() / 60000) * 60000;
+
+  // Always prepend a "now" anchor so the forecast band visually starts at the
+  // current moment.  If the first forecast point is already at or before now
+  // (e.g. snapshot was computed a few minutes ago) skip the duplicate anchor.
   if (fcData[0].timestamp <= nowMs) return fcData;
 
   return [

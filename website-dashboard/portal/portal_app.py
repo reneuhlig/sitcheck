@@ -162,6 +162,10 @@ def _fetch_multi_horizon_forecast(
 
     base_points.sort(key=lambda p: p["timestamp"])
 
+    # Keep only future points; allow 5-min tolerance for snapshot freshness.
+    cutoff = (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
+    base_points = [p for p in base_points if p["timestamp"] >= cutoff]
+
     # Aggregate base 15-min points to the requested step granularity
     if step_minutes <= 15:
         points = base_points
