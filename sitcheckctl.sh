@@ -108,6 +108,12 @@ reclaim_port() {
             return 0
         fi
 
+        if [ -z "${pids}" ] && port_in_use "${port}"; then
+            if command -v fuser >/dev/null 2>&1; then
+                fuser -k "${port}/tcp" >/dev/null 2>&1 || true
+            fi
+        fi
+
         while read -r pid; do
             [ -z "${pid}" ] && continue
             if ! pid_alive "${pid}"; then
@@ -242,6 +248,7 @@ start_local_service() {
 
 stop_local_service() {
     local name="$1"
+    local port="${2:-}"
     local pid_file
     pid_file="$(service_pid_file "$name")"
     if [ ! -f "${pid_file}" ]; then
@@ -272,6 +279,10 @@ stop_local_service() {
         log "[INFO] ${name}: PID ${pid} war nicht aktiv."
     fi
     rm -f "${pid_file}"
+    if [ -n "${port}" ] && port_in_use "${port}"; then
+        log "[WARN] ${name}: Port ${port} nach PID-Stop noch belegt; erzwinge Freigabe."
+        reclaim_port "${port}" "${name}"
+    fi
 }
 
 start_prognose_local_stack() {
@@ -339,17 +350,17 @@ start_prognose_local_stack() {
 }
 
 stop_prognose_local_stack() {
-    stop_local_service "forecast-trainer"
-    stop_local_service "dashboard"
-    stop_local_service "forecast-scheduler"
-    stop_local_service "mcp-sitcheck"
-    stop_local_service "calendar-ingest"
-    stop_local_service "lecture-ingest"
-    stop_local_service "api-gateway-legacy"
-    stop_local_service "api-gateway"
-    stop_local_service "recommendations"
-    stop_local_service "xai"
-    stop_local_service "forecast"
+    stop_local_service "forecast-trainer" 8013
+    stop_local_service "dashboard" 8501
+    stop_local_service "forecast-scheduler" 8011
+    stop_local_service "mcp-sitcheck" 8081
+    stop_local_service "calendar-ingest" 8010
+    stop_local_service "lecture-ingest" 8012
+    stop_local_service "api-gateway-legacy" 5000
+    stop_local_service "api-gateway" 8000
+    stop_local_service "recommendations" 8003
+    stop_local_service "xai" 8002
+    stop_local_service "forecast" 8001
 }
 
 start_prognose_stack() {
@@ -523,6 +534,23 @@ if last:
 '
 }
 
+wait_managed_ports_free() {
+    local deadline=$((SECONDS + 15))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        local all_free=1
+        for p in 8000 5000 8001 8002 8003 8010 8011 8012 8081 8501 8080 8090; do
+            if port_in_use "$p"; then
+                all_free=0
+                break
+            fi
+        done
+        [ "$all_free" -eq 1 ] && return 0
+        sleep 0.3
+    done
+    log "[WARN] Einige Ports noch belegt nach 15s Wartezeit; fahre trotzdem fort."
+    return 0
+}
+
 show_status() {
     echo "sitcheckctl status ($(date '+%Y-%m-%d %H:%M:%S'))"
     echo "Mode: ${ORCH_MODE} (no-docker gewünscht)"
@@ -621,7 +649,7 @@ case "${1:-}" in
         stop_all
         log "[INFO] Port-Reclaim nach Stop: stelle sicher, dass alle Ports frei sind."
         reclaim_managed_ports
-        sleep 1
+        wait_managed_ports_free
         start_all restart
         ;;
     status)
