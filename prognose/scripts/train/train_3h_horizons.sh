@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Train LGBM quantile models for all 12 fifteen-minute horizons (h15..h180).
-# Run from anywhere — the script locates itself and the prognose project root.
+# Runs locally — no Docker required. Activate your virtualenv first.
 #
 # Usage:
 #   ./scripts/train/train_3h_horizons.sh
@@ -9,21 +9,29 @@
 #   ./scripts/train/train_3h_horizons.sh --horizons 30,45,75
 #   ZONE_ID=my-zone ./scripts/train/train_3h_horizons.sh
 #
-# All extra arguments are forwarded verbatim to train_multihorizon.py.
-# Models are written to the forecast_models Docker volume at /models/<zone>/<horizon>/.
-#
-# After training, restart the forecast container to pick up the new models:
-#   docker compose restart forecast
+# Extra arguments are forwarded verbatim to train_multihorizon.py.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROGNOSE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+FORECAST_DIR="${PROGNOSE_DIR}/services/forecast"
 
 ZONE_ID="${ZONE_ID:-default-zone}"
 TRAINING_DATA="${PROGNOSE_DIR}/training_data.parquet"
-CONTAINER_DATA_PATH="/app/training_data.parquet"
-TRAIN_SCRIPT="/app/train_multihorizon.py"
+MODEL_DIR="${FORECAST_DIR}/models"
+TRAIN_SCRIPT="${FORECAST_DIR}/train_multihorizon.py"
+
+# ── Pick Python interpreter ───────────────────────────────────────────────────
+
+if command -v python3 &>/dev/null; then
+    PYTHON=python3
+elif command -v python &>/dev/null; then
+    PYTHON=python
+else
+    echo "[ERROR] No Python interpreter found. Activate your virtualenv." >&2
+    exit 1
+fi
 
 # ── Preflight checks ──────────────────────────────────────────────────────────
 
@@ -35,36 +43,27 @@ if [ ! -f "${TRAINING_DATA}" ]; then
     exit 1
 fi
 
-cd "${PROGNOSE_DIR}"
-
-echo "[INFO] Resolving forecast container..."
-CONTAINER_ID="$(docker compose ps -q forecast 2>/dev/null || true)"
-if [ -z "${CONTAINER_ID}" ]; then
-    echo "[ERROR] The 'forecast' service is not running." >&2
-    echo "        Start it with: docker compose up -d forecast" >&2
+if [ ! -f "${TRAIN_SCRIPT}" ]; then
+    echo "[ERROR] train_multihorizon.py not found at: ${TRAIN_SCRIPT}" >&2
     exit 1
 fi
-echo "[INFO] Container ID: ${CONTAINER_ID}"
 
-# ── Copy training data into container ─────────────────────────────────────────
-
-echo "[INFO] Copying training_data.parquet into container..."
-docker cp "${TRAINING_DATA}" "${CONTAINER_ID}:${CONTAINER_DATA_PATH}"
-echo "[INFO] Copy complete."
+mkdir -p "${MODEL_DIR}"
 
 # ── Run training ──────────────────────────────────────────────────────────────
 
-echo ""
-echo "[INFO] Starting multi-horizon training for zone '${ZONE_ID}'..."
-[ $# -gt 0 ] && echo "[INFO] Extra args: $*"
+echo "[INFO] Python:        ${PYTHON} ($(${PYTHON} --version 2>&1))"
+echo "[INFO] Training data: ${TRAINING_DATA}"
+echo "[INFO] Model dir:     ${MODEL_DIR}"
+echo "[INFO] Zone:          ${ZONE_ID}"
+[ $# -gt 0 ] && echo "[INFO] Extra args:    $*"
 echo ""
 
-docker compose exec -T forecast python "${TRAIN_SCRIPT}" \
-    --data "${CONTAINER_DATA_PATH}" \
-    --model-dir /models \
+"${PYTHON}" "${TRAIN_SCRIPT}" \
+    --data "${TRAINING_DATA}" \
+    --model-dir "${MODEL_DIR}" \
     --zone-id "${ZONE_ID}" \
     "$@"
 
 echo ""
-echo "[INFO] Training complete."
-echo "[INFO] To activate new models: docker compose restart forecast"
+echo "[INFO] Training complete. Models saved to: ${MODEL_DIR}"
