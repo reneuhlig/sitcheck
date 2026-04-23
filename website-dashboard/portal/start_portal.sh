@@ -76,7 +76,11 @@ ensure_static_site() {
     if [ -f "${STATIC_OUT_DIR}/index.html" ]; then
         return
     fi
-    log_message "[INFO] Statische Original-Website fehlt, starte Build."
+    rebuild_static_site
+}
+
+rebuild_static_site() {
+    log_message "[INFO] Baue statische Website neu."
     if [ ! -x "${BUILD_SCRIPT}" ]; then
         log_message "[ERROR] Build-Skript fehlt oder ist nicht ausführbar: ${BUILD_SCRIPT}"
         exit 1
@@ -203,7 +207,7 @@ case "${1:-}" in
         resolve_python_runtime
         check_dependencies
         ensure_runtime_dirs
-        ensure_static_site
+        rebuild_static_site
         start_portal
         ;;
     status)

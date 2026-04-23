@@ -398,8 +398,9 @@ stop_realtime_stack() {
 }
 
 start_portal_stack() {
-    "${PORTAL_CTL}" start >>"${SITCHECKCTL_LOG}" 2>&1
-    wait_for_http "${PORTAL_HEALTH_URL}" "portal hauptseite" 120 0
+    local portal_cmd="${1:-start}"
+    "${PORTAL_CTL}" "${portal_cmd}" >>"${SITCHECKCTL_LOG}" 2>&1
+    wait_for_http "${PORTAL_HEALTH_URL}" "portal hauptseite" 180 0
 }
 
 stop_portal_stack() {
@@ -407,6 +408,7 @@ stop_portal_stack() {
 }
 
 start_all() {
+    local portal_mode="${1:-start}"
     require_cmd curl
     require_cmd python3
     require_cmd ss
@@ -416,7 +418,7 @@ start_all() {
     reclaim_managed_ports
     start_prognose_stack
     start_realtime_stack
-    start_portal_stack
+    start_portal_stack "${portal_mode}"
 
     log "[OK] Sitcheck gestartet. Main=:8090 | Realtime=:8080 | Analytics=:8501 | API=:8000"
     log "[INFO] Direkte Ports (:8080/:8501/:8000) sind Advanced/Debug. Standardzugang bleibt :8090."
@@ -620,7 +622,7 @@ case "${1:-}" in
         log "[INFO] Port-Reclaim nach Stop: stelle sicher, dass alle Ports frei sind."
         reclaim_managed_ports
         sleep 1
-        start_all
+        start_all restart
         ;;
     status)
         show_status
