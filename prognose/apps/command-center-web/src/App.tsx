@@ -143,20 +143,45 @@ function ForecastChart({
 }) {
   const [aggInterval, setAggInterval] = useState<AggInterval>(15);
 
-  const forecastPoints = (
-    multiPoints && multiPoints.length > 0
-      ? multiPoints
-      : (payload.forecast_multi?.points ?? []).length > 0
-        ? payload.forecast_multi!.points
-        : payload.forecast_latest?.points ?? []
-  ) as ForecastPoint[];
+  // Memoize so forecastPoints only changes when underlying data changes, not on every render.
+  const forecastPoints = useMemo<ForecastPoint[]>(() => {
+    if (multiPoints && multiPoints.length > 0) return multiPoints;
+    const multi = payload.forecast_multi?.points ?? [];
+    if (multi.length > 0) return multi as ForecastPoint[];
+    return (payload.forecast_latest?.points ?? []) as ForecastPoint[];
+  }, [multiPoints, payload.forecast_multi, payload.forecast_latest]);
 
   const forecast = payload.forecast_latest;
 
+  // History rows are stable: only change when backend sends new live data.
+  const historyRows = useMemo(
+    () =>
+      (payload.history?.points || []).slice(-120).map((point) => ({
+        label: compactDate(point.timestamp),
+        actual: point.occupancy ?? null,
+      })),
+    [payload.history?.points],
+  );
+
+  // Forecast rows change with aggInterval – rebuilds only the forecast part.
+  const forecastRows = useMemo(
+    () =>
+      aggregateForecastPoints(forecastPoints, aggInterval).map((point) => ({
+        label: compactDate(point.timestamp),
+        yhat: point.yhat,
+        pi_low: point.pi_low ?? null,
+        pi_high: point.pi_high ?? null,
+      })),
+    [forecastPoints, aggInterval],
+  );
+
+  // Combined only for XAxis so both time ranges are visible.
   const chartData = useMemo(
-    () => buildChartData(payload.history?.points || [], forecastPoints, aggInterval),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [forecastPoints, payload.history?.points, aggInterval],
+    () => [
+      ...historyRows,
+      ...forecastRows.map((r) => ({ label: r.label })),
+    ],
+    [historyRows, forecastRows],
   );
 
   const handleAgg = useCallback((interval: AggInterval) => setAggInterval(interval), []);
@@ -200,7 +225,7 @@ function ForecastChart({
             {interval} min
           </button>
         ))}
-        <span className="agg-label">{forecastPoints.length} Punkte / {aggregateForecastPoints(forecastPoints, aggInterval).length} angezeigt</span>
+        <span className="agg-label">{forecastPoints.length} Punkte / {forecastRows.length} angezeigt</span>
       </div>
       <div className="chart-frame" data-testid="forecast-chart">
         <ResponsiveContainer width="100%" height={330}>
@@ -215,7 +240,9 @@ function ForecastChart({
                 boxShadow: "0 14px 32px rgba(15, 23, 42, 0.12)",
               }}
             />
+            {/* PI band – uses forecastRows so it only rebuilds on agg change, not on history update */}
             <Area
+              data={forecastRows}
               type="monotone"
               dataKey="pi_high"
               stroke="none"
@@ -224,6 +251,7 @@ function ForecastChart({
               isAnimationActive={false}
             />
             <Area
+              data={forecastRows}
               type="monotone"
               dataKey="pi_low"
               stroke="none"
@@ -231,7 +259,9 @@ function ForecastChart({
               fillOpacity={1}
               isAnimationActive={false}
             />
+            {/* History line – uses historyRows so it stays stable when agg changes */}
             <Line
+              data={historyRows}
               type="monotone"
               dataKey="actual"
               stroke="#334155"
@@ -241,6 +271,7 @@ function ForecastChart({
               isAnimationActive={false}
             />
             <Line
+              data={forecastRows}
               type="monotone"
               dataKey="yhat"
               stroke="#2563eb"

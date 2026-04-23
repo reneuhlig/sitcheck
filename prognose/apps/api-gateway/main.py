@@ -2652,19 +2652,52 @@ async def get_dashboard_command_center(
 
     history_points, live = _latest_live_state(db=db, zone_id=zone_id, history_minutes=history_minutes)
     db.rollback()
-    latest_forecast = await _resolve_latest_forecast(
-        db=db,
-        zone_id=zone_id,
-        horizon=horizon,
-        stale_seconds=stale_seconds,
-    )
-    weekly_forecast = await _resolve_latest_weekly_forecast(
-        db=db,
-        zone_id=zone_id,
-        days=max(7, long_term_days),
-        slot_minutes=WEEKLY_FORECAST_SLOT_MINUTES,
-        stale_seconds=stale_seconds,
-    )
+    try:
+        latest_forecast = await _resolve_latest_forecast(
+            db=db,
+            zone_id=zone_id,
+            horizon=horizon,
+            stale_seconds=stale_seconds,
+        )
+    except Exception:
+        latest_forecast = ForecastLatestResponse(
+            zone_id=zone_id,
+            horizon=horizon,
+            generated_at=generated_at,
+            age_seconds=0,
+            stale=True,
+            summary="Forecast service unavailable",
+            model_version="unknown",
+            points=[],
+            evidence={},
+            lineage=None,
+            source="on_demand_fallback",
+        )
+    try:
+        weekly_forecast = await _resolve_latest_weekly_forecast(
+            db=db,
+            zone_id=zone_id,
+            days=max(7, long_term_days),
+            slot_minutes=WEEKLY_FORECAST_SLOT_MINUTES,
+            stale_seconds=stale_seconds,
+        )
+    except Exception:
+        weekly_forecast = WeeklyForecastResponse(
+            zone_id=zone_id,
+            product=PRODUCT_WEEKLY,
+            days=max(7, long_term_days),
+            slot_minutes=WEEKLY_FORECAST_SLOT_MINUTES,
+            generated_at=generated_at,
+            age_seconds=0,
+            stale=True,
+            summary="Weekly forecast service unavailable",
+            model_version="unknown",
+            points=[],
+            daily_summaries=[],
+            evidence={},
+            lineage={},
+            source="on_demand_fallback",
+        )
     db.rollback()
     try:
         explanation = await _resolve_adjusted_explanation(
