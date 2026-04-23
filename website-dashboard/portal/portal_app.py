@@ -816,12 +816,6 @@ def occupancy_compat() -> Response:
     return jsonify({"error": "Noch keine Auslastungsdaten verfügbar."}), 503
 
 
-@app.route(
-    "/realtime",
-    defaults={"upstream_path": ""},
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-    strict_slashes=False,
-)
 NATIVE_GRANULARITIES = {"1m", "5m", "15m", "60m"}
 AGGREGATE_GRANULARITY_MAP = {
     "30m": ("15m", 2),
@@ -893,6 +887,12 @@ def forecast_multi_horizon() -> Response:
     return jsonify(result)
 
 
+@app.route(
+    "/realtime",
+    defaults={"upstream_path": ""},
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+    strict_slashes=False,
+)
 @app.route(
     "/realtime/<path:upstream_path>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
