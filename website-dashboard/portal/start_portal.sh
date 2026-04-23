@@ -116,12 +116,22 @@ stop_portal() {
     if [ -f "${PORTAL_PID_FILE}" ]; then
         PID="$(cat "${PORTAL_PID_FILE}")"
         if ps -p "${PID}" >/dev/null 2>&1; then
-            kill "${PID}" >/dev/null 2>&1 || true
+            local pgid
+            pgid="$(ps -o pgid= -p "${PID}" 2>/dev/null | tr -d ' ')" || true
+            if [ -n "${pgid}" ] && [ "${pgid}" != "0" ] && [ "${pgid}" != "1" ]; then
+                kill -- "-${pgid}" >/dev/null 2>&1 || true
+            else
+                kill "${PID}" >/dev/null 2>&1 || true
+            fi
             sleep 0.5
             if ps -p "${PID}" >/dev/null 2>&1; then
-                kill -9 "${PID}" >/dev/null 2>&1 || true
+                if [ -n "${pgid}" ] && [ "${pgid}" != "0" ] && [ "${pgid}" != "1" ]; then
+                    kill -9 -- "-${pgid}" >/dev/null 2>&1 || true
+                else
+                    kill -9 "${PID}" >/dev/null 2>&1 || true
+                fi
             fi
-            log_message "[OK] Portal gestoppt (PID: ${PID})"
+            log_message "[OK] Portal gestoppt (PID: ${PID}, PGID: ${pgid:-?})"
         else
             log_message "[INFO] PID ${PID} läuft nicht mehr"
         fi
@@ -129,6 +139,32 @@ stop_portal() {
     else
         log_message "[INFO] Kein Portal-PID gefunden"
     fi
+}
+
+reclaim_portal_port() {
+    local pids
+    pids="$(ss -lptn "( sport = :${PORT} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)" || true
+    if [ -z "${pids}" ]; then
+        return 0
+    fi
+    while read -r pid; do
+        [ -z "${pid}" ] && continue
+        if ! ps -p "${pid}" >/dev/null 2>&1; then
+            continue
+        fi
+        log_message "[WARN] Portal-Port ${PORT} belegt durch Altprozess (PID=${pid}); beende."
+        kill "${pid}" >/dev/null 2>&1 || true
+    done <<< "${pids}"
+    sleep 0.5
+    pids="$(ss -lptn "( sport = :${PORT} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)" || true
+    while read -r pid; do
+        [ -z "${pid}" ] && continue
+        if ! ps -p "${pid}" >/dev/null 2>&1; then
+            continue
+        fi
+        log_message "[WARN] Portal-Port ${PORT} SIGKILL (PID=${pid})."
+        kill -9 "${pid}" >/dev/null 2>&1 || true
+    done <<< "${pids}"
 }
 
 show_status() {
@@ -161,6 +197,7 @@ case "${1:-}" in
         ;;
     restart)
         stop_portal
+        reclaim_portal_port
         sleep 1
         check_python
         resolve_python_runtime

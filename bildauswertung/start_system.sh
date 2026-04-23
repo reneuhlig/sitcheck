@@ -194,12 +194,22 @@ stop_component() {
     fi
 
     if ps -p "$pid" > /dev/null 2>&1; then
-        kill "$pid" > /dev/null 2>&1 || true
+        local pgid
+        pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')" || true
+        if [ -n "$pgid" ] && [ "$pgid" != "0" ] && [ "$pgid" != "1" ]; then
+            kill -- "-$pgid" > /dev/null 2>&1 || true
+        else
+            kill "$pid" > /dev/null 2>&1 || true
+        fi
         sleep 0.5
         if ps -p "$pid" > /dev/null 2>&1; then
-            kill -9 "$pid" > /dev/null 2>&1 || true
+            if [ -n "$pgid" ] && [ "$pgid" != "0" ] && [ "$pgid" != "1" ]; then
+                kill -9 -- "-$pgid" > /dev/null 2>&1 || true
+            else
+                kill -9 "$pid" > /dev/null 2>&1 || true
+            fi
         fi
-        log_message "[OK] ${name} gestoppt (PID: ${pid})"
+        log_message "[OK] ${name} gestoppt (PID: ${pid}, PGID: ${pgid:-?})"
     else
         log_message "[INFO] ${name}-PID laeuft nicht mehr (PID: ${pid})"
     fi
@@ -253,6 +263,40 @@ start_sim_remote() {
     local remote_host
     remote_host="$(service_access_host "$SIM_REMOTE_HOST")"
     wait_for_http "Simulation-Remote" "http://${remote_host}:${SIM_REMOTE_PORT}/health" 80 0.2 || exit 1
+}
+
+reclaim_port() {
+    local port="$1"
+    local label="$2"
+    local pids
+    pids="$(ss -lptn "( sport = :${port} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)" || true
+    if [ -z "${pids}" ]; then
+        return 0
+    fi
+    while read -r pid; do
+        [ -z "${pid}" ] && continue
+        if ! ps -p "${pid}" > /dev/null 2>&1; then
+            continue
+        fi
+        log_message "[WARN] Port ${port} (${label}) belegt durch Altprozess (PID=${pid}); beende."
+        kill "${pid}" > /dev/null 2>&1 || true
+    done <<< "${pids}"
+    sleep 0.5
+    pids="$(ss -lptn "( sport = :${port} )" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)" || true
+    while read -r pid; do
+        [ -z "${pid}" ] && continue
+        if ! ps -p "${pid}" > /dev/null 2>&1; then
+            continue
+        fi
+        log_message "[WARN] Port ${port} (${label}) SIGKILL (PID=${pid})."
+        kill -9 "${pid}" > /dev/null 2>&1 || true
+    done <<< "${pids}"
+}
+
+reclaim_managed_ports() {
+    log_message "[INFO] Bereinige verwaltete Ports vor Neustart."
+    reclaim_port "${DASHBOARD_PORT}" "dashboard"
+    reclaim_port "${SIM_REMOTE_PORT}" "simulation-remote"
 }
 
 stop_tracking() {
@@ -382,6 +426,7 @@ case "$1" in
         ;;
     restart)
         stop_all
+        reclaim_managed_ports
         sleep 1
         check_python
         resolve_python_runtime

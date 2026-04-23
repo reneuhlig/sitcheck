@@ -246,12 +246,22 @@ stop_local_service() {
     local pid
     pid="$(cat "${pid_file}" 2>/dev/null || true)"
     if pid_alive "${pid}"; then
-        kill "${pid}" >/dev/null 2>&1 || true
+        local pgid
+        pgid="$(ps -o pgid= -p "${pid}" 2>/dev/null | tr -d ' ')" || true
+        if [ -n "${pgid}" ] && [ "${pgid}" != "0" ] && [ "${pgid}" != "1" ]; then
+            kill -- "-${pgid}" >/dev/null 2>&1 || true
+        else
+            kill "${pid}" >/dev/null 2>&1 || true
+        fi
         sleep 0.5
         if pid_alive "${pid}"; then
-            kill -9 "${pid}" >/dev/null 2>&1 || true
+            if [ -n "${pgid}" ] && [ "${pgid}" != "0" ] && [ "${pgid}" != "1" ]; then
+                kill -9 -- "-${pgid}" >/dev/null 2>&1 || true
+            else
+                kill -9 "${pid}" >/dev/null 2>&1 || true
+            fi
         fi
-        log "[OK] ${name} gestoppt (PID: ${pid})"
+        log "[OK] ${name} gestoppt (PID: ${pid}, PGID: ${pgid:-?})"
     else
         log "[INFO] ${name}: PID ${pid} war nicht aktiv."
     fi
@@ -601,6 +611,8 @@ case "${1:-}" in
         ;;
     restart)
         stop_all
+        log "[INFO] Port-Reclaim nach Stop: stelle sicher, dass alle Ports frei sind."
+        reclaim_managed_ports
         sleep 1
         start_all
         ;;
