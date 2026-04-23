@@ -599,7 +599,7 @@ function AudienceChat({ filters }: { filters: DashboardFilters }) {
 
 export function App() {
   const [zoneId, setZoneId] = useState(DEFAULT_ZONE_ID);
-  const [horizon, setHorizon] = useState(DEFAULT_HORIZON);
+  const [horizon, setHorizon] = useState(HORIZON_OPTIONS[0]);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const filters: DashboardFilters = {
