@@ -2467,49 +2467,41 @@ def _forecast_multistep(
     step_minutes: int = 15,
     horizon_max: int = 180,
 ) -> tuple[list[ForecastPoint], dict[str, Any]]:
-    """Generate a multi-step forecast by running LGBM at trained anchor horizons
-    and linearly interpolating for intermediate steps.
+    """Generate a multi-step forecast using dedicated LGBM models for each horizon.
 
-    Anchor horizons are the trained model horizons available for zone_id
-    (typically h15, h60, h210).  For each target horizon in
-    [step_minutes, 2*step_minutes, ..., horizon_max] the function finds the
-    two bounding anchors and linearly interpolates yhat / pi_low / pi_high.
-
-    Returns:
-        Tuple of (list of ForecastPoints at step_minutes intervals, info dict).
+    Tries a direct LGBM prediction for every target horizon.  For any horizon
+    that lacks a trained model, falls back to linear interpolation between the
+    nearest available neighbours.  If no models exist at all, falls back to the
+    persistence baseline.
     """
-    candidate_horizons = [15, 60, 210]
-    available: list[int] = [
-        h for h in candidate_horizons
-        if gbdt_model_status(TF_MODEL_DIR, zone_id, h).get("exists")
-    ]
+    target_horizons = list(range(step_minutes, horizon_max + step_minutes, step_minutes))
 
-    anchor_points: dict[int, ForecastPoint] = {}
+    # Attempt a direct prediction at every target horizon.
+    direct_points: dict[int, ForecastPoint] = {}
     model_version: str | None = None
-    for ah in available:
+    for h in target_horizons:
+        if not gbdt_model_status(TF_MODEL_DIR, zone_id, h).get("exists"):
+            continue
         try:
             pts, info = _forecast_lgbm(
                 zone_id=zone_id,
-                horizon=ah,
+                horizon=h,
                 history_df=history_df,
                 context=context,
                 now=now,
                 capacity=capacity,
             )
             if pts:
-                anchor_points[ah] = pts[0]
+                direct_points[h] = pts[0]
                 model_version = model_version or info.get("model_version")
         except Exception:
             pass
 
-    sorted_anchors = sorted(anchor_points.keys())
-    target_horizons = list(range(step_minutes, horizon_max + step_minutes, step_minutes))
-
-    result_points: list[ForecastPoint] = []
-
-    if not anchor_points:
+    # Full fallback: no LGBM models available at all.
+    if not direct_points:
         series = _history_to_series(history_df)
         baseline_pts, _ = _forecast_baseline(series, horizon_max, capacity=capacity)
+        result_points: list[ForecastPoint] = []
         for h in target_horizons:
             target_ts = now + timedelta(minutes=h)
             closest = min(baseline_pts, key=lambda p: abs((p.timestamp - target_ts).total_seconds()))
@@ -2521,39 +2513,44 @@ def _forecast_multistep(
             ))
         return result_points, {"model_version": "baseline-multistep", "anchor_horizons": []}
 
+    # Fill gaps: interpolate only for horizons without a direct model.
+    sorted_anchors = sorted(direct_points.keys())
+    result_points = []
+
     for h in target_horizons:
+        if h in direct_points:
+            ap = direct_points[h]
+            result_points.append(ForecastPoint(
+                timestamp=now + timedelta(minutes=h),
+                yhat=ap.yhat, pi_low=ap.pi_low, pi_high=ap.pi_high,
+            ))
+            continue
+
         lefts = [ah for ah in sorted_anchors if ah <= h]
         rights = [ah for ah in sorted_anchors if ah >= h]
 
-        if lefts and rights and lefts[-1] == rights[0]:
-            ap = anchor_points[lefts[-1]]
-            pt = ForecastPoint(
-                timestamp=now + timedelta(minutes=h),
-                yhat=ap.yhat, pi_low=ap.pi_low, pi_high=ap.pi_high,
-            )
-        elif lefts and rights:
+        if lefts and rights:
             lh, rh = lefts[-1], rights[0]
-            lp, rp = anchor_points[lh], anchor_points[rh]
+            lp, rp = direct_points[lh], direct_points[rh]
             t = (h - lh) / (rh - lh)
-            pt = ForecastPoint(
+            result_points.append(ForecastPoint(
                 timestamp=now + timedelta(minutes=h),
                 yhat=round(lp.yhat * (1 - t) + rp.yhat * t, 2),
                 pi_low=round(lp.pi_low * (1 - t) + rp.pi_low * t, 2),
                 pi_high=round(lp.pi_high * (1 - t) + rp.pi_high * t, 2),
-            )
+            ))
         elif lefts:
-            ap = anchor_points[lefts[-1]]
-            pt = ForecastPoint(
+            ap = direct_points[lefts[-1]]
+            result_points.append(ForecastPoint(
                 timestamp=now + timedelta(minutes=h),
                 yhat=ap.yhat, pi_low=ap.pi_low, pi_high=ap.pi_high,
-            )
+            ))
         else:
-            ap = anchor_points[rights[0]]
-            pt = ForecastPoint(
+            ap = direct_points[rights[0]]
+            result_points.append(ForecastPoint(
                 timestamp=now + timedelta(minutes=h),
                 yhat=ap.yhat, pi_low=ap.pi_low, pi_high=ap.pi_high,
-            )
-        result_points.append(pt)
+            ))
 
     return result_points, {
         "model_version": model_version or "lgbm-multistep",
