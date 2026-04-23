@@ -589,17 +589,25 @@ export function App() {
     queryFn: () => fetchCommandCenter(filters),
     refetchInterval: autoRefresh ? 30_000 : false,
   });
+  // Narrative (Qwen) is expensive – backend caches per 15-min slot.
+  // Frontend refetches at the same cadence; staleTime matches to avoid
+  // redundant refetches caused by window focus or filter identity changes.
+  const NARRATIVE_INTERVAL = 13 * 60_000; // 13 min < 13.5 min backend TTL
   const narrativeQuery = useQuery({
     queryKey: ["executive-narrative", filters],
     queryFn: () => fetchExecutiveNarrative(filters),
     enabled: Boolean(commandQuery.data),
     retry: false,
-    refetchInterval: autoRefresh ? 60_000 : false,
+    staleTime: NARRATIVE_INTERVAL,
+    refetchInterval: autoRefresh ? NARRATIVE_INTERVAL : false,
   });
+  // Multi-step forecast uses the same 15-min slot cache on the backend.
+  const FORECAST_MULTI_INTERVAL = 13 * 60_000;
   const forecastMultiQuery = useQuery({
     queryKey: ["forecast-multi", zoneId],
     queryFn: () => fetchForecastMultiStep(zoneId),
-    refetchInterval: autoRefresh ? 30_000 : false,
+    staleTime: FORECAST_MULTI_INTERVAL,
+    refetchInterval: autoRefresh ? FORECAST_MULTI_INTERVAL : false,
   });
 
   const payload = commandQuery.data;

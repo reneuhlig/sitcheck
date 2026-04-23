@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import secrets
+import threading
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -79,6 +80,52 @@ PRODUCT_WEEKLY = "weekly_slot"
 SESSION_COOKIE_NAME = "sitcheck_session"
 SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 UserRole = Literal["user", "admin"]
+
+
+# ---------------------------------------------------------------------------
+# In-memory TTL cache (thread-safe, no external dependency)
+# ---------------------------------------------------------------------------
+
+class _TTLCache:
+    """Simple in-memory key-value cache with per-entry TTL."""
+
+    def __init__(self, ttl: float) -> None:
+        self._cache: dict[Any, tuple[Any, float]] = {}
+        self._ttl = ttl
+        self._lock = threading.Lock()
+
+    def get(self, key: Any) -> Any | None:
+        with self._lock:
+            entry = self._cache.get(key)
+            if entry is None:
+                return None
+            value, exp = entry
+            if time.monotonic() < exp:
+                return value
+            del self._cache[key]
+            return None
+
+    def set(self, key: Any, value: Any) -> None:
+        with self._lock:
+            self._cache[key] = (value, time.monotonic() + self._ttl)
+            # Opportunistic eviction of expired entries to bound memory
+            if len(self._cache) > 256:
+                now = time.monotonic()
+                expired = [k for k, (_, exp) in self._cache.items() if now >= exp]
+                for k in expired:
+                    del self._cache[k]
+
+
+def _slot_key(slot_minutes: int = 15) -> int:
+    """Returns current Unix time floored to the nearest slot boundary."""
+    slot_sec = slot_minutes * 60
+    return (int(time.time()) // slot_sec) * slot_sec
+
+
+# TTL slightly under 15 min so cache expires before the next slot boundary
+_forecast_multi_cache: _TTLCache = _TTLCache(ttl=13.5 * 60)
+_explanation_cache: _TTLCache = _TTLCache(ttl=5 * 60)
+_narrative_exec_cache: _TTLCache = _TTLCache(ttl=13.5 * 60)
 
 if DATABASE_URL.startswith("sqlite:"):
     # For local no-docker runtime, avoid QueuePool starvation under bursty dashboard polling.
@@ -1208,6 +1255,11 @@ async def _fetch_forecast(zone_id: str, horizon: int) -> dict[str, Any]:
 
 
 async def _fetch_forecast_multi(zone_id: str, step_minutes: int = 15, horizon_max: int = 180) -> dict[str, Any]:
+    cache_key = (zone_id, step_minutes, horizon_max, _slot_key(slot_minutes=15))
+    cached = _forecast_multi_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     async with httpx.AsyncClient(timeout=FORECAST_SERVICE_TIMEOUT_SECONDS) as client:
         try:
             response = await client.get(
@@ -1219,7 +1271,10 @@ async def _fetch_forecast_multi(zone_id: str, step_minutes: int = 15, horizon_ma
 
     if response.status_code >= 400:
         return {"zone_id": zone_id, "points": [], "error": response.text}
-    return response.json()
+    result = response.json()
+    if result.get("points"):
+        _forecast_multi_cache.set(cache_key, result)
+    return result
 
 
 async def _fetch_weekly_forecast(zone_id: str, days: int, slot_minutes: int) -> dict[str, Any]:
@@ -1238,6 +1293,11 @@ async def _fetch_weekly_forecast(zone_id: str, days: int, slot_minutes: int) -> 
 
 
 async def _fetch_explanation(zone_id: str, horizon: int) -> dict[str, Any]:
+    cache_key = (zone_id, horizon, _slot_key(slot_minutes=5))
+    cached = _explanation_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             response = await client.get(
@@ -1249,7 +1309,9 @@ async def _fetch_explanation(zone_id: str, horizon: int) -> dict[str, Any]:
 
     if response.status_code >= 400:
         raise HTTPException(status_code=502, detail=f"xai service error: {response.text}")
-    return response.json()
+    result = response.json()
+    _explanation_cache.set(cache_key, result)
+    return result
 
 
 async def _fetch_recommendations(payload: dict[str, Any]) -> dict[str, Any]:
@@ -2604,21 +2666,27 @@ async def get_dashboard_command_center(
         stale_seconds=stale_seconds,
     )
     db.rollback()
-    explanation = await _resolve_adjusted_explanation(
-        db=db,
-        zone_id=zone_id,
-        horizon=horizon,
-        forecast=latest_forecast,
-    )
-    recommendations = await _fetch_recommendations(
-        {
-            "zone_id": zone_id,
-            "horizon": horizon,
-            "capacity": zone.capacity,
-            "forecast": latest_forecast.model_dump(mode="json"),
-            "explanation": explanation,
-        }
-    )
+    try:
+        explanation = await _resolve_adjusted_explanation(
+            db=db,
+            zone_id=zone_id,
+            horizon=horizon,
+            forecast=latest_forecast,
+        )
+    except Exception:
+        explanation = {"drivers": [], "uncertainty": {"level": "unknown"}, "error": "xai_unavailable"}
+    try:
+        recommendations = await _fetch_recommendations(
+            {
+                "zone_id": zone_id,
+                "horizon": horizon,
+                "capacity": zone.capacity,
+                "forecast": latest_forecast.model_dump(mode="json"),
+                "explanation": explanation,
+            }
+        )
+    except Exception:
+        recommendations = {"actions": [], "scenarios": [], "error": "recommendations_unavailable"}
     weekly_lineage = _latest_model_lineage(db=db, zone_id=zone_id, product=PRODUCT_WEEKLY)
     short_term_lineage = _latest_model_lineage(db=db, zone_id=zone_id, product=PRODUCT_SHORT_TERM, horizon=horizon)
     lecture_impact = _read_lecture_impact_latest(db=db, zone_id=zone_id)
@@ -2878,6 +2946,47 @@ async def explain_prompt_preview(
         "prompt": bundle.prompt,
         "context": context,
     }
+
+
+@app.get("/api/v1/explain/narrative")
+async def get_explain_narrative(
+    zone_id: str,
+    horizon: int = Query(default=DEFAULT_SHORT_FORECAST_HORIZON_MINUTES, ge=1, le=720),
+    audience: Literal["ops", "executive", "enduser", "professor"] = "executive",
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """GET variant of the narrative endpoint used by the Command Center dashboard.
+    Results are cached per (zone_id, horizon, audience) for ~13.5 minutes to
+    avoid hitting Qwen/template generation on every poll cycle."""
+    cache_key = (zone_id, horizon, audience, _slot_key(slot_minutes=15))
+    cached = _narrative_exec_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    audience_resolved = _normalize_explain_audience(audience)
+    context = await _build_explainability_context(
+        db=db,
+        zone_id=zone_id,
+        horizon=horizon,
+        audience=audience_resolved,
+        language="de",
+        query="",
+    )
+    try:
+        result = await NARRATIVE_SERVICE.generate(
+            context=context,
+            audience=audience_resolved,
+            language="de",
+            query="",
+            response_mode=EXPLAINABILITY_RESPONSE_MODE,
+        )
+    except (LLMQualityGateError, LLMNarrativeUnavailableError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "narrative_unavailable", "message": str(exc)},
+        ) from exc
+    _narrative_exec_cache.set(cache_key, result)
+    return result
 
 
 @app.post("/api/v1/explain/narrative")
