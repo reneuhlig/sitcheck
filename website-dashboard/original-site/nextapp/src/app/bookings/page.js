@@ -4,23 +4,158 @@ import { useState } from "react";
 import Link from "next/link";
 import { useAppData } from "@/context/AppDataContext";
 
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0"));
+const LIBRARY_HOURS_LABEL = "Mo-Fr 10:00-22:00, Sa-So 10:00-18:00";
+const BOOKING_ERROR_MESSAGES = {
+  booking_must_start_in_future: "Der Startzeitpunkt muss in der Zukunft liegen.",
+  booking_end_before_start: "Das Ende muss nach dem Start liegen.",
+  booking_must_stay_within_single_open_day:
+    "Buchungen müssen innerhalb eines Öffnungstags liegen und können nicht über Mitternacht gehen.",
+  booking_outside_opening_hours: `Buchungen sind nur während der Öffnungszeiten möglich: ${LIBRARY_HOURS_LABEL}.`,
+};
+
 function toLocalDateTimeValue(date) {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return localDate.toISOString().slice(0, 16);
 }
 
-function defaultStartValue() {
-  const date = new Date();
-  date.setMinutes(date.getMinutes() + 30);
-  date.setSeconds(0, 0);
-  return toLocalDateTimeValue(date);
+function toLocalDateValue(date) {
+  return toLocalDateTimeValue(date).slice(0, 10);
 }
 
-function defaultEndValue() {
-  const date = new Date();
-  date.setMinutes(date.getMinutes() + 90);
-  date.setSeconds(0, 0);
-  return toLocalDateTimeValue(date);
+function toLocalTimeValue(date) {
+  return toLocalDateTimeValue(date).slice(11, 16);
+}
+
+function getOpeningHoursForDate(date) {
+  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+  return {
+    openHour: 10,
+    closeHour: isWeekend ? 18 : 22,
+  };
+}
+
+function setLocalClock(date, hour, minute = 0) {
+  const next = new Date(date);
+  next.setHours(hour, minute, 0, 0);
+  return next;
+}
+
+function alignToOpeningHours(date) {
+  const candidate = new Date(date);
+  candidate.setSeconds(0, 0);
+
+  while (true) {
+    const { openHour, closeHour } = getOpeningHoursForDate(candidate);
+    const opensAt = setLocalClock(candidate, openHour, 0);
+    const closesAt = setLocalClock(candidate, closeHour, 0);
+
+    if (candidate < opensAt) {
+      return opensAt;
+    }
+    if (candidate >= closesAt) {
+      candidate.setDate(candidate.getDate() + 1);
+      candidate.setHours(0, 0, 0, 0);
+      continue;
+    }
+    return candidate;
+  }
+}
+
+function nextBookableStart(leadMinutes = 1) {
+  const candidate = new Date();
+  candidate.setSeconds(0, 0);
+  candidate.setMinutes(candidate.getMinutes() + leadMinutes);
+  return alignToOpeningHours(candidate);
+}
+
+function getClosingDate(date) {
+  const { closeHour } = getOpeningHoursForDate(date);
+  return setLocalClock(date, closeHour, 0);
+}
+
+function buildDefaultFormState() {
+  const start = nextBookableStart(30);
+  const tentativeEnd = new Date(start);
+  tentativeEnd.setMinutes(tentativeEnd.getMinutes() + 60);
+  const closingDate = getClosingDate(start);
+  const end = tentativeEnd > closingDate ? closingDate : tentativeEnd;
+
+  return {
+    startDate: toLocalDateValue(start),
+    startTime: toLocalTimeValue(start),
+    endDate: toLocalDateValue(end),
+    endTime: toLocalTimeValue(end),
+  };
+}
+
+function combineLocalDateTime(dateValue, timeValue) {
+  if (!dateValue || !timeValue) {
+    return null;
+  }
+
+  const combined = new Date(`${dateValue}T${timeValue}`);
+  if (Number.isNaN(combined.getTime())) {
+    return null;
+  }
+
+  return combined;
+}
+
+function splitTimeValue(value) {
+  const [hour = "00", minute = "00"] = typeof value === "string" ? value.split(":") : [];
+  return { hour, minute };
+}
+
+function replaceTimePart(value, part, nextPartValue) {
+  const { hour, minute } = splitTimeValue(value);
+  return `${part === "hour" ? nextPartValue : hour}:${part === "minute" ? nextPartValue : minute}`;
+}
+
+function getOpeningWindowForDateValue(dateValue) {
+  if (!dateValue) {
+    return null;
+  }
+
+  const probe = new Date(`${dateValue}T12:00`);
+  if (Number.isNaN(probe.getTime())) {
+    return null;
+  }
+
+  const { openHour, closeHour } = getOpeningHoursForDate(probe);
+  const opensAt = combineLocalDateTime(dateValue, `${String(openHour).padStart(2, "0")}:00`);
+  const closesAt = combineLocalDateTime(dateValue, `${String(closeHour).padStart(2, "0")}:00`);
+  if (!opensAt || !closesAt) {
+    return null;
+  }
+
+  return { opensAt, closesAt };
+}
+
+function getOpeningHoursError({ startsAt, endsAt, startDateValue, endDateValue }) {
+  if (startDateValue !== endDateValue) {
+    return BOOKING_ERROR_MESSAGES.booking_must_stay_within_single_open_day;
+  }
+
+  const window = getOpeningWindowForDateValue(startDateValue);
+  if (!window) {
+    return "Die Öffnungszeiten für dieses Datum konnten nicht geprüft werden.";
+  }
+
+  if (startsAt < window.opensAt || endsAt > window.closesAt) {
+    return BOOKING_ERROR_MESSAGES.booking_outside_opening_hours;
+  }
+
+  return "";
+}
+
+function getBookingErrorMessage(error) {
+  const rawMessage = error instanceof Error ? error.message : "";
+  if (!rawMessage) {
+    return "Buchung konnte nicht erstellt werden.";
+  }
+  return BOOKING_ERROR_MESSAGES[rawMessage] ?? rawMessage;
 }
 
 function formatDateTime(value) {
@@ -47,16 +182,22 @@ export default function BookingsPage() {
     cancelBooking,
   } = useAppData();
 
-  const [formState, setFormState] = useState({
-    startsAt: defaultStartValue(),
-    endsAt: defaultEndValue(),
-  });
+  const [formState, setFormState] = useState(() => buildDefaultFormState());
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [pending, setPending] = useState(false);
   const [cancellingId, setCancellingId] = useState("");
+  const startTimeParts = splitTimeValue(formState.startTime);
+  const endTimeParts = splitTimeValue(formState.endTime);
 
   const now = new Date();
+  const minimumStart = nextBookableStart(1);
+  const minimumStartDate = toLocalDateValue(minimumStart);
+  const minimumStartTime = toLocalTimeValue(minimumStart);
+  const minimumTimeForSelectedStartDate =
+    formState.startDate === minimumStartDate ? minimumStartTime : undefined;
+  const minimumTimeForSelectedEndDate =
+    formState.endDate === formState.startDate ? formState.startTime : undefined;
   const upcomingBookings = bookings
     .filter((booking) => booking.status === "confirmed" && new Date(booking.ends_at) >= now)
     .sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime());
@@ -71,18 +212,36 @@ export default function BookingsPage() {
     setSubmitSuccess("");
 
     try {
+      const startsAt = combineLocalDateTime(formState.startDate, formState.startTime);
+      const endsAt = combineLocalDateTime(formState.endDate, formState.endTime);
+
+      if (!startsAt || !endsAt) {
+        throw new Error("Bitte Datum und Uhrzeit für Start und Ende vollständig angeben.");
+      }
+      if (startsAt < minimumStart) {
+        throw new Error("Der Startzeitpunkt muss in der Zukunft liegen.");
+      }
+      if (endsAt <= startsAt) {
+        throw new Error("Das Ende muss nach dem Start liegen.");
+      }
+      const openingHoursError = getOpeningHoursError({
+        startsAt,
+        endsAt,
+        startDateValue: formState.startDate,
+        endDateValue: formState.endDate,
+      });
+      if (openingHoursError) {
+        throw new Error(openingHoursError);
+      }
+
       await createBooking({
-        starts_at: new Date(formState.startsAt).toISOString(),
-        ends_at: new Date(formState.endsAt).toISOString(),
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
       });
       setSubmitSuccess("Buchung gespeichert. Das Zeitfenster fließt jetzt in die Kurzfristprognose ein.");
-      setFormState({
-        startsAt: defaultStartValue(),
-        endsAt: defaultEndValue(),
-      });
+      setFormState(buildDefaultFormState());
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Buchung konnte nicht erstellt werden.";
-      setSubmitError(message);
+      setSubmitError(getBookingErrorMessage(error));
     } finally {
       setPending(false);
     }
@@ -154,38 +313,149 @@ export default function BookingsPage() {
           Hier siehst du nur deine eigenen Buchungen. Für die Bibliotheks-Prognose werden aber alle
           bestätigten Buchungen aller Nutzer gemeinsam berücksichtigt.
         </p>
+        <p className="mt-3 text-sm leading-7 text-[color:var(--ink-soft)]">
+          Datum und Uhrzeit kannst du für Start und Ende frei festlegen. Die vorgeschlagenen Werte
+          dienen nur als Vorauswahl.
+        </p>
+        <p className="mt-3 text-sm leading-7 text-[color:var(--ink-soft)]">
+          Öffnungszeiten: {LIBRARY_HOURS_LABEL}.
+        </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
-              Start
-            </span>
-            <input
-              type="datetime-local"
-              value={formState.startsAt}
-              min={toLocalDateTimeValue(new Date())}
-              onChange={(event) => setFormState((current) => ({ ...current, startsAt: event.target.value }))}
-              className="mt-2 w-full rounded-[1.25rem] border border-[color:var(--stroke-strong)] bg-white px-4 py-3 text-[color:var(--ink-strong)] outline-none focus:border-[color:var(--accent)]"
-              required
-            />
-          </label>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
+                Startdatum
+              </span>
+              <input
+                type="date"
+                value={formState.startDate}
+                min={minimumStartDate}
+                onChange={(event) => setFormState((current) => ({ ...current, startDate: event.target.value }))}
+                className="mt-2 w-full rounded-[1.25rem] border border-[color:var(--stroke-strong)] bg-white px-4 py-3 text-[color:var(--ink-strong)] outline-none focus:border-[color:var(--accent)]"
+                required
+              />
+            </label>
 
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
-              Ende
-            </span>
-            <input
-              type="datetime-local"
-              value={formState.endsAt}
-              min={formState.startsAt}
-              onChange={(event) => setFormState((current) => ({ ...current, endsAt: event.target.value }))}
-              className="mt-2 w-full rounded-[1.25rem] border border-[color:var(--stroke-strong)] bg-white px-4 py-3 text-[color:var(--ink-strong)] outline-none focus:border-[color:var(--accent)]"
-              required
-            />
-          </label>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
+                Startzeit
+              </span>
+              <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                <select
+                  value={startTimeParts.hour}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      startTime: replaceTimePart(current.startTime, "hour", event.target.value),
+                    }))
+                  }
+                  className="w-full rounded-[1.25rem] border border-[color:var(--stroke-strong)] bg-white px-4 py-3 text-[color:var(--ink-strong)] outline-none focus:border-[color:var(--accent)]"
+                  aria-label="Startstunde"
+                  required
+                >
+                  {HOUR_OPTIONS.map((hour) => (
+                    <option key={`start-hour-${hour}`} value={hour}>
+                      {hour}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-lg font-semibold text-[color:var(--ink-muted)]">:</span>
+                <select
+                  value={startTimeParts.minute}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      startTime: replaceTimePart(current.startTime, "minute", event.target.value),
+                    }))
+                  }
+                  className="w-full rounded-[1.25rem] border border-[color:var(--stroke-strong)] bg-white px-4 py-3 text-[color:var(--ink-strong)] outline-none focus:border-[color:var(--accent)]"
+                  aria-label="Startminute"
+                  required
+                >
+                  {MINUTE_OPTIONS.map((minute) => (
+                    <option key={`start-minute-${minute}`} value={minute}>
+                      {minute}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {minimumTimeForSelectedStartDate && (
+                <p className="mt-2 text-xs text-[color:var(--ink-muted)]">
+                  Heute frühestens ab {minimumTimeForSelectedStartDate} Uhr buchbar.
+                </p>
+              )}
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
+                Enddatum
+              </span>
+              <input
+                type="date"
+                value={formState.endDate}
+                min={formState.startDate}
+                onChange={(event) => setFormState((current) => ({ ...current, endDate: event.target.value }))}
+                className="mt-2 w-full rounded-[1.25rem] border border-[color:var(--stroke-strong)] bg-white px-4 py-3 text-[color:var(--ink-strong)] outline-none focus:border-[color:var(--accent)]"
+                required
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
+                Endzeit
+              </span>
+              <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                <select
+                  value={endTimeParts.hour}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      endTime: replaceTimePart(current.endTime, "hour", event.target.value),
+                    }))
+                  }
+                  className="w-full rounded-[1.25rem] border border-[color:var(--stroke-strong)] bg-white px-4 py-3 text-[color:var(--ink-strong)] outline-none focus:border-[color:var(--accent)]"
+                  aria-label="Endstunde"
+                  required
+                >
+                  {HOUR_OPTIONS.map((hour) => (
+                    <option key={`end-hour-${hour}`} value={hour}>
+                      {hour}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-lg font-semibold text-[color:var(--ink-muted)]">:</span>
+                <select
+                  value={endTimeParts.minute}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      endTime: replaceTimePart(current.endTime, "minute", event.target.value),
+                    }))
+                  }
+                  className="w-full rounded-[1.25rem] border border-[color:var(--stroke-strong)] bg-white px-4 py-3 text-[color:var(--ink-strong)] outline-none focus:border-[color:var(--accent)]"
+                  aria-label="Endminute"
+                  required
+                >
+                  {MINUTE_OPTIONS.map((minute) => (
+                    <option key={`end-minute-${minute}`} value={minute}>
+                      {minute}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {minimumTimeForSelectedEndDate && (
+                <p className="mt-2 text-xs text-[color:var(--ink-muted)]">
+                  Am selben Tag muss die Endzeit nach {minimumTimeForSelectedEndDate} Uhr liegen.
+                </p>
+              )}
+            </label>
+          </div>
 
           <div className="rounded-[1.5rem] bg-[color:var(--surface-muted)] px-4 py-4 text-sm leading-7 text-[color:var(--ink-soft)]">
             <p>Regel im MVP: 1 Buchung = 1 geplanter Bibliotheksplatz.</p>
+            <p>Datum und Uhrzeit sind frei wählbar, solange der Start in der Zukunft liegt.</p>
+            <p>Buchungen sind nur innerhalb eines einzelnen Öffnungstags erlaubt.</p>
             <p>Die Kurzfristprognose übernimmt das Overlay automatisch für bestätigte Zeitfenster.</p>
           </div>
 
