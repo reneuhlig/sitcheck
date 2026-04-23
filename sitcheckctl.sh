@@ -98,49 +98,50 @@ pids_on_port() {
 reclaim_port() {
     local port="$1"
     local label="$2"
-    local pids
-    pids="$(pids_on_port "${port}")"
+    local attempt
 
-    if [ -z "${pids}" ]; then
-        return 0
-    fi
+    for attempt in 1 2 3; do
+        local pids
+        pids="$(pids_on_port "${port}")"
 
-    while read -r pid; do
-        [ -z "${pid}" ] && continue
-        if ! pid_alive "${pid}"; then
-            continue
-        fi
-
-        log "[WARN] Port ${port} (${label}) belegt durch externen Prozess (PID=${pid}); beende fuer deterministischen Neustart."
-        kill "${pid}" >/dev/null 2>&1 || true
-    done <<< "${pids}"
-
-    for _ in $(seq 1 20); do
-        if ! port_in_use "${port}"; then
+        if [ -z "${pids}" ] && ! port_in_use "${port}"; then
             return 0
         fi
-        sleep 0.2
-    done
 
-    pids="$(pids_on_port "${port}")"
-    while read -r pid; do
-        [ -z "${pid}" ] && continue
-        if ! pid_alive "${pid}"; then
-            continue
-        fi
-        log "[WARN] Erzwinge Port-Freigabe ${port} (${label}) via SIGKILL (PID=${pid})."
-        kill -9 "${pid}" >/dev/null 2>&1 || true
-    done <<< "${pids}"
+        while read -r pid; do
+            [ -z "${pid}" ] && continue
+            if ! pid_alive "${pid}"; then
+                continue
+            fi
 
-    for _ in $(seq 1 20); do
-        if ! port_in_use "${port}"; then
-            return 0
-        fi
-        sleep 0.2
+            local pgid
+            pgid="$(ps -o pgid= -p "${pid}" 2>/dev/null | tr -d ' ')" || true
+
+            if [ "${attempt}" -lt 3 ]; then
+                log "[WARN] Port ${port} (${label}) belegt (PID=${pid}, PGID=${pgid:-?}, Versuch ${attempt}); sende SIGTERM."
+                if [ -n "${pgid}" ] && [ "${pgid}" != "0" ] && [ "${pgid}" != "1" ]; then
+                    kill -- "-${pgid}" >/dev/null 2>&1 || true
+                fi
+                kill "${pid}" >/dev/null 2>&1 || true
+            else
+                log "[WARN] Erzwinge Port-Freigabe ${port} (${label}) via SIGKILL (PID=${pid}, PGID=${pgid:-?})."
+                if [ -n "${pgid}" ] && [ "${pgid}" != "0" ] && [ "${pgid}" != "1" ]; then
+                    kill -9 -- "-${pgid}" >/dev/null 2>&1 || true
+                fi
+                kill -9 "${pid}" >/dev/null 2>&1 || true
+            fi
+        done <<< "${pids}"
+
+        for _ in $(seq 1 25); do
+            if ! port_in_use "${port}"; then
+                return 0
+            fi
+            sleep 0.2
+        done
     done
 
     if port_in_use "${port}"; then
-        log "[ERROR] Port ${port} (${label}) konnte nicht freigegeben werden."
+        log "[ERROR] Port ${port} (${label}) konnte nach 3 Versuchen nicht freigegeben werden."
         return 1
     fi
     return 0
@@ -203,8 +204,13 @@ start_local_service() {
     fi
 
     if port_in_use "${port}"; then
-        log "[WARN] Port ${port} bereits belegt; ${name} wird nicht neu gestartet (externer Prozess)."
-        return 0
+        log "[WARN] Port ${port} belegt; versuche Freigabe fuer ${name}."
+        reclaim_port "${port}" "${name}"
+        if port_in_use "${port}"; then
+            log "[ERROR] Port ${port} konnte nicht fuer ${name} freigegeben werden."
+            return 1
+        fi
+        log "[OK] Port ${port} fuer ${name} freigegeben."
     fi
 
     log "[INFO] Starte ${name} auf Port ${port} (local/no-docker)."
